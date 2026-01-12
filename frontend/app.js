@@ -12,9 +12,24 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function resolveApiHost() {
+  const host = window.location.host;
+  if (host.startsWith("cloud.")) {
+    return host.replace("cloud.", "cloud-api.");
+  }
+  if (host.startsWith("cloud-api.")) {
+    return host;
+  }
+  return host;
+}
+
+function buildApiBase() {
+  return `${window.location.protocol}//${resolveApiHost()}`;
+}
+
 function buildWsBase() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}`;
+  return `${protocol}://${resolveApiHost()}`;
 }
 
 function buildWsUrl(id) {
@@ -84,7 +99,7 @@ function App() {
   const loadFiles = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/files");
+      const response = await fetch(`${buildApiBase()}/api/files`);
       if (!response.ok) {
         throw new Error("Failed to load files");
       }
@@ -100,7 +115,7 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const response = await fetch("/api/session");
+        const response = await fetch(`${buildApiBase()}/api/session`);
         if (!response.ok) {
           setUser(null);
           return;
@@ -202,7 +217,7 @@ function App() {
       };
 
       await waitForSocket(socket, 2000).catch(() => {});
-      const response = await fetch(`/api/upload?id=${encodeURIComponent(transferId)}`, {
+      const response = await fetch(`${buildApiBase()}/api/upload?id=${encodeURIComponent(transferId)}`, {
         method: "POST",
         body: formData,
         headers: {
@@ -263,9 +278,9 @@ function App() {
       await waitForSocket(socket, 2000).catch(() => {});
     }
     const link = document.createElement("a");
-    link.href = `/api/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(
-      transferId
-    )}`;
+    link.href = `${buildApiBase()}/api/download?name=${encodeURIComponent(
+      file.name
+    )}&id=${encodeURIComponent(transferId)}`;
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
@@ -280,7 +295,7 @@ function App() {
     event.preventDefault();
     setLoginError("");
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch(`${buildApiBase()}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginForm),
@@ -299,7 +314,7 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/logout", { method: "POST" });
+      await fetch(`${buildApiBase()}/api/logout`, { method: "POST" });
     } finally {
       setUser(null);
     }
@@ -309,9 +324,12 @@ function App() {
     setDeleting((prev) => ({ ...prev, [file.name]: true }));
     setStatus(`Deleting ${file.name}...`);
     try {
-      const response = await fetch(`/api/delete?name=${encodeURIComponent(file.name)}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `${buildApiBase()}/api/delete?name=${encodeURIComponent(file.name)}`,
+        {
+          method: "DELETE",
+        }
+      );
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Delete failed");
