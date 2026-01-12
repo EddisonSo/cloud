@@ -6,8 +6,9 @@ on:
   workflow_dispatch: {}
 
 env:
-  BACKEND_IMAGE: eddisonso/ecloud-sfs-backend
-  FRONTEND_IMAGE: eddisonso/ecloud-sfs-frontend
+  BACKEND_IMAGE: docker.io/eddisonso/ecloud-sfs-backend
+  FRONTEND_IMAGE: docker.io/eddisonso/ecloud-sfs-frontend
+  NS: default
 
 jobs:
   build-and-push:
@@ -38,36 +39,47 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push backend
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: simple-file-share/backend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          provenance: false
-          sbom: false
-          tags: |
-            ${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+      - name: Build & push backend (cached)
+        run: |
+          docker buildx build \
+            --platform linux/arm64,linux/amd64 \
+            -f simple-file-share/backend/Dockerfile \
+            -t ${BACKEND_IMAGE}:${GITHUB_SHA} \
+            -t ${BACKEND_IMAGE}:latest \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --provenance=false \
+            --sbom=false \
+            --push .
 
-      - name: Build and push frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: simple-file-share/frontend
-          file: simple-file-share/frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          provenance: false
-          sbom: false
-          tags: |
-            ${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+      - name: Build & push frontend (cached)
+        run: |
+          docker buildx build \
+            --platform linux/arm64,linux/amd64 \
+            -f simple-file-share/frontend/Dockerfile \
+            -t ${FRONTEND_IMAGE}:${GITHUB_SHA} \
+            -t ${FRONTEND_IMAGE}:latest \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            --provenance=false \
+            --sbom=false \
+            --push simple-file-share/frontend
 
-      - name: Deploy (optional)
-        if: ${{ secrets.GFS_CI_KUBECONFIG_B64 != '' && hashFiles('k8s/**/*.y*ml') != '' }}
+      - name: Configure kubectl
         env:
           GFS_CI_KUBECONFIG_B64: ${{ secrets.GFS_CI_KUBECONFIG_B64 }}
         run: |
-          echo "$GFS_CI_KUBECONFIG_B64" | base64 -d > /tmp/kubeconfig
-          kubectl --kubeconfig /tmp/kubeconfig apply -f k8s/
+          mkdir -p ~/.kube
+          echo "$GFS_CI_KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl -n $NS get deploy simple-file-share-backend
+          kubectl -n $NS get deploy simple-file-share-frontend
+
+      - name: Rollout restart with SHA tag
+        run: |
+          kubectl -n $NS set image deployment/simple-file-share-backend \
+            backend=${BACKEND_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/simple-file-share-frontend \
+            frontend=${FRONTEND_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS rollout status deployment/simple-file-share-backend --timeout=180s
+          kubectl -n $NS rollout status deployment/simple-file-share-frontend --timeout=180s
