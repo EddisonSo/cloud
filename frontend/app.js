@@ -90,8 +90,8 @@ function App() {
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
   const [downloadProgress, setDownloadProgress] = useState({});
   const [deleting, setDeleting] = useState({});
-  const [namespaces, setNamespaces] = useState([defaultNamespace]);
-  const [activeNamespace, setActiveNamespace] = useState(defaultNamespace);
+  const [namespaces, setNamespaces] = useState([]);
+  const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
   const fileInputRef = useRef(null);
   const navItems = [
@@ -138,6 +138,10 @@ function App() {
     try {
       setLoading(true);
       const selectedNamespace = normalizeNamespace(namespace);
+      if (!selectedNamespace) {
+        setFiles([]);
+        return;
+      }
       const response = await fetch(
         `${buildApiBase()}/api/files?namespace=${encodeURIComponent(selectedNamespace)}`
       );
@@ -160,16 +164,20 @@ function App() {
         throw new Error("Failed to load namespaces");
       }
       const payload = await response.json();
-      const found = new Set([defaultNamespace]);
+      const counts = new Map();
       payload.forEach((file) => {
-        if (file.namespace) {
-          found.add(file.namespace);
-        }
+        const ns = file.namespace || defaultNamespace;
+        counts.set(ns, (counts.get(ns) || 0) + 1);
       });
-      const sorted = Array.from(found).sort((a, b) => a.localeCompare(b));
+      if (!counts.has(defaultNamespace)) {
+        counts.set(defaultNamespace, 0);
+      }
+      const sorted = Array.from(counts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
-      if (!sorted.includes(activeNamespace)) {
-        setActiveNamespace(defaultNamespace);
+      if (!sorted.find((item) => item.name === activeNamespace)) {
+        setActiveNamespace(sorted[0]?.name || defaultNamespace);
       }
     } catch (err) {
       console.warn(err.message);
@@ -199,12 +207,14 @@ function App() {
     if (!authChecked) {
       return;
     }
-    loadFiles();
     loadNamespaces();
   }, [authChecked, user]);
 
   useEffect(() => {
     if (activeTab !== "storage") {
+      return;
+    }
+    if (!activeNamespace) {
       return;
     }
     loadFiles(activeNamespace);
@@ -514,24 +524,10 @@ function App() {
                 <div className="panel-header">
                   <div>
                     <h2>Namespaces</h2>
-                    <p>Organize files by namespace and switch contexts instantly.</p>
+                    <p>Choose a namespace to view its files and activity.</p>
                   </div>
                 </div>
                 <div className="namespace-controls">
-                  <div className="field">
-                    <label htmlFor="namespace-select">Active namespace</label>
-                    <select
-                      id="namespace-select"
-                      value={activeNamespace}
-                      onChange={(event) => setActiveNamespace(event.target.value)}
-                    >
-                      {namespaces.map((namespace) => (
-                        <option key={namespace} value={namespace}>
-                          {namespace}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="field">
                     <label htmlFor="namespace-new">Create namespace</label>
                     <div className="namespace-create">
@@ -551,8 +547,14 @@ function App() {
                             setStatus("Sign in to access the hidden namespace.");
                             return;
                           }
-                          if (!namespaces.includes(nextNamespace)) {
-                            setNamespaces((prev) => [...prev, nextNamespace].sort((a, b) => a.localeCompare(b)));
+                          if (!nextNamespace) {
+                            return;
+                          }
+                          if (!namespaces.find((item) => item.name === nextNamespace)) {
+                            setNamespaces((prev) => [
+                              ...prev,
+                              { name: nextNamespace, count: 0 },
+                            ].sort((a, b) => a.name.localeCompare(b.name)));
                           }
                           setActiveNamespace(nextNamespace);
                           setNamespaceInput("");
@@ -562,6 +564,24 @@ function App() {
                       </button>
                     </div>
                   </div>
+                </div>
+                <div className="namespace-list">
+                  {namespaces.map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      className={`namespace-card ${
+                        activeNamespace === item.name ? "active" : ""
+                      }`}
+                      onClick={() => setActiveNamespace(item.name)}
+                    >
+                      <div>
+                        <h3>{item.name}</h3>
+                        <p>{item.count} files</p>
+                      </div>
+                      <span className="namespace-pill">Open</span>
+                    </button>
+                  ))}
                 </div>
               </section>
           {user && (
