@@ -212,6 +212,27 @@ function App() {
   }, [authChecked, user]);
 
   useEffect(() => {
+    const applyState = (state) => {
+      if (!state || state.view !== "namespace") {
+        setShowNamespaceView(false);
+        setActiveNamespace("");
+        return;
+      }
+      setActiveNamespace(state.namespace || "");
+      setShowNamespaceView(Boolean(state.namespace));
+    };
+
+    applyState(window.history.state);
+
+    const onPopState = (event) => {
+      applyState(event.state);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
     if (activeTab !== "storage") {
       return;
     }
@@ -221,6 +242,22 @@ function App() {
     }
     loadFiles(activeNamespace);
   }, [activeNamespace, activeTab, showNamespaceView]);
+
+  const openNamespace = (namespace) => {
+    const nextNamespace = normalizeNamespace(namespace);
+    if (!nextNamespace) {
+      return;
+    }
+    setActiveNamespace(nextNamespace);
+    setShowNamespaceView(true);
+    window.history.pushState({ view: "namespace", namespace: nextNamespace }, "");
+  };
+
+  const closeNamespace = () => {
+    setShowNamespaceView(false);
+    setActiveNamespace("");
+    window.history.pushState({ view: "list" }, "");
+  };
 
   useEffect(() => {
     if (!user || activeTab !== "health") {
@@ -559,8 +596,7 @@ function App() {
                               { name: nextNamespace, count: 0 },
                             ].sort((a, b) => a.name.localeCompare(b.name)));
                           }
-                          setActiveNamespace(nextNamespace);
-                          setShowNamespaceView(true);
+                          openNamespace(nextNamespace);
                           setNamespaceInput("");
                         }}
                       >
@@ -577,10 +613,7 @@ function App() {
                       className={`namespace-card ${
                         activeNamespace === item.name ? "active" : ""
                       }`}
-                      onClick={() => {
-                        setActiveNamespace(item.name);
-                        setShowNamespaceView(true);
-                      }}
+                      onClick={() => openNamespace(item.name)}
                     >
                       <div>
                         <h3>{item.name}</h3>
@@ -662,8 +695,7 @@ function App() {
                           type="button"
                           className="ghost"
                           onClick={() => {
-                            setShowNamespaceView(false);
-                            setActiveNamespace("");
+                            closeNamespace();
                             loadNamespaces();
                           }}
                         >
