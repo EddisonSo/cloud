@@ -36,6 +36,10 @@ function buildClusterInfoUrl() {
   return `${buildApiBase()}/cluster-info`;
 }
 
+function buildClusterInfoWsUrl() {
+  return `${buildWsBase()}/ws/cluster-info`;
+}
+
 function createTransferId() {
   if (window.crypto?.randomUUID) {
     return window.crypto.randomUUID();
@@ -287,36 +291,48 @@ function App() {
     if (!user || activeTab !== "health") {
       return;
     }
-    let mounted = true;
 
-    const fetchClusterInfo = async () => {
+    let ws = null;
+    let reconnectTimeout = null;
+
+    const connect = () => {
       setHealthLoading(true);
       setHealthError("");
-      try {
-        const response = await fetch(buildClusterInfoUrl());
-        if (!mounted) return;
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+
+      ws = new WebSocket(buildClusterInfoWsUrl());
+
+      ws.onopen = () => {
+        setHealthLoading(false);
+        setHealthError("");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
+          setLastHealthCheck(new Date());
+        } catch (err) {
+          console.error("Failed to parse cluster info:", err);
         }
-        const payload = await response.json();
-        setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
-        setLastHealthCheck(new Date());
-      } catch (err) {
-        if (mounted) {
-          setHealthError(err.message || "Failed to fetch cluster info");
-          setHealth({ cluster_ok: false, nodes: [] });
-        }
-      } finally {
-        if (mounted) setHealthLoading(false);
-      }
+      };
+
+      ws.onerror = () => {
+        setHealthError("WebSocket error");
+        setHealth({ cluster_ok: false, nodes: [] });
+      };
+
+      ws.onclose = () => {
+        setHealthLoading(false);
+        // Reconnect after 5 seconds
+        reconnectTimeout = setTimeout(connect, 5000);
+      };
     };
 
-    fetchClusterInfo();
-    const interval = setInterval(fetchClusterInfo, 5000);
+    connect();
 
     return () => {
-      mounted = false;
-      clearInterval(interval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
     };
   }, [user, activeTab, healthRefreshTick]);
 
