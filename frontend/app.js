@@ -651,6 +651,18 @@ function App() {
               )}
               {showNamespaceView && (
                 <>
+                  <section className="panel namespace-hero">
+                    <div>
+                      <p className="eyebrow">Namespace</p>
+                      <h2>{activeNamespace}</h2>
+                    </div>
+                    <div className="namespace-count">
+                      <span className="namespace-count-label">Files</span>
+                      <span className="namespace-count-value">
+                        {namespaces.find((item) => item.name === activeNamespace)?.count ?? 0}
+                      </span>
+                    </div>
+                  </section>
                   {user && (
                     <section className="panel upload">
                       <div className="panel-header">

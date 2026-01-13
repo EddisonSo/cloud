@@ -297,6 +297,22 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 		counts[ns]++
 	}
 
+	namespaceRows, err := s.loadAllNamespaces()
+	if err != nil {
+		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
+		return
+	}
+
+	for _, entry := range namespaceRows {
+		hiddenSet[entry.Name] = entry.Hidden
+		if entry.Hidden && !authed {
+			continue
+		}
+		if _, ok := counts[entry.Name]; !ok {
+			counts[entry.Name] = 0
+		}
+	}
+
 	if _, ok := counts[defaultNamespace]; !ok {
 		if !hiddenSet[defaultNamespace] || authed {
 			counts[defaultNamespace] = 0
@@ -816,6 +832,31 @@ func (s *server) loadHiddenNamespaces() (map[string]bool, error) {
 		return nil, err
 	}
 	return hidden, nil
+}
+
+func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
+	rows, err := s.db.Query(`SELECT name, hidden FROM namespaces`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var namespaces []namespaceInfo
+	for rows.Next() {
+		var name string
+		var hiddenFlag int
+		if err := rows.Scan(&name, &hiddenFlag); err != nil {
+			return nil, err
+		}
+		namespaces = append(namespaces, namespaceInfo{
+			Name:   name,
+			Hidden: hiddenFlag != 0,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return namespaces, nil
 }
 
 func (s *server) upsertNamespace(name string, hidden bool) error {
