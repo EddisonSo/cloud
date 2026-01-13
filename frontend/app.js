@@ -93,6 +93,7 @@ function App() {
   const [namespaces, setNamespaces] = useState([]);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
+  const [showNamespaceView, setShowNamespaceView] = useState(false);
   const fileInputRef = useRef(null);
   const navItems = [
     { id: "storage", label: "Storage" },
@@ -214,11 +215,12 @@ function App() {
     if (activeTab !== "storage") {
       return;
     }
-    if (!activeNamespace) {
+    if (!showNamespaceView || !activeNamespace) {
+      setFiles([]);
       return;
     }
     loadFiles(activeNamespace);
-  }, [activeNamespace, activeTab]);
+  }, [activeNamespace, activeTab, showNamespaceView]);
 
   useEffect(() => {
     if (!user || activeTab !== "health") {
@@ -520,7 +522,8 @@ function App() {
         <div className="layout">
           {activeTab === "storage" && (
             <>
-              <section className="panel namespaces">
+              {!showNamespaceView && (
+                <section className="panel namespaces">
                 <div className="panel-header">
                   <div>
                     <h2>Namespaces</h2>
@@ -557,6 +560,7 @@ function App() {
                             ].sort((a, b) => a.name.localeCompare(b.name)));
                           }
                           setActiveNamespace(nextNamespace);
+                          setShowNamespaceView(true);
                           setNamespaceInput("");
                         }}
                       >
@@ -573,7 +577,10 @@ function App() {
                       className={`namespace-card ${
                         activeNamespace === item.name ? "active" : ""
                       }`}
-                      onClick={() => setActiveNamespace(item.name)}
+                      onClick={() => {
+                        setActiveNamespace(item.name);
+                        setShowNamespaceView(true);
+                      }}
                     >
                       <div>
                         <h3>{item.name}</h3>
@@ -583,121 +590,148 @@ function App() {
                     </button>
                   ))}
                 </div>
-              </section>
-          {user && (
-            <section className="panel upload">
-            <div className="panel-header">
-              <div>
-                <h2>Upload</h2>
-                <p>Store a file in {activeNamespace}. Existing files with the same name get replaced.</p>
-              </div>
-            </div>
-            <form onSubmit={handleUpload} className="upload-form">
-              <div className="field">
-                <span className="field-label">Select file</span>
-                <div className="file-picker">
-                  <input
-                    id="upload-file"
-                    ref={fileInputRef}
-                    type="file"
-                    name="file"
-                    className="file-input"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      setSelectedFileName(file ? file.name : "No file selected");
-                    }}
-                  />
-                  <label htmlFor="upload-file" className="file-button">
-                    Browse files
-                  </label>
-                  <span
-                    className={`file-name ${selectedFileName === "No file selected" ? "muted" : ""}`}
-                  >
-                    {selectedFileName}
-                  </span>
-                </div>
-              </div>
-              <button type="submit" disabled={uploading}>
-                {uploading ? "Uploading..." : "Upload"}
-              </button>
-            </form>
-            {uploadProgress.active && (
-              <div className={`progress ${uploadProgress.total ? "" : "indeterminate"}`}>
-                <div className="progress-bar" style={{ width: `${uploadPercent}%` }} />
-              </div>
-            )}
-            {uploadProgress.active && (
-              <p className="progress-text">
-                {uploadProgress.total
-                  ? `${uploadPercent}% of ${formatBytes(uploadProgress.total)}`
-                  : "Uploading..."}
-              </p>
-            )}
-          </section>
-          )}
-
-          <section className="panel files">
-            <div className="panel-header">
-              <div>
-                <h2>Shared files</h2>
-                <p>Download or remove stored objects in {activeNamespace}.</p>
-              </div>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => loadFiles(activeNamespace)}
-                disabled={loading}
-              >
-                {loading ? "Refreshing..." : "Refresh"}
-              </button>
-            </div>
-            <div className="file-list">
-              {loading && <p className="empty">Loading files...</p>}
-              {!loading && files.length === 0 && (
-                <p className="empty">{emptyState}</p>
+                </section>
               )}
-              {!loading &&
-                files.length > 0 && (
-                  <div className="file-head">
-                    <span>Name</span>
-                    <span>Size</span>
-                    <span>Actions</span>
-                  </div>
-                )}
-              {!loading &&
-                files.map((file) => (
-                  <div className="file-row" key={file.path}>
-                    <div className="file-col name">
-                      <p className="file-name">{file.name}</p>
-                      <p className="file-meta">{formatBytes(file.size)}</p>
-                    </div>
-                    <div className="file-col size">{formatBytes(file.size)}</div>
-                    <div className="file-actions file-col actions">
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={deleting[`${file.namespace || defaultNamespace}:${file.name}`]}
-                        onClick={() => handleDownload(file)}
-                      >
-                        Download
-                      </button>
-                      {user && (
+              {showNamespaceView && (
+                <>
+                  {user && (
+                    <section className="panel upload">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Upload</h2>
+                          <p>
+                            Store a file in {activeNamespace}. Existing files with the same name get
+                            replaced.
+                          </p>
+                        </div>
+                      </div>
+                      <form onSubmit={handleUpload} className="upload-form">
+                        <div className="field">
+                          <span className="field-label">Select file</span>
+                          <div className="file-picker">
+                            <input
+                              id="upload-file"
+                              ref={fileInputRef}
+                              type="file"
+                              name="file"
+                              className="file-input"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                setSelectedFileName(file ? file.name : "No file selected");
+                              }}
+                            />
+                            <label htmlFor="upload-file" className="file-button">
+                              Browse files
+                            </label>
+                            <span
+                              className={`file-name ${
+                                selectedFileName === "No file selected" ? "muted" : ""
+                              }`}
+                            >
+                              {selectedFileName}
+                            </span>
+                          </div>
+                        </div>
+                        <button type="submit" disabled={uploading}>
+                          {uploading ? "Uploading..." : "Upload"}
+                        </button>
+                      </form>
+                      {uploadProgress.active && (
+                        <div className={`progress ${uploadProgress.total ? "" : "indeterminate"}`}>
+                          <div className="progress-bar" style={{ width: `${uploadPercent}%` }} />
+                        </div>
+                      )}
+                      {uploadProgress.active && (
+                        <p className="progress-text">
+                          {uploadProgress.total
+                            ? `${uploadPercent}% of ${formatBytes(uploadProgress.total)}`
+                            : "Uploading..."}
+                        </p>
+                      )}
+                    </section>
+                  )}
+
+                  <section className="panel files">
+                    <div className="panel-header">
+                      <div>
+                        <h2>Shared files</h2>
+                        <p>Download or remove stored objects in {activeNamespace}.</p>
+                      </div>
+                      <div className="panel-actions">
                         <button
                           type="button"
-                          className="danger"
-                          disabled={deleting[`${file.namespace || defaultNamespace}:${file.name}`]}
-                          onClick={() => handleDelete(file)}
+                          className="ghost"
+                          onClick={() => {
+                            setShowNamespaceView(false);
+                            setActiveNamespace("");
+                            loadNamespaces();
+                          }}
                         >
-                          {deleting[`${file.namespace || defaultNamespace}:${file.name}`]
-                            ? "Deleting..."
-                            : "Delete"}
+                          Back to namespaces
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => loadFiles(activeNamespace)}
+                          disabled={loading}
+                        >
+                          {loading ? "Refreshing..." : "Refresh"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-            </div>
-          </section>
+                    <div className="file-list">
+                      {loading && <p className="empty">Loading files...</p>}
+                      {!loading && files.length === 0 && <p className="empty">{emptyState}</p>}
+                      {!loading &&
+                        files.length > 0 && (
+                          <div className="file-head">
+                            <span>Name</span>
+                            <span>Size</span>
+                            <span>Actions</span>
+                          </div>
+                        )}
+                      {!loading &&
+                        files.map((file) => (
+                          <div className="file-row" key={file.path}>
+                            <div className="file-col name">
+                              <p className="file-name">{file.name}</p>
+                              <p className="file-meta">{formatBytes(file.size)}</p>
+                            </div>
+                            <div className="file-col size">{formatBytes(file.size)}</div>
+                            <div className="file-actions file-col actions">
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={
+                                  deleting[`${file.namespace || defaultNamespace}:${file.name}`]
+                                }
+                                onClick={() => handleDownload(file)}
+                              >
+                                Download
+                              </button>
+                              {user && (
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  disabled={
+                                    deleting[`${file.namespace || defaultNamespace}:${file.name}`]
+                                  }
+                                  onClick={() => handleDelete(file)}
+                                >
+                                  {deleting[
+                                    `${file.namespace || defaultNamespace}:${file.name}`
+                                  ]
+                                    ? "Deleting..."
+                                    : "Delete"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </section>
+                </>
+              )}
             </>
           )}
           {activeTab === "health" && (
