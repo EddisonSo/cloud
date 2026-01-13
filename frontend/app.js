@@ -32,8 +32,8 @@ function buildWsUrl(id) {
   return `${buildWsBase()}/ws?id=${encodeURIComponent(id)}`;
 }
 
-function buildHealthWsUrl() {
-  return `${buildWsBase()}/ws/health`;
+function buildClusterInfoUrl() {
+  return `${buildApiBase()}/cluster-info`;
 }
 
 function createTransferId() {
@@ -77,7 +77,7 @@ function App() {
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [activeTab, setActiveTab] = useState("storage");
-  const [health, setHealth] = useState({ master_ok: false, servers: [] });
+  const [health, setHealth] = useState({ cluster_ok: false, nodes: [] });
   const [healthError, setHealthError] = useState("");
   const [healthLoading, setHealthLoading] = useState(false);
   const [lastHealthCheck, setLastHealthCheck] = useState(null);
@@ -172,7 +172,7 @@ function App() {
         return;
       }
       const response = await fetch(
-        `${buildApiBase()}/api/files?namespace=${encodeURIComponent(selectedNamespace)}`
+        `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`
       );
       if (!response.ok) {
         throw new Error("Failed to load files");
@@ -188,7 +188,7 @@ function App() {
 
   const loadNamespaces = async () => {
     try {
-      const response = await fetch(`${buildApiBase()}/api/namespaces`);
+      const response = await fetch(`${buildApiBase()}/storage/namespaces`);
       if (!response.ok) {
         throw new Error("Failed to load namespaces");
       }
@@ -288,38 +288,35 @@ function App() {
       return;
     }
     let mounted = true;
-    setHealthLoading(true);
-    setHealthError("");
-    const socket = new WebSocket(buildHealthWsUrl());
 
-    socket.onmessage = (event) => {
+    const fetchClusterInfo = async () => {
+      setHealthLoading(true);
+      setHealthError("");
       try {
-        const payload = JSON.parse(event.data);
-        if (!mounted) {
-          return;
+        const response = await fetch(buildClusterInfoUrl());
+        if (!mounted) return;
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-        setHealth(payload);
-        setHealthError(payload.error || "");
+        const payload = await response.json();
+        setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
         setLastHealthCheck(new Date());
-        setHealthLoading(false);
       } catch (err) {
         if (mounted) {
-          setHealthError("Failed to parse health update");
-          setHealthLoading(false);
+          setHealthError(err.message || "Failed to fetch cluster info");
+          setHealth({ cluster_ok: false, nodes: [] });
         }
+      } finally {
+        if (mounted) setHealthLoading(false);
       }
     };
 
-    socket.onerror = () => {
-      if (mounted) {
-        setHealthError("Health stream error");
-        setHealthLoading(false);
-      }
-    };
+    fetchClusterInfo();
+    const interval = setInterval(fetchClusterInfo, 5000);
 
     return () => {
       mounted = false;
-      socket.close();
+      clearInterval(interval);
     };
   }, [user, activeTab, healthRefreshTick]);
 
@@ -363,7 +360,7 @@ function App() {
 
       await waitForSocket(socket, 2000).catch(() => {});
       const response = await fetch(
-        `${buildApiBase()}/api/upload?id=${encodeURIComponent(
+        `${buildApiBase()}/storage/upload?id=${encodeURIComponent(
           transferId
         )}&namespace=${encodeURIComponent(activeNamespace)}`,
         {
@@ -431,7 +428,7 @@ function App() {
       await waitForSocket(socket, 2000).catch(() => {});
     }
     const link = document.createElement("a");
-    link.href = `${buildApiBase()}/api/download?name=${encodeURIComponent(
+    link.href = `${buildApiBase()}/storage/download?name=${encodeURIComponent(
       file.name
     )}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(
       file.namespace || defaultNamespace
@@ -481,7 +478,7 @@ function App() {
     setStatus(`Deleting ${file.name}...`);
     try {
       const response = await fetch(
-        `${buildApiBase()}/api/delete?name=${encodeURIComponent(
+        `${buildApiBase()}/storage/delete?name=${encodeURIComponent(
           file.name
         )}&namespace=${encodeURIComponent(file.namespace || defaultNamespace)}`,
         {
@@ -617,7 +614,7 @@ function App() {
                               return;
                             }
                             try {
-                              const response = await fetch(`${buildApiBase()}/api/namespaces`, {
+                              const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 credentials: "include",
@@ -708,7 +705,7 @@ function App() {
                             if (!current) {
                               return;
                             }
-                            fetch(`${buildApiBase()}/api/namespaces`, {
+                            fetch(`${buildApiBase()}/storage/namespaces`, {
                               method: "PATCH",
                               credentials: "include",
                               headers: {
@@ -905,13 +902,13 @@ function App() {
                 </button>
               </div>
               <div className="health-summary">
-                <div className={`health-card ${health.master_ok ? "ok" : "down"}`}>
-                  <span className="health-label">Master</span>
-                  <span className="health-value">{health.master_ok ? "Online" : "Offline"}</span>
+                <div className={`health-card ${health.cluster_ok ? "ok" : "down"}`}>
+                  <span className="health-label">Cluster</span>
+                  <span className="health-value">{health.cluster_ok ? "Online" : "Offline"}</span>
                 </div>
                 <div className="health-card">
-                  <span className="health-label">Chunkservers</span>
-                  <span className="health-value">{health.servers?.length ?? 0}</span>
+                  <span className="health-label">Nodes</span>
+                  <span className="health-value">{health.nodes?.length ?? 0}</span>
                 </div>
                 <div className="health-card">
                   <span className="health-label">Last refresh</span>
@@ -923,36 +920,27 @@ function App() {
               {healthError && <p className="status error">{healthError}</p>}
               <div className="health-table">
                 <div className="health-head">
-                  <span>Server</span>
-                  <span>Status</span>
+                  <span>Node</span>
                   <span>CPU</span>
                   <span>Memory</span>
-                  <span>Disk</span>
-                  <span>Chunks</span>
+                  <span>Pressure</span>
                 </div>
-                {(health.servers || []).map((server) => (
-                  <div className="health-row" key={`${server.id}-${server.host}`}>
+                {(health.nodes || []).map((node) => (
+                  <div className="health-row" key={node.name}>
                     <div className="health-cell">
-                      <strong>{server.host || "unknown"}</strong>
-                      <span className="health-meta">
-                        {server.data_port ? `:${server.data_port}` : ""}
-                      </span>
+                      <strong>{node.name || "unknown"}</strong>
                     </div>
-                    <span className={`pill ${server.alive ? "ok" : "down"}`}>
-                      {server.alive ? "Alive" : "Down"}
-                    </span>
-                    <span>{Number.isFinite(server.cpu_usage) ? `${server.cpu_usage.toFixed(1)}%` : "—"}</span>
+                    <span>{Number.isFinite(node.cpu_percent) ? `${node.cpu_percent.toFixed(1)}%` : "—"}</span>
                     <span>
-                      {Number.isFinite(server.memory_usage) ? `${server.memory_usage.toFixed(1)}%` : "—"}
+                      {Number.isFinite(node.memory_percent) ? `${node.memory_percent.toFixed(1)}%` : "—"}
                     </span>
                     <span>
-                      {Number.isFinite(server.disk_usage) ? `${server.disk_usage.toFixed(1)}%` : "—"}
+                      {(node.conditions || []).filter(c => c.status === "True").map(c => c.type.replace("Pressure", "")).join(", ") || "None"}
                     </span>
-                    <span>{server.chunk_count ?? 0}</span>
                   </div>
                 ))}
-                {(health.servers || []).length === 0 && (
-                  <p className="empty">No chunkservers reported.</p>
+                {(health.nodes || []).length === 0 && (
+                  <p className="empty">No nodes reported.</p>
                 )}
               </div>
             </section>
@@ -1164,7 +1152,7 @@ function App() {
                   }
                   try {
                     const response = await fetch(
-                      `${buildApiBase()}/api/namespaces?name=${encodeURIComponent(
+                      `${buildApiBase()}/storage/namespaces?name=${encodeURIComponent(
                         target.name
                       )}`,
                       {

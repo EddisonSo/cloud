@@ -114,17 +114,17 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	// Auth endpoints
 	mux.HandleFunc("/api/login", srv.handleLogin)
 	mux.HandleFunc("/api/logout", srv.handleLogout)
 	mux.HandleFunc("/api/session", srv.handleSession)
-	mux.HandleFunc("/api/health", srv.handleHealth)
-	mux.HandleFunc("/api/namespaces", srv.handleNamespaces)
-	mux.HandleFunc("/api/files", srv.handleList)
-	mux.HandleFunc("/api/upload", srv.handleUpload)
-	mux.HandleFunc("/api/download", srv.handleDownload)
-	mux.HandleFunc("/api/delete", srv.handleDelete)
+	// Storage endpoints
+	mux.HandleFunc("/storage/namespaces", srv.handleNamespaces)
+	mux.HandleFunc("/storage/files", srv.handleList)
+	mux.HandleFunc("/storage/upload", srv.handleUpload)
+	mux.HandleFunc("/storage/download", srv.handleDownload)
+	mux.HandleFunc("/storage/delete", srv.handleDelete)
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
-	mux.Handle("/ws/health", websocket.Handler(srv.handleHealthWS))
 	mux.Handle("/", srv.staticHandler())
 
 	log.Printf("listening on %s", *addr)
@@ -725,96 +725,6 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok", "name": name})
 }
 
-type healthServer struct {
-	ID              string  `json:"id"`
-	Host            string  `json:"host"`
-	DataPort        int32   `json:"data_port"`
-	ReplicationPort int32   `json:"replication_port"`
-	ChunkCount      int32   `json:"chunk_count"`
-	Alive           bool    `json:"alive"`
-	CpuUsage        float64 `json:"cpu_usage"`
-	MemoryUsage     float64 `json:"memory_usage"`
-	DiskUsage       float64 `json:"disk_usage"`
-}
-
-type healthResponse struct {
-	MasterOK bool           `json:"master_ok"`
-	Error    string         `json:"error,omitempty"`
-	Servers  []healthServer `json:"servers"`
-}
-
-func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	payload, err := s.getHealth(ctx)
-	if err != nil {
-		writeJSON(w, healthResponse{MasterOK: false, Error: err.Error()})
-		return
-	}
-	writeJSON(w, payload)
-}
-
-func (s *server) handleHealthWS(ws *websocket.Conn) {
-	if _, ok := s.currentUser(ws.Request()); !ok {
-		_ = ws.Close()
-		return
-	}
-	ticker := time.NewTicker(3 * time.Second)
-	defer ticker.Stop()
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		payload, err := s.getHealth(ctx)
-		cancel()
-		if err != nil {
-			if sendErr := websocket.JSON.Send(ws, healthResponse{MasterOK: false, Error: err.Error()}); sendErr != nil {
-				return
-			}
-		} else {
-			if sendErr := websocket.JSON.Send(ws, payload); sendErr != nil {
-				return
-			}
-		}
-		<-ticker.C
-	}
-}
-
-func (s *server) getHealth(ctx context.Context) (healthResponse, error) {
-	resp, err := s.client.GetClusterPressure(ctx)
-	if err != nil {
-		return healthResponse{}, err
-	}
-
-	servers := make([]healthServer, 0, len(resp.GetServers()))
-	for _, server := range resp.GetServers() {
-		info := server.GetServer()
-		resources := server.GetResources()
-		var entry healthServer
-		if info != nil {
-			entry.ID = info.GetServerId()
-			entry.Host = info.GetHostname()
-			entry.DataPort = info.GetDataPort()
-			entry.ReplicationPort = info.GetReplicationPort()
-		}
-		entry.ChunkCount = server.GetChunkCount()
-		entry.Alive = server.GetIsAlive()
-		if resources != nil {
-			entry.CpuUsage = resources.GetCpuUsagePercent()
-			entry.MemoryUsage = resources.GetMemoryUsagePercent()
-			entry.DiskUsage = resources.GetDiskUsagePercent()
-		}
-		servers = append(servers, entry)
-	}
-
-	return healthResponse{
-		MasterOK: true,
-		Servers:  servers,
-	}, nil
-}
-
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -1294,7 +1204,7 @@ func (s *server) parseSizeHeader(raw string) int64 {
 func (s *server) staticHandler() http.Handler {
 	fileServer := http.FileServer(http.Dir(s.staticDir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/storage/") {
 			http.NotFound(w, r)
 			return
 		}
