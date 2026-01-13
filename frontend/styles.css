@@ -772,6 +772,16 @@ button:not(:disabled):hover {
   box-shadow: 0 16px 26px rgba(26, 115, 232, 0.15);
 }
 
+.namespace-card.hidden {
+  background: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.namespace-card.hidden .namespace-pill {
+  background: rgba(148, 163, 184, 0.2);
+  color: #64748b;
+}
+
 .namespace-card:not(:disabled):hover {
   transform: translateY(-1px);
   border-color: rgba(26, 115, 232, 0.4);

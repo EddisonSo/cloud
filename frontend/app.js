@@ -608,7 +608,6 @@ function App() {
                               }
                               await response.json();
                               await loadNamespaces();
-                              openNamespace(nextNamespace);
                               setNamespaceInput("");
                               setNamespaceHidden(false);
                             } catch (err) {
@@ -636,7 +635,7 @@ function App() {
                       type="button"
                       className={`namespace-card ${
                         activeNamespace === item.name ? "active" : ""
-                      }`}
+                      } ${item.hidden ? "hidden" : ""}`}
                       onClick={() => openNamespace(item.name)}
                     >
                       <div>
