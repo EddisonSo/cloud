@@ -719,6 +719,20 @@ button:not(:disabled):hover {
   align-items: center;
 }
 
+.namespace-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.namespace-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
 .namespace-list {
   display: grid;
   grid-template-columns: 1fr;

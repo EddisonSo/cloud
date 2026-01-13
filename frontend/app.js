@@ -93,6 +93,7 @@ function App() {
   const [namespaces, setNamespaces] = useState([]);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
+  const [namespaceHidden, setNamespaceHidden] = useState(false);
   const [showNamespaceView, setShowNamespaceView] = useState(false);
   const fileInputRef = useRef(null);
   const navItems = [
@@ -160,21 +161,17 @@ function App() {
 
   const loadNamespaces = async () => {
     try {
-      const response = await fetch(`${buildApiBase()}/api/files`);
+      const response = await fetch(`${buildApiBase()}/api/namespaces`);
       if (!response.ok) {
         throw new Error("Failed to load namespaces");
       }
       const payload = await response.json();
-      const counts = new Map();
-      payload.forEach((file) => {
-        const ns = file.namespace || defaultNamespace;
-        counts.set(ns, (counts.get(ns) || 0) + 1);
-      });
-      if (!counts.has(defaultNamespace)) {
-        counts.set(defaultNamespace, 0);
-      }
-      const sorted = Array.from(counts.entries())
-        .map(([name, count]) => ({ name, count }))
+      const sorted = payload
+        .map((item) => ({
+          name: item.name,
+          count: item.count ?? 0,
+          hidden: item.hidden ?? false,
+        }))
         .sort((a, b) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
       if (!sorted.find((item) => item.name === activeNamespace)) {
@@ -493,7 +490,12 @@ function App() {
               key={item.id}
               type="button"
               className={`nav-item ${activeTab === item.id ? "active" : ""}`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                if (item.id === "storage") {
+                  closeNamespace();
+                }
+              }}
             >
               {item.label}
             </button>
@@ -578,31 +580,53 @@ function App() {
                         value={namespaceInput}
                         onChange={(event) => setNamespaceInput(event.target.value)}
                       />
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => {
-                          const nextNamespace = normalizeNamespace(namespaceInput);
-                          if (nextNamespace === hiddenNamespace && !user) {
-                            setStatus("Sign in to access the hidden namespace.");
-                            return;
-                          }
-                          if (!nextNamespace) {
-                            return;
-                          }
-                          if (!namespaces.find((item) => item.name === nextNamespace)) {
-                            setNamespaces((prev) => [
-                              ...prev,
-                              { name: nextNamespace, count: 0 },
-                            ].sort((a, b) => a.name.localeCompare(b.name)));
-                          }
-                          openNamespace(nextNamespace);
-                          setNamespaceInput("");
-                        }}
-                      >
-                        Add
-                      </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={async () => {
+                            const nextNamespace = normalizeNamespace(namespaceInput);
+                            if (!nextNamespace) {
+                              return;
+                            }
+                            if (namespaceHidden && !user) {
+                              setStatus("Sign in to create hidden namespaces.");
+                              return;
+                            }
+                            try {
+                              const response = await fetch(`${buildApiBase()}/api/namespaces`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({
+                                  name: nextNamespace,
+                                  hidden: namespaceHidden,
+                                }),
+                              });
+                              if (!response.ok) {
+                                const message = await response.text();
+                                throw new Error(message || "Failed to create namespace");
+                              }
+                              await response.json();
+                              await loadNamespaces();
+                              openNamespace(nextNamespace);
+                              setNamespaceInput("");
+                              setNamespaceHidden(false);
+                            } catch (err) {
+                              setStatus(err.message);
+                            }
+                          }}
+                        >
+                          Add
+                        </button>
                     </div>
+                    <label className="namespace-toggle">
+                      <input
+                        type="checkbox"
+                        checked={namespaceHidden}
+                        onChange={(event) => setNamespaceHidden(event.target.checked)}
+                      />
+                      Hidden namespace
+                    </label>
                   </div>
                 </div>
                 <div className="namespace-list">

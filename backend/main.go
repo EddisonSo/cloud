@@ -51,6 +51,12 @@ const (
 	hiddenNamespace  = "hidden"
 )
 
+type namespaceInfo struct {
+	Name   string `json:"name"`
+	Count  int    `json:"count"`
+	Hidden bool   `json:"hidden"`
+}
+
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	master := flag.String("master", "127.0.0.1:50051", "GFS master gRPC address")
@@ -112,6 +118,7 @@ func main() {
 	mux.HandleFunc("/api/logout", srv.handleLogout)
 	mux.HandleFunc("/api/session", srv.handleSession)
 	mux.HandleFunc("/api/health", srv.handleHealth)
+	mux.HandleFunc("/api/namespaces", srv.handleNamespaces)
 	mux.HandleFunc("/api/files", srv.handleList)
 	mux.HandleFunc("/api/upload", srv.handleUpload)
 	mux.HandleFunc("/api/download", srv.handleDownload)
@@ -152,6 +159,10 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			token TEXT NOT NULL UNIQUE,
 			expires_at INTEGER NOT NULL,
 			FOREIGN KEY(user_id) REFERENCES users(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS namespaces (
+			name TEXT PRIMARY KEY,
+			hidden INTEGER NOT NULL DEFAULT 0
 		);`,
 	}
 	for _, stmt := range stmts {
@@ -239,6 +250,111 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, resp)
+}
+
+func (s *server) handleNamespaces(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.handleNamespaceList(w, r)
+	case http.MethodPost:
+		s.handleNamespaceCreate(w, r)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	files, err := s.client.ListFiles(ctx, s.listPrefix)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("list files failed: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	hiddenSet, err := s.loadHiddenNamespaces()
+	if err != nil {
+		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
+		return
+	}
+
+	_, authed := s.currentUser(r)
+	counts := make(map[string]int)
+	for _, file := range files {
+		relative := relativeNameWithPrefix(file.Path, s.listPrefix)
+		if relative == "" {
+			continue
+		}
+		ns, _ := splitNamespaceAndName(relative)
+		if ns == "" {
+			ns = defaultNamespace
+		}
+		if hiddenSet[ns] && !authed {
+			continue
+		}
+		counts[ns]++
+	}
+
+	if _, ok := counts[defaultNamespace]; !ok {
+		if !hiddenSet[defaultNamespace] || authed {
+			counts[defaultNamespace] = 0
+		}
+	}
+
+	resp := make([]namespaceInfo, 0, len(counts))
+	for name, count := range counts {
+		if hiddenSet[name] && !authed {
+			continue
+		}
+		resp = append(resp, namespaceInfo{
+			Name:   name,
+			Count:  count,
+			Hidden: hiddenSet[name],
+		})
+	}
+
+	writeJSON(w, resp)
+}
+
+type namespaceCreateRequest struct {
+	Name   string `json:"name"`
+	Hidden bool   `json:"hidden"`
+}
+
+func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAuth(w, r); !ok {
+		return
+	}
+
+	var payload namespaceCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	name, err := sanitizeNamespace(payload.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if name == hiddenNamespace && !payload.Hidden {
+		http.Error(w, "hidden namespace must be marked hidden", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.upsertNamespace(name, payload.Hidden); err != nil {
+		http.Error(w, "failed to save namespace", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, namespaceInfo{
+		Name:   name,
+		Count:  0,
+		Hidden: payload.Hidden,
+	})
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -675,6 +791,44 @@ func (s *server) ensureEmptyFile(ctx context.Context, fullPath string) error {
 		}
 	}
 	_, err := s.client.CreateFile(ctx, fullPath)
+	return err
+}
+
+func (s *server) loadHiddenNamespaces() (map[string]bool, error) {
+	rows, err := s.db.Query(`SELECT name, hidden FROM namespaces`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	hidden := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		var hiddenFlag int
+		if err := rows.Scan(&name, &hiddenFlag); err != nil {
+			return nil, err
+		}
+		if hiddenFlag != 0 {
+			hidden[name] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return hidden, nil
+}
+
+func (s *server) upsertNamespace(name string, hidden bool) error {
+	hiddenValue := 0
+	if hidden {
+		hiddenValue = 1
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO namespaces (name, hidden) VALUES (?, ?)
+		 ON CONFLICT(name) DO UPDATE SET hidden = excluded.hidden`,
+		name,
+		hiddenValue,
+	)
 	return err
 }
 
