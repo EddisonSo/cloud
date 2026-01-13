@@ -26,10 +26,12 @@ import (
 )
 
 type fileInfo struct {
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	Namespace string `json:"namespace"`
-	Size      uint64 `json:"size"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Namespace  string `json:"namespace"`
+	Size       uint64 `json:"size"`
+	CreatedAt  int64  `json:"created_at"`
+	ModifiedAt int64  `json:"modified_at"`
 }
 
 type server struct {
@@ -249,10 +251,12 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 		name := relative
 		resp = append(resp, fileInfo{
-			Name:      name,
-			Path:      file.Path,
-			Namespace: namespace,
-			Size:      file.Size,
+			Name:       name,
+			Path:       file.Path,
+			Namespace:  namespace,
+			Size:       file.Size,
+			CreatedAt:  file.CreatedAt,
+			ModifiedAt: file.ModifiedAt,
 		})
 	}
 

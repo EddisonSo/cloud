@@ -14,6 +14,22 @@ function formatBytes(bytes) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function formatTimestamp(unixSeconds) {
+  if (!unixSeconds) return "-";
+  const date = new Date(unixSeconds * 1000);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  } else {
+    return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  }
+}
+
 function resolveApiHost() {
   // Use same-origin for API calls - ingress routes /api/* to backend
   return window.location.host;
@@ -855,6 +871,7 @@ function App() {
                           <div className="file-head">
                             <span>Name</span>
                             <span>Size</span>
+                            <span>Modified</span>
                             <span>Actions</span>
                           </div>
                         )}
@@ -866,6 +883,7 @@ function App() {
                               <p className="file-meta">{formatBytes(file.size)}</p>
                             </div>
                             <div className="file-col size">{formatBytes(file.size)}</div>
+                            <div className="file-col modified">{formatTimestamp(file.modified_at)}</div>
                             <div className="file-actions file-col actions">
                               <button
                                 type="button"
