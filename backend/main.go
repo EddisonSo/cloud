@@ -26,9 +26,10 @@ import (
 )
 
 type fileInfo struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Size uint64 `json:"size"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Namespace string `json:"namespace"`
+	Size      uint64 `json:"size"`
 }
 
 type server struct {
@@ -44,6 +45,11 @@ type server struct {
 	wsMu       sync.Mutex
 	wsConns    map[string]*websocket.Conn
 }
+
+const (
+	defaultNamespace = "default"
+	hiddenNamespace  = "hidden"
+)
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
@@ -178,7 +184,28 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	files, err := s.client.ListFiles(ctx, s.listPrefix)
+	namespaceParam := strings.TrimSpace(r.URL.Query().Get("namespace"))
+	var listPrefix string
+	namespace := ""
+	if namespaceParam != "" {
+		var err error
+		namespace, err = sanitizeNamespace(namespaceParam)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if namespace == hiddenNamespace {
+			if _, ok := s.currentUser(r); !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+		listPrefix = s.listPrefix + "/" + namespace
+	} else {
+		listPrefix = s.listPrefix
+	}
+
+	files, err := s.client.ListFiles(ctx, listPrefix)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("list files failed: %v", err), http.StatusBadGateway)
 		return
@@ -186,14 +213,28 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]fileInfo, 0, len(files))
 	for _, file := range files {
-		name := s.relativeName(file.Path)
+		relative := relativeNameWithPrefix(file.Path, s.listPrefix)
+		if relative == "" {
+			continue
+		}
+		ns, name := splitNamespaceAndName(relative)
+		if namespace != "" {
+			ns = namespace
+			name = relativeNameWithPrefix(file.Path, listPrefix)
+		}
 		if name == "" {
 			continue
 		}
+		if ns == hiddenNamespace {
+			if _, ok := s.currentUser(r); !ok {
+				continue
+			}
+		}
 		resp = append(resp, fileInfo{
-			Name: name,
-			Path: file.Path,
-			Size: file.Size,
+			Name:      name,
+			Path:      file.Path,
+			Namespace: ns,
+			Size:      file.Size,
 		})
 	}
 
@@ -250,7 +291,17 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullPath := s.prefix + "/" + name
+	namespace := defaultNamespace
+	if rawNamespace := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNamespace != "" {
+		var err error
+		namespace, err = sanitizeNamespace(rawNamespace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	fullPath := s.prefix + "/" + namespace + "/" + name
 	ctx, cancel := context.WithTimeout(r.Context(), s.uploadTTL)
 	defer cancel()
 
@@ -301,7 +352,22 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullPath := s.prefix + "/" + name
+	namespace := defaultNamespace
+	if rawNamespace := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNamespace != "" {
+		namespace, err = sanitizeNamespace(rawNamespace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if namespace == hiddenNamespace {
+			if _, ok := s.currentUser(r); !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+	}
+
+	fullPath := s.prefix + "/" + namespace + "/" + name
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
@@ -343,7 +409,16 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullPath := s.prefix + "/" + name
+	namespace := defaultNamespace
+	if rawNamespace := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNamespace != "" {
+		namespace, err = sanitizeNamespace(rawNamespace)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	fullPath := s.prefix + "/" + namespace + "/" + name
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -603,13 +678,21 @@ func (s *server) ensureEmptyFile(ctx context.Context, fullPath string) error {
 	return err
 }
 
-func (s *server) relativeName(fullPath string) string {
-	trimmed := strings.TrimPrefix(fullPath, s.listPrefix)
+func relativeNameWithPrefix(fullPath, prefix string) string {
+	trimmed := strings.TrimPrefix(fullPath, prefix)
 	trimmed = strings.TrimPrefix(trimmed, "/")
 	if trimmed == "" || trimmed == fullPath {
 		return ""
 	}
 	return trimmed
+}
+
+func splitNamespaceAndName(relative string) (string, string) {
+	parts := strings.SplitN(relative, "/", 2)
+	if len(parts) == 1 {
+		return defaultNamespace, parts[0]
+	}
+	return parts[0], parts[1]
 }
 
 func maxUploadBytes(mb int64) int64 {
@@ -820,6 +903,28 @@ func sanitizeName(raw string) (string, error) {
 		return "", fmt.Errorf("invalid filename")
 	}
 	return base, nil
+}
+
+func sanitizeNamespace(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("namespace required")
+	}
+	if strings.Contains(trimmed, "/") || strings.Contains(trimmed, "\\") {
+		return "", fmt.Errorf("invalid namespace")
+	}
+	for _, r := range trimmed {
+		if r > 127 {
+			return "", fmt.Errorf("invalid namespace")
+		}
+		if !(r >= 'a' && r <= 'z' ||
+			r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' ||
+			r == '-' || r == '_' || r == '.') {
+			return "", fmt.Errorf("invalid namespace")
+		}
+	}
+	return trimmed, nil
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

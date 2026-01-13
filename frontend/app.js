@@ -1,6 +1,8 @@
 const { useEffect, useRef, useState } = React;
 
 const emptyState = "No files yet. Upload your first file to share it.";
+const defaultNamespace = "default";
+const hiddenNamespace = "hidden";
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes === 0) {
@@ -88,6 +90,9 @@ function App() {
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
   const [downloadProgress, setDownloadProgress] = useState({});
   const [deleting, setDeleting] = useState({});
+  const [namespaces, setNamespaces] = useState([defaultNamespace]);
+  const [activeNamespace, setActiveNamespace] = useState(defaultNamespace);
+  const [namespaceInput, setNamespaceInput] = useState("");
   const fileInputRef = useRef(null);
   const navItems = [
     { id: "storage", label: "Storage" },
@@ -127,10 +132,15 @@ function App() {
 
   const activeCopy = tabCopy[activeTab] ?? tabCopy.storage;
 
-  const loadFiles = async () => {
+  const normalizeNamespace = (value) => (value && value.trim() ? value.trim() : defaultNamespace);
+
+  const loadFiles = async (namespace = activeNamespace) => {
     try {
       setLoading(true);
-      const response = await fetch(`${buildApiBase()}/api/files`);
+      const selectedNamespace = normalizeNamespace(namespace);
+      const response = await fetch(
+        `${buildApiBase()}/api/files?namespace=${encodeURIComponent(selectedNamespace)}`
+      );
       if (!response.ok) {
         throw new Error("Failed to load files");
       }
@@ -140,6 +150,29 @@ function App() {
       setStatus(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadNamespaces = async () => {
+    try {
+      const response = await fetch(`${buildApiBase()}/api/files`);
+      if (!response.ok) {
+        throw new Error("Failed to load namespaces");
+      }
+      const payload = await response.json();
+      const found = new Set([defaultNamespace]);
+      payload.forEach((file) => {
+        if (file.namespace) {
+          found.add(file.namespace);
+        }
+      });
+      const sorted = Array.from(found).sort((a, b) => a.localeCompare(b));
+      setNamespaces(sorted);
+      if (!sorted.includes(activeNamespace)) {
+        setActiveNamespace(defaultNamespace);
+      }
+    } catch (err) {
+      console.warn(err.message);
     }
   };
 
@@ -167,7 +200,15 @@ function App() {
       return;
     }
     loadFiles();
+    loadNamespaces();
   }, [authChecked, user]);
+
+  useEffect(() => {
+    if (activeTab !== "storage") {
+      return;
+    }
+    loadFiles(activeNamespace);
+  }, [activeNamespace, activeTab]);
 
   useEffect(() => {
     if (!user || activeTab !== "health") {
@@ -248,14 +289,19 @@ function App() {
       };
 
       await waitForSocket(socket, 2000).catch(() => {});
-      const response = await fetch(`${buildApiBase()}/api/upload?id=${encodeURIComponent(transferId)}`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-        headers: {
-          "X-File-Size": file.size.toString(),
-        },
-      });
+      const response = await fetch(
+        `${buildApiBase()}/api/upload?id=${encodeURIComponent(
+          transferId
+        )}&namespace=${encodeURIComponent(activeNamespace)}`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+          headers: {
+            "X-File-Size": file.size.toString(),
+          },
+        }
+      );
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Upload failed");
@@ -266,7 +312,8 @@ function App() {
         fileInputRef.current.value = "";
       }
       setSelectedFileName("No file selected");
-      await loadFiles();
+      await loadFiles(activeNamespace);
+      await loadNamespaces();
     } catch (err) {
       setStatus(err.message);
     } finally {
@@ -278,11 +325,12 @@ function App() {
   const handleDownload = async (file) => {
     const transferId = createTransferId();
     let socket;
+    const fileKey = `${file.namespace || defaultNamespace}:${file.name}`;
     if (user) {
       socket = new WebSocket(buildWsUrl(transferId));
       setDownloadProgress((prev) => ({
         ...prev,
-        [file.name]: { bytes: 0, total: file.size, active: true },
+        [fileKey]: { bytes: 0, total: file.size, active: true },
       }));
 
       socket.onmessage = (event) => {
@@ -293,9 +341,9 @@ function App() {
           }
           setDownloadProgress((prev) => ({
             ...prev,
-            [file.name]: {
-              bytes: payload.bytes ?? prev[file.name]?.bytes ?? 0,
-              total: payload.total ?? prev[file.name]?.total ?? file.size,
+            [fileKey]: {
+              bytes: payload.bytes ?? prev[fileKey]?.bytes ?? 0,
+              total: payload.total ?? prev[fileKey]?.total ?? file.size,
               active: !payload.done,
             },
           }));
@@ -312,7 +360,9 @@ function App() {
     const link = document.createElement("a");
     link.href = `${buildApiBase()}/api/download?name=${encodeURIComponent(
       file.name
-    )}&id=${encodeURIComponent(transferId)}`;
+    )}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(
+      file.namespace || defaultNamespace
+    )}`;
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
@@ -353,11 +403,14 @@ function App() {
   };
 
   const handleDelete = async (file) => {
-    setDeleting((prev) => ({ ...prev, [file.name]: true }));
+    const fileKey = `${file.namespace || defaultNamespace}:${file.name}`;
+    setDeleting((prev) => ({ ...prev, [fileKey]: true }));
     setStatus(`Deleting ${file.name}...`);
     try {
       const response = await fetch(
-        `${buildApiBase()}/api/delete?name=${encodeURIComponent(file.name)}`,
+        `${buildApiBase()}/api/delete?name=${encodeURIComponent(
+          file.name
+        )}&namespace=${encodeURIComponent(file.namespace || defaultNamespace)}`,
         {
           method: "DELETE",
         }
@@ -367,11 +420,12 @@ function App() {
         throw new Error(message || "Delete failed");
       }
       setStatus(`Deleted ${file.name}`);
-      await loadFiles();
+      await loadFiles(activeNamespace);
+      await loadNamespaces();
     } catch (err) {
       setStatus(err.message);
     } finally {
-      setDeleting((prev) => ({ ...prev, [file.name]: false }));
+      setDeleting((prev) => ({ ...prev, [fileKey]: false }));
     }
   };
 
@@ -456,12 +510,66 @@ function App() {
         <div className="layout">
           {activeTab === "storage" && (
             <>
+              <section className="panel namespaces">
+                <div className="panel-header">
+                  <div>
+                    <h2>Namespaces</h2>
+                    <p>Organize files by namespace and switch contexts instantly.</p>
+                  </div>
+                </div>
+                <div className="namespace-controls">
+                  <div className="field">
+                    <label htmlFor="namespace-select">Active namespace</label>
+                    <select
+                      id="namespace-select"
+                      value={activeNamespace}
+                      onChange={(event) => setActiveNamespace(event.target.value)}
+                    >
+                      {namespaces.map((namespace) => (
+                        <option key={namespace} value={namespace}>
+                          {namespace}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="namespace-new">Create namespace</label>
+                    <div className="namespace-create">
+                      <input
+                        id="namespace-new"
+                        type="text"
+                        placeholder="eg. team-alpha"
+                        value={namespaceInput}
+                        onChange={(event) => setNamespaceInput(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => {
+                          const nextNamespace = normalizeNamespace(namespaceInput);
+                          if (nextNamespace === hiddenNamespace && !user) {
+                            setStatus("Sign in to access the hidden namespace.");
+                            return;
+                          }
+                          if (!namespaces.includes(nextNamespace)) {
+                            setNamespaces((prev) => [...prev, nextNamespace].sort((a, b) => a.localeCompare(b)));
+                          }
+                          setActiveNamespace(nextNamespace);
+                          setNamespaceInput("");
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
           {user && (
             <section className="panel upload">
             <div className="panel-header">
               <div>
                 <h2>Upload</h2>
-                <p>Store a file in the shared bucket. Existing files with the same name get replaced.</p>
+                <p>Store a file in {activeNamespace}. Existing files with the same name get replaced.</p>
               </div>
             </div>
             <form onSubmit={handleUpload} className="upload-form">
@@ -512,15 +620,22 @@ function App() {
             <div className="panel-header">
               <div>
                 <h2>Shared files</h2>
-                <p>Download or remove stored objects.</p>
+                <p>Download or remove stored objects in {activeNamespace}.</p>
               </div>
-              <button type="button" className="ghost" onClick={loadFiles} disabled={loading}>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => loadFiles(activeNamespace)}
+                disabled={loading}
+              >
                 {loading ? "Refreshing..." : "Refresh"}
               </button>
             </div>
             <div className="file-list">
               {loading && <p className="empty">Loading files...</p>}
-              {!loading && files.length === 0 && <p className="empty">{emptyState}</p>}
+              {!loading && files.length === 0 && (
+                <p className="empty">{emptyState}</p>
+              )}
               {!loading &&
                 files.length > 0 && (
                   <div className="file-head">
@@ -541,7 +656,7 @@ function App() {
                       <button
                         type="button"
                         className="ghost"
-                        disabled={deleting[file.name]}
+                        disabled={deleting[`${file.namespace || defaultNamespace}:${file.name}`]}
                         onClick={() => handleDownload(file)}
                       >
                         Download
@@ -550,10 +665,12 @@ function App() {
                         <button
                           type="button"
                           className="danger"
-                          disabled={deleting[file.name]}
+                          disabled={deleting[`${file.namespace || defaultNamespace}:${file.name}`]}
                           onClick={() => handleDelete(file)}
                         >
-                          {deleting[file.name] ? "Deleting..." : "Delete"}
+                          {deleting[`${file.namespace || defaultNamespace}:${file.name}`]
+                            ? "Deleting..."
+                            : "Delete"}
                         </button>
                       )}
                     </div>
