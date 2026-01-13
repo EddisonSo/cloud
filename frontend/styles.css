@@ -23,34 +23,11 @@ body {
   min-height: 100vh;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   color: var(--ink);
-  background: radial-gradient(circle at top left, #d9e6ff 0%, transparent 45%),
-    radial-gradient(circle at 80% 20%, #e6f0ff 0%, transparent 50%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-alt) 100%);
+  background: lightblue;
   position: relative;
   overflow-x: hidden;
 }
 
-body::before,
-body::after {
-  content: "";
-  position: absolute;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(26, 115, 232, 0.16), transparent 70%);
-  filter: blur(1px);
-  z-index: 0;
-}
-
-body::before {
-  top: -140px;
-  left: -120px;
-}
-
-body::after {
-  bottom: -180px;
-  right: -120px;
-}
 
 .page {
   display: grid;
@@ -765,17 +742,10 @@ button:not(:disabled):hover {
 }
 
 .build-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   display: flex;
   justify-content: center;
   gap: 1.5rem;
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
   color: var(--muted);
-  background: lightblue;
-  border-top: 1px solid var(--stroke);
-  z-index: 100;
 }
