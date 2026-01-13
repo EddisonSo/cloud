@@ -461,16 +461,53 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	start := time.Now()
+	status := "ok"
+	errDetail := ""
+	name := ""
+	namespace := defaultNamespace
+	transferID := s.transferID(r)
+	var total int64
+	defer func() {
+		duration := time.Since(start).Truncate(time.Millisecond)
+		if errDetail == "" {
+			log.Printf(
+				"upload %s namespace=%s name=%s size=%d transfer=%s duration=%s",
+				status,
+				namespace,
+				name,
+				total,
+				transferID,
+				duration,
+			)
+		} else {
+			log.Printf(
+				"upload %s namespace=%s name=%s size=%d transfer=%s duration=%s err=%s",
+				status,
+				namespace,
+				name,
+				total,
+				transferID,
+				duration,
+				errDetail,
+			)
+		}
+	}()
+	fail := func(message string, code int) {
+		status = "error"
+		errDetail = message
+		http.Error(w, message, code)
+	}
+
 	if s.maxUpload > 0 {
 		r.Body = http.MaxBytesReader(w, r.Body, s.maxUpload)
 	}
 	mr, err := r.MultipartReader()
 	if err != nil {
-		http.Error(w, "invalid multipart upload", http.StatusBadRequest)
+		fail("invalid multipart upload", http.StatusBadRequest)
 		return
 	}
 
-	var name string
 	var file io.Reader
 	for {
 		part, err := mr.NextPart()
@@ -478,7 +515,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			http.Error(w, "invalid multipart upload", http.StatusBadRequest)
+			fail("invalid multipart upload", http.StatusBadRequest)
 			return
 		}
 		if part.FormName() != "file" {
@@ -488,7 +525,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		filename, err := sanitizeName(part.FileName())
 		if err != nil {
 			part.Close()
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			fail(err.Error(), http.StatusBadRequest)
 			return
 		}
 		name = filename
@@ -497,16 +534,15 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if file == nil {
-		http.Error(w, "missing file", http.StatusBadRequest)
+		fail("missing file", http.StatusBadRequest)
 		return
 	}
 
-	namespace := defaultNamespace
 	if rawNamespace := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNamespace != "" {
 		var err error
 		namespace, err = sanitizeNamespace(rawNamespace)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			fail(err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -514,22 +550,48 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	fullPath := name
 	ctx, cancel := context.WithTimeout(r.Context(), s.uploadTTL)
 	defer cancel()
+	defer func() {
+		if ctx.Err() != nil {
+			log.Printf(
+				"upload context done namespace=%s name=%s transfer=%s err=%v",
+				namespace,
+				name,
+				transferID,
+				ctx.Err(),
+			)
+		}
+	}()
 
 	if err := s.ensureEmptyFile(ctx, namespace, fullPath); err != nil {
-		http.Error(w, fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
+		fail(fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
 		return
 	}
 
-	transferID := s.transferID(r)
-	total := s.parseSizeHeader(r.Header.Get("X-File-Size"))
+	total = s.parseSizeHeader(r.Header.Get("X-File-Size"))
 	reporter := s.newReporter(transferID, "upload", total)
+	log.Printf(
+		"upload start namespace=%s name=%s size=%d transfer=%s gfs_namespace=%s",
+		namespace,
+		name,
+		total,
+		transferID,
+		s.gfsNamespace(namespace),
+	)
 
 	// Use PrepareUpload when file size is known to pre-allocate chunks
 	if total > 0 {
 		prepared, err := s.client.PrepareUploadWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), total)
 		if err != nil {
 			reporter.Error(err)
-			http.Error(w, fmt.Sprintf("prepare upload failed: %v", err), http.StatusBadGateway)
+			log.Printf(
+				"upload prepare failed namespace=%s name=%s size=%d transfer=%s err=%v",
+				namespace,
+				name,
+				total,
+				transferID,
+				err,
+			)
+			fail(fmt.Sprintf("prepare upload failed: %v", err), http.StatusBadGateway)
 			return
 		}
 		// Track progress based on bytes actually written to GFS (not bytes read from HTTP)
@@ -538,7 +600,15 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		})
 		if _, err := prepared.AppendFrom(ctx, file); err != nil {
 			reporter.Error(err)
-			http.Error(w, fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
+			log.Printf(
+				"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
+				namespace,
+				name,
+				total,
+				transferID,
+				err,
+			)
+			fail(fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
 			return
 		}
 	} else {
@@ -546,11 +616,26 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		counting := &countingReader{reader: file, reporter: reporter}
 		if _, err := s.client.AppendFromWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
 			reporter.Error(err)
-			http.Error(w, fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
+			log.Printf(
+				"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
+				namespace,
+				name,
+				total,
+				transferID,
+				err,
+			)
+			fail(fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
 			return
 		}
 	}
 	reporter.Done()
+	log.Printf(
+		"upload complete namespace=%s name=%s size=%d transfer=%s",
+		namespace,
+		name,
+		total,
+		transferID,
+	)
 
 	writeJSON(w, map[string]string{"status": "ok", "name": name})
 }
