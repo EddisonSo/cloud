@@ -224,7 +224,7 @@ h1 {
 .upload-form {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 12px;
 }
@@ -232,7 +232,6 @@ h1 {
 .field {
   display: grid;
   gap: 6px;
-  flex: 1 1 240px;
 }
 
 .field label,
