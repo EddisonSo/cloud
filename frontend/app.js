@@ -110,9 +110,13 @@ function App() {
   const [logLevelFilter, setLogLevelFilter] = useState("DEBUG");
   const [logSources, setLogSources] = useState([]);
   const [logsAutoScroll, setLogsAutoScroll] = useState(true);
+  const [logUpdateFrequency, setLogUpdateFrequency] = useState(0); // 0 = unlimited
+  const [lastLogTime, setLastLogTime] = useState(null);
   const logsAutoScrollRef = useRef(true);
   const logsContainerRef = useRef(null);
   const logsEndRef = useRef(null);
+  const logBufferRef = useRef([]);
+  const lastFlushRef = useRef(0);
   const [uploadProgress, setUploadProgress] = useState({
     bytes: 0,
     total: 0,
@@ -377,11 +381,27 @@ function App() {
 
     let ws = null;
     let reconnectTimeout = null;
+    let flushInterval = null;
     let isCleaningUp = false;
     const maxLogs = 1000;
 
-    // Clear logs when filters change (not on auto-reconnect)
+    // Clear logs and buffer when filters change
     setLogs([]);
+    logBufferRef.current = [];
+
+    // Flush buffered logs to state
+    const flushBuffer = () => {
+      if (logBufferRef.current.length === 0) return;
+
+      const toFlush = logBufferRef.current;
+      logBufferRef.current = [];
+      lastFlushRef.current = Date.now();
+
+      setLogs((prev) => {
+        const next = [...prev, ...toFlush];
+        return next.length > maxLogs ? next.slice(-maxLogs) : next;
+      });
+    };
 
     const connect = () => {
       if (isCleaningUp) return;
@@ -402,16 +422,27 @@ function App() {
       ws.onmessage = (event) => {
         try {
           const entry = JSON.parse(event.data);
-          setLogs((prev) => {
-            const next = [...prev, entry];
-            return next.length > maxLogs ? next.slice(-maxLogs) : next;
-          });
+
+          // Update last log time
+          setLastLogTime(new Date());
+
           // Track unique sources
           if (entry.source) {
             setLogSources((prev) => {
               if (prev.includes(entry.source)) return prev;
               return [...prev, entry.source].sort();
             });
+          }
+
+          // If unlimited frequency, update immediately
+          if (logUpdateFrequency === 0) {
+            setLogs((prev) => {
+              const next = [...prev, entry];
+              return next.length > maxLogs ? next.slice(-maxLogs) : next;
+            });
+          } else {
+            // Buffer the log entry
+            logBufferRef.current.push(entry);
           }
         } catch (err) {
           console.error("Failed to parse log entry:", err);
@@ -433,12 +464,20 @@ function App() {
 
     connect();
 
+    // Set up flush interval if frequency is limited
+    if (logUpdateFrequency > 0) {
+      flushInterval = setInterval(flushBuffer, logUpdateFrequency);
+    }
+
     return () => {
       isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (flushInterval) clearInterval(flushInterval);
       if (ws) ws.close();
+      // Flush remaining logs
+      flushBuffer();
     };
-  }, [user, activeTab, logSourceFilter, logLevelFilter]);
+  }, [user, activeTab, logSourceFilter, logLevelFilter, logUpdateFrequency]);
 
   // Auto-scroll logs (use ref to avoid race conditions with rapid updates)
   useEffect(() => {
@@ -1290,6 +1329,20 @@ function App() {
                     <option value="ERROR">ERROR</option>
                   </select>
                 </label>
+                <label className="filter-group">
+                  <span>Update Rate</span>
+                  <select
+                    value={logUpdateFrequency}
+                    onChange={(e) => setLogUpdateFrequency(Number(e.target.value))}
+                  >
+                    <option value={0}>Unlimited</option>
+                    <option value={500}>0.5s</option>
+                    <option value={1000}>1s</option>
+                    <option value={5000}>5s</option>
+                    <option value={10000}>10s</option>
+                    <option value={60000}>1min</option>
+                  </select>
+                </label>
                 <label className="filter-group checkbox">
                   <input
                     type="checkbox"
@@ -1324,6 +1377,11 @@ function App() {
               </div>
               <div className="logs-footer">
                 <span>{logs.length} entries</span>
+                {lastLogTime && (
+                  <span className="last-log-time">
+                    Last log: {lastLogTime.toLocaleTimeString()}
+                  </span>
+                )}
               </div>
             </section>
           )}
