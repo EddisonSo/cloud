@@ -378,7 +378,7 @@ function App() {
     let ws = null;
     let reconnectTimeout = null;
     let isCleaningUp = false;
-    const maxLogs = 500;
+    const maxLogs = 1000;
 
     // Clear logs when filters change (not on auto-reconnect)
     setLogs([]);
