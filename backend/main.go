@@ -582,7 +582,11 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := s.ensureEmptyFile(ctx, namespace, fullPath); err != nil {
-		fail(fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
+		if strings.Contains(err.Error(), "already exists") {
+			fail(err.Error(), http.StatusConflict)
+		} else {
+			fail(fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
+		}
 		return
 	}
 
@@ -893,10 +897,9 @@ func generateToken(length int) (string, error) {
 }
 
 func (s *server) ensureEmptyFile(ctx context.Context, namespace, fullPath string) error {
+	// Check if file already exists - reject if so
 	if _, err := s.client.GetFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err == nil {
-		if err := s.client.DeleteFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err != nil {
-			return err
-		}
+		return fmt.Errorf("file already exists: %s", fullPath)
 	}
 	_, err := s.client.CreateFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace))
 	return err
