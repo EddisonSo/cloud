@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
+	"eddisonso.com/go-gfs/pkg/gfslog"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/websocket"
 	_ "modernc.org/sqlite"
@@ -68,7 +70,19 @@ func main() {
 	uploadTTL := flag.Duration("upload-timeout", 10*time.Minute, "max time allowed for a single upload")
 	authDB := flag.String("auth-db", "auth.db", "path to sqlite database for auth")
 	sessionTTL := flag.Duration("session-ttl", 24*time.Hour, "session lifetime")
+	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	flag.Parse()
+
+	// Initialize logger
+	if *logServiceAddr != "" {
+		logger := gfslog.NewLogger(gfslog.Config{
+			Source:         "edd-cloud-interface",
+			LogServiceAddr: *logServiceAddr,
+			MinLevel:       slog.LevelInfo,
+		})
+		slog.SetDefault(logger.Logger)
+		defer logger.Close()
+	}
 
 	cleanPrefix := normalizePrefix(*prefix)
 	if cleanPrefix == "/" {
