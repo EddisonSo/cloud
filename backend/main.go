@@ -71,12 +71,13 @@ func main() {
 	authDB := flag.String("auth-db", "auth.db", "path to sqlite database for auth")
 	sessionTTL := flag.Duration("session-ttl", 24*time.Hour, "session lifetime")
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
+	logSource := flag.String("log-source", "edd-cloud-interface", "Log source name (e.g., pod name)")
 	flag.Parse()
 
 	// Initialize logger
 	if *logServiceAddr != "" {
 		logger := gfslog.NewLogger(gfslog.Config{
-			Source:         "edd-cloud-interface",
+			Source:         *logSource,
 			LogServiceAddr: *logServiceAddr,
 			MinLevel:       slog.LevelInfo,
 		})
