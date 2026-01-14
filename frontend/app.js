@@ -102,6 +102,15 @@ function App() {
   const [healthLoading, setHealthLoading] = useState(false);
   const [lastHealthCheck, setLastHealthCheck] = useState(null);
   const [healthRefreshTick, setHealthRefreshTick] = useState(0);
+  // Logs state
+  const [logs, setLogs] = useState([]);
+  const [logsConnected, setLogsConnected] = useState(false);
+  const [logsError, setLogsError] = useState("");
+  const [logSourceFilter, setLogSourceFilter] = useState("");
+  const [logLevelFilter, setLogLevelFilter] = useState("DEBUG");
+  const [logSources, setLogSources] = useState([]);
+  const [logsAutoScroll, setLogsAutoScroll] = useState(true);
+  const logsEndRef = useRef(null);
   const [uploadProgress, setUploadProgress] = useState({
     bytes: 0,
     total: 0,
@@ -126,6 +135,7 @@ function App() {
     { id: "message-queue", label: "Message Queue" },
     { id: "datastore", label: "Datastore" },
     { id: "health", label: "Health" },
+    { id: "logs", label: "Logs" },
   ];
 
   const tabCopy = {
@@ -153,6 +163,11 @@ function App() {
       eyebrow: "Operations",
       title: "Health Monitor",
       lead: "Live telemetry for master connectivity and chunkserver status.",
+    },
+    logs: {
+      eyebrow: "Observability",
+      title: "Cluster Logs",
+      lead: "Real-time log streaming from all cluster services.",
     },
   };
 
@@ -351,6 +366,104 @@ function App() {
       if (ws) ws.close();
     };
   }, [user, activeTab, healthRefreshTick]);
+
+  // Logs WebSocket connection
+  useEffect(() => {
+    if (!user || activeTab !== "logs") {
+      return;
+    }
+
+    let ws = null;
+    let reconnectTimeout = null;
+    const maxLogs = 500;
+
+    const connect = () => {
+      setLogsError("");
+
+      const params = new URLSearchParams();
+      if (logSourceFilter) params.set("source", logSourceFilter);
+      if (logLevelFilter) params.set("level", logLevelFilter);
+      const wsUrl = `${buildWsBase()}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        setLogsConnected(true);
+        setLogsError("");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const entry = JSON.parse(event.data);
+          setLogs((prev) => {
+            const next = [...prev, entry];
+            return next.length > maxLogs ? next.slice(-maxLogs) : next;
+          });
+          // Track unique sources
+          if (entry.source) {
+            setLogSources((prev) => {
+              if (prev.includes(entry.source)) return prev;
+              return [...prev, entry.source].sort();
+            });
+          }
+        } catch (err) {
+          console.error("Failed to parse log entry:", err);
+        }
+      };
+
+      ws.onerror = () => {
+        setLogsError("WebSocket connection error");
+        setLogsConnected(false);
+      };
+
+      ws.onclose = () => {
+        setLogsConnected(false);
+        reconnectTimeout = setTimeout(connect, 5000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    };
+  }, [user, activeTab, logSourceFilter, logLevelFilter]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsAutoScroll && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs, logsAutoScroll]);
+
+  const clearLogs = () => setLogs([]);
+
+  const logLevelColor = (level) => {
+    switch (level) {
+      case 0: return "debug";
+      case 1: return "info";
+      case 2: return "warn";
+      case 3: return "error";
+      default: return "info";
+    }
+  };
+
+  const logLevelName = (level) => {
+    switch (level) {
+      case 0: return "DEBUG";
+      case 1: return "INFO";
+      case 2: return "WARN";
+      case 3: return "ERROR";
+      default: return "INFO";
+    }
+  };
+
+  const formatLogTime = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  };
 
   const handleUpload = async (event) => {
     event.preventDefault();
@@ -1120,6 +1233,83 @@ function App() {
                     section after the service is implemented.
                   </p>
                 </div>
+              </div>
+            </section>
+          )}
+          {activeTab === "logs" && (
+            <section className="panel logs">
+              <div className="panel-header">
+                <div>
+                  <h2>Live Logs</h2>
+                  <p>Streaming logs from cluster services.</p>
+                </div>
+                <div className="logs-actions">
+                  <span className={`connection-status ${logsConnected ? "connected" : "disconnected"}`}>
+                    {logsConnected ? "Connected" : "Disconnected"}
+                  </span>
+                  <button type="button" className="ghost" onClick={clearLogs}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="logs-filters">
+                <label className="filter-group">
+                  <span>Source</span>
+                  <select
+                    value={logSourceFilter}
+                    onChange={(e) => setLogSourceFilter(e.target.value)}
+                  >
+                    <option value="">All Sources</option>
+                    {logSources.map((source) => (
+                      <option key={source} value={source}>
+                        {source}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="filter-group">
+                  <span>Min Level</span>
+                  <select
+                    value={logLevelFilter}
+                    onChange={(e) => setLogLevelFilter(e.target.value)}
+                  >
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARN">WARN</option>
+                    <option value="ERROR">ERROR</option>
+                  </select>
+                </label>
+                <label className="filter-group checkbox">
+                  <input
+                    type="checkbox"
+                    checked={logsAutoScroll}
+                    onChange={(e) => setLogsAutoScroll(e.target.checked)}
+                  />
+                  <span>Auto-scroll</span>
+                </label>
+              </div>
+              {logsError && <p className="status error">{logsError}</p>}
+              <div className="logs-container">
+                {logs.length === 0 ? (
+                  <p className="empty">No log entries yet. Logs will appear as they stream in.</p>
+                ) : (
+                  <div className="logs-list">
+                    {logs.map((entry, idx) => (
+                      <div key={idx} className={`log-entry level-${logLevelColor(entry.level)}`}>
+                        <span className="log-time">{formatLogTime(entry.timestamp)}</span>
+                        <span className={`log-level ${logLevelColor(entry.level)}`}>
+                          {logLevelName(entry.level)}
+                        </span>
+                        <span className="log-source">{entry.source}</span>
+                        <span className="log-message">{entry.message}</span>
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                )}
+              </div>
+              <div className="logs-footer">
+                <span>{logs.length} entries</span>
               </div>
             </section>
           )}
