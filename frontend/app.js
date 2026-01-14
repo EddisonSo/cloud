@@ -377,12 +377,15 @@ function App() {
     let reconnectTimeout = null;
     const maxLogs = 500;
 
+    // Clear logs when filters change (not on auto-reconnect)
+    setLogs([]);
+
     const connect = () => {
       setLogsError("");
 
       const params = new URLSearchParams();
       if (logSourceFilter) params.set("source", logSourceFilter);
-      if (logLevelFilter) params.set("level", logLevelFilter);
+      if (logLevelFilter && logLevelFilter !== "DEBUG") params.set("level", logLevelFilter);
       const wsUrl = `${buildWsBase()}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
 
       ws = new WebSocket(wsUrl);
