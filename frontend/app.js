@@ -771,8 +771,8 @@ function App() {
           </div>
           <div className="summary">
             <div className="summary-card">
-              <span className="summary-label">Files stored</span>
-              <span className="summary-value">{files.length}</span>
+              <span className="summary-label">Total files</span>
+              <span className="summary-value">{namespaces.reduce((sum, ns) => sum + (ns.count || 0), 0)}</span>
             </div>
           </div>
         </header>
