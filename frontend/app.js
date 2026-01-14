@@ -110,6 +110,7 @@ function App() {
   const [logLevelFilter, setLogLevelFilter] = useState("DEBUG");
   const [logSources, setLogSources] = useState([]);
   const [logsAutoScroll, setLogsAutoScroll] = useState(true);
+  const logsAutoScrollRef = useRef(true);
   const logsEndRef = useRef(null);
   const [uploadProgress, setUploadProgress] = useState({
     bytes: 0,
@@ -438,12 +439,12 @@ function App() {
     };
   }, [user, activeTab, logSourceFilter, logLevelFilter]);
 
-  // Auto-scroll logs
+  // Auto-scroll logs (use ref to avoid race conditions with rapid updates)
   useEffect(() => {
-    if (logsAutoScroll && logsEndRef.current) {
+    if (logsAutoScrollRef.current && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [logs, logsAutoScroll]);
+  }, [logs]);
 
   const clearLogs = () => setLogs([]);
 
@@ -1291,7 +1292,10 @@ function App() {
                   <input
                     type="checkbox"
                     checked={logsAutoScroll}
-                    onChange={(e) => setLogsAutoScroll(e.target.checked)}
+                    onChange={(e) => {
+                      logsAutoScrollRef.current = e.target.checked;
+                      setLogsAutoScroll(e.target.checked);
+                    }}
                   />
                   <span>Auto-scroll</span>
                 </label>
