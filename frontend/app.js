@@ -1132,7 +1132,7 @@ function App() {
                       {Number.isFinite(node.memory_percent) ? `${node.memory_percent.toFixed(1)}%` : "—"}
                     </span>
                     <span>
-                      {(node.conditions || []).filter(c => c.status === "True").map(c => c.type.replace("Pressure", "")).join(", ") || "None"}
+                      {(node.conditions || []).filter(c => c.status === "True").map(c => c.type.replace("Pressure", "")).join(", ") || "OK"}
                     </span>
                   </div>
                 ))}
