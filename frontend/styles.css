@@ -535,6 +535,14 @@ button:not(:disabled):hover {
   padding: 0 16px 6px;
 }
 
+.file-head span:nth-child(2) {
+  text-align: right;
+}
+
+.file-head span:nth-child(4) {
+  text-align: right;
+}
+
 .file-row {
   padding: 14px 16px;
   border-radius: 12px;
