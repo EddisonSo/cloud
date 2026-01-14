@@ -522,7 +522,7 @@ button:not(:disabled):hover {
 .file-head,
 .file-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px 200px;
+  grid-template-columns: minmax(0, 1fr) 100px 120px 160px;
   align-items: center;
   gap: 16px;
 }
@@ -625,7 +625,7 @@ button:not(:disabled):hover {
 .health-head,
 .health-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) 100px 80px 90px 80px 70px;
+  grid-template-columns: minmax(120px, 1fr) 70px 80px 100px 80px;
   align-items: center;
   gap: 12px;
 }
@@ -690,7 +690,15 @@ button:not(:disabled):hover {
   text-align: right;
 }
 
+.file-col.modified {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .file-col.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -996,7 +1004,8 @@ button:not(:disabled):hover {
     display: block;
   }
 
-  .file-col.size {
+  .file-col.size,
+  .file-col.modified {
     display: none;
   }
 

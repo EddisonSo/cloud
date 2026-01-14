@@ -1120,6 +1120,7 @@ function App() {
                   <span>Node</span>
                   <span>CPU</span>
                   <span>Memory</span>
+                  <span>Disk</span>
                   <span>Pressure</span>
                 </div>
                 {(health.nodes || []).map((node) => (
@@ -1130,6 +1131,9 @@ function App() {
                     <span>{Number.isFinite(node.cpu_percent) ? `${node.cpu_percent.toFixed(1)}%` : "—"}</span>
                     <span>
                       {Number.isFinite(node.memory_percent) ? `${node.memory_percent.toFixed(1)}%` : "—"}
+                    </span>
+                    <span>
+                      {node.disk_allocatable > 0 ? formatBytes(node.disk_allocatable) : "—"}
                     </span>
                     <span>
                       {(node.conditions || []).filter(c => c.status === "True").map(c => c.type.replace("Pressure", "")).join(", ") || "OK"}
