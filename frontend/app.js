@@ -720,10 +720,6 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <span className="sidebar-label">Region</span>
-          <span className="sidebar-value">192.168.1.201:30900</span>
-        </div>
         {user ? (
           <button type="button" className="ghost logout" onClick={handleLogout}>
             Sign out
