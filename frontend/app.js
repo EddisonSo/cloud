@@ -375,12 +375,14 @@ function App() {
 
     let ws = null;
     let reconnectTimeout = null;
+    let isCleaningUp = false;
     const maxLogs = 500;
 
     // Clear logs when filters change (not on auto-reconnect)
     setLogs([]);
 
     const connect = () => {
+      if (isCleaningUp) return;
       setLogsError("");
 
       const params = new URLSearchParams();
@@ -388,7 +390,6 @@ function App() {
       if (logLevelFilter && logLevelFilter !== "DEBUG") params.set("level", logLevelFilter);
       const wsUrl = `${buildWsBase()}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
 
-      console.log("Connecting to logs WebSocket:", wsUrl, "filters:", { source: logSourceFilter, level: logLevelFilter });
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -422,14 +423,16 @@ function App() {
 
       ws.onclose = () => {
         setLogsConnected(false);
-        reconnectTimeout = setTimeout(connect, 5000);
+        if (!isCleaningUp) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
       };
     };
 
     connect();
 
     return () => {
-      console.log("Cleaning up logs WebSocket connection");
+      isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (ws) ws.close();
     };
