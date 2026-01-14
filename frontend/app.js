@@ -388,6 +388,7 @@ function App() {
       if (logLevelFilter && logLevelFilter !== "DEBUG") params.set("level", logLevelFilter);
       const wsUrl = `${buildWsBase()}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
 
+      console.log("Connecting to logs WebSocket:", wsUrl, "filters:", { source: logSourceFilter, level: logLevelFilter });
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -428,6 +429,7 @@ function App() {
     connect();
 
     return () => {
+      console.log("Cleaning up logs WebSocket connection");
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (ws) ws.close();
     };
