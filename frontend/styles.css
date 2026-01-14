@@ -1141,6 +1141,7 @@ button:not(:disabled):hover {
 .logs-container {
   flex: 1;
   overflow-y: auto;
+  overflow-anchor: none;
   background: #1e293b;
   border-radius: 8px;
   margin: 0.75rem 0;

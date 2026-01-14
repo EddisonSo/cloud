@@ -111,6 +111,7 @@ function App() {
   const [logSources, setLogSources] = useState([]);
   const [logsAutoScroll, setLogsAutoScroll] = useState(true);
   const logsAutoScrollRef = useRef(true);
+  const logsContainerRef = useRef(null);
   const logsEndRef = useRef(null);
   const [uploadProgress, setUploadProgress] = useState({
     bytes: 0,
@@ -441,8 +442,9 @@ function App() {
 
   // Auto-scroll logs (use ref to avoid race conditions with rapid updates)
   useEffect(() => {
-    if (logsAutoScrollRef.current && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (logsAutoScrollRef.current && logsContainerRef.current) {
+      const container = logsContainerRef.current;
+      container.scrollTop = container.scrollHeight;
     }
   }, [logs]);
 
@@ -1301,7 +1303,7 @@ function App() {
                 </label>
               </div>
               {logsError && <p className="status error">{logsError}</p>}
-              <div className="logs-container">
+              <div className="logs-container" ref={logsContainerRef}>
                 {logs.length === 0 ? (
                   <p className="empty">No log entries yet. Logs will appear as they stream in.</p>
                 ) : (
