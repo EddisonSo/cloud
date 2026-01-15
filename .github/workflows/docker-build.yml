@@ -10,6 +10,7 @@ env:
   HEALTH_IMAGE: docker.io/eddisonso/ecloud-health
   LOGGING_IMAGE: docker.io/eddisonso/ecloud-logging
   COMPUTE_IMAGE: docker.io/eddisonso/ecloud-compute
+  COMPUTE_BASE_IMAGE: docker.io/eddisonso/ecloud-compute-base
   FRONTEND_IMAGE: docker.io/eddisonso/ecloud-frontend
   NS: default
 
@@ -178,6 +179,32 @@ jobs:
             -t ${COMPUTE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
+  build-compute-base:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f services/compute/images/base/Dockerfile \
+            -t ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push services/compute/images/base
+
   build-frontend:
     strategy:
       matrix:
@@ -210,7 +237,7 @@ jobs:
             --provenance=false --sbom=false --push frontend
 
   create-manifests:
-    needs: [build-sfs, build-health, build-logging, build-compute, build-frontend]
+    needs: [build-sfs, build-health, build-logging, build-compute, build-compute-base, build-frontend]
     runs-on: ubuntu-latest
     steps:
       - uses: docker/login-action@v3
@@ -219,7 +246,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Create multi-arch manifests
         run: |
-          for IMAGE in "$SFS_IMAGE" "$HEALTH_IMAGE" "$LOGGING_IMAGE" "$COMPUTE_IMAGE" "$FRONTEND_IMAGE"; do
+          for IMAGE in "$SFS_IMAGE" "$HEALTH_IMAGE" "$LOGGING_IMAGE" "$COMPUTE_IMAGE" "$COMPUTE_BASE_IMAGE" "$FRONTEND_IMAGE"; do
             docker manifest create ${IMAGE}:${GITHUB_SHA} \
               ${IMAGE}:${GITHUB_SHA}-arm64 \
               ${IMAGE}:${GITHUB_SHA}-amd64

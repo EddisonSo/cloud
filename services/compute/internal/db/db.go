@@ -51,7 +51,7 @@ func (db *DB) migrate() error {
 			external_ip TEXT,
 			memory_mb INTEGER DEFAULT 512,
 			storage_gb INTEGER DEFAULT 5,
-			image TEXT DEFAULT 'eddisonso/edd-compute-base:latest',
+			image TEXT DEFAULT 'eddisonso/ecloud-compute-base:latest',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			stopped_at DATETIME
 		)`,

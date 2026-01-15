@@ -17,7 +17,7 @@ const (
 	maxContainersPerUser = 3
 	defaultMemoryMB      = 512
 	defaultStorageGB     = 5
-	defaultImage         = "eddisonso/edd-compute-base:latest"
+	defaultImage         = "eddisonso/ecloud-compute-base:latest"
 )
 
 type containerRequest struct {
