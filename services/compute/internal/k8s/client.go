@@ -270,7 +270,7 @@ func (c *Client) GetServiceExternalIP(ctx context.Context, namespace string) (st
 	return "", nil // No IP assigned yet
 }
 
-// GetPodStatus gets the status of a pod
+// GetPodStatus gets the status of a pod, checking container readiness
 func (c *Client) GetPodStatus(ctx context.Context, namespace string) (string, error) {
 	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, "container", metav1.GetOptions{})
 	if err != nil {
@@ -284,7 +284,14 @@ func (c *Client) GetPodStatus(ctx context.Context, namespace string) (string, er
 	case corev1.PodPending:
 		return "pending", nil
 	case corev1.PodRunning:
-		return "running", nil
+		// Check if all containers are ready
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.ContainersReady && cond.Status == corev1.ConditionTrue {
+				return "running", nil
+			}
+		}
+		// Pod is running but containers not ready yet
+		return "initializing", nil
 	case corev1.PodSucceeded:
 		return "stopped", nil
 	case corev1.PodFailed:
@@ -301,4 +308,22 @@ func (c *Client) DeletePod(ctx context.Context, namespace string) error {
 		return fmt.Errorf("delete pod: %w", err)
 	}
 	return nil
+}
+
+// GetGatewayPublicKey retrieves the gateway SSH public key from the K8s Secret
+func (c *Client) GetGatewayPublicKey(ctx context.Context) (string, error) {
+	secret, err := c.clientset.CoreV1().Secrets("default").Get(ctx, "gateway-ssh-key", metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return "", nil // Secret doesn't exist yet
+		}
+		return "", fmt.Errorf("get gateway secret: %w", err)
+	}
+
+	pubKey, ok := secret.Data["public_key"]
+	if !ok {
+		return "", fmt.Errorf("gateway secret missing public_key field")
+	}
+
+	return string(pubKey), nil
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -160,10 +159,10 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	}
 
 	// Add gateway's public key if available (enables SSH routing via gateway)
-	if gatewayKey, err := os.ReadFile("/data/gateway_key.pub"); err == nil {
+	if gatewayKey, err := h.k8s.GetGatewayPublicKey(ctx); err == nil && gatewayKey != "" {
 		authorizedKeys.WriteString("# Gateway key for SSH routing\n")
-		authorizedKeys.Write(gatewayKey)
-		if !strings.HasSuffix(string(gatewayKey), "\n") {
+		authorizedKeys.WriteString(gatewayKey)
+		if !strings.HasSuffix(gatewayKey, "\n") {
 			authorizedKeys.WriteString("\n")
 		}
 	}
@@ -216,41 +215,77 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 		return
 	}
 
-	h.db.UpdateContainerStatus(container.ID, "running")
-	slog.Info("container provisioned", "container", container.ID, "namespace", container.Namespace)
+	// Resources created, status is "initializing" until pod is ready
+	h.db.UpdateContainerStatus(container.ID, "initializing")
+	slog.Info("container resources created", "container", container.ID, "namespace", container.Namespace)
+	GetHub().SendContainerStatus(container.UserID, container.ID, "initializing", nil)
 
-	// Broadcast running status via WebSocket
-	GetHub().SendContainerStatus(container.UserID, container.ID, "running", nil)
-
-	// Poll for external IP
-	go h.pollExternalIP(container)
+	// Poll for pod readiness and external IP
+	go h.pollContainerReady(container)
 }
 
-func (h *Handler) pollExternalIP(container *db.Container) {
+func (h *Handler) pollContainerReady(container *db.Container) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
+
+	podReady := false
+	ipAssigned := false
+	var externalIP string
 
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Warn("timeout waiting for external IP", "container", container.ID)
+			slog.Warn("timeout waiting for container ready", "container", container.ID)
 			return
 		case <-ticker.C:
-			ip, err := h.k8s.GetServiceExternalIP(ctx, container.Namespace)
-			if err != nil {
-				slog.Error("failed to get external ip", "container", container.ID, "error", err)
-				continue
-			}
-			if ip != "" {
-				if err := h.db.UpdateContainerIP(container.ID, ip); err != nil {
-					slog.Error("failed to update container ip", "container", container.ID, "error", err)
+			// Check pod status
+			if !podReady {
+				status, err := h.k8s.GetPodStatus(ctx, container.Namespace)
+				if err != nil {
+					slog.Error("failed to get pod status", "container", container.ID, "error", err)
+					continue
 				}
-				slog.Info("external IP assigned", "container", container.ID, "ip", ip)
-				// Broadcast IP assignment via WebSocket
-				GetHub().SendContainerStatus(container.UserID, container.ID, "running", &ip)
+
+				if status == "running" {
+					podReady = true
+					h.db.UpdateContainerStatus(container.ID, "running")
+					slog.Info("container running", "container", container.ID)
+					GetHub().SendContainerStatus(container.UserID, container.ID, "running", nil)
+				} else if status == "failed" {
+					h.db.UpdateContainerStatus(container.ID, "failed")
+					GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
+					return
+				}
+			}
+
+			// Check for external IP
+			if !ipAssigned {
+				ip, err := h.k8s.GetServiceExternalIP(ctx, container.Namespace)
+				if err != nil {
+					slog.Error("failed to get external ip", "container", container.ID, "error", err)
+					continue
+				}
+				if ip != "" {
+					ipAssigned = true
+					externalIP = ip
+					if err := h.db.UpdateContainerIP(container.ID, ip); err != nil {
+						slog.Error("failed to update container ip", "container", container.ID, "error", err)
+					}
+					slog.Info("external IP assigned", "container", container.ID, "ip", ip)
+					// Broadcast IP assignment
+					currentStatus := "initializing"
+					if podReady {
+						currentStatus = "running"
+					}
+					GetHub().SendContainerStatus(container.UserID, container.ID, currentStatus, &externalIP)
+				}
+			}
+
+			// Done when both pod is ready and IP assigned
+			if podReady && ipAssigned {
 				return
 			}
 		}
