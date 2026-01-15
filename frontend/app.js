@@ -132,17 +132,13 @@ function App() {
   const [containersError, setContainersError] = useState("");
   const [sshKeys, setSshKeys] = useState([]);
   const [sshKeysLoading, setSshKeysLoading] = useState(false);
-  const [apiKeys, setApiKeys] = useState([]);
-  const [apiKeysLoading, setApiKeysLoading] = useState(false);
-  const [computeView, setComputeView] = useState("containers"); // containers, ssh-keys, api-keys
+  const [computeView, setComputeView] = useState("containers"); // containers, ssh-keys
   const [showCreateContainer, setShowCreateContainer] = useState(false);
   const [newContainer, setNewContainer] = useState({ name: "", memory_mb: 512, storage_gb: 5 });
   const [creatingContainer, setCreatingContainer] = useState(false);
   const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
   const [addingSshKey, setAddingSshKey] = useState(false);
   const [containerActions, setContainerActions] = useState({}); // {id: 'starting'|'stopping'|'deleting'}
-  const [newApiKeyName, setNewApiKeyName] = useState("");
-  const [createdApiKey, setCreatedApiKey] = useState(null); // For showing the key once after creation
   const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
@@ -307,22 +303,6 @@ function App() {
     }
   };
 
-  const loadApiKeys = async () => {
-    try {
-      setApiKeysLoading(true);
-      const response = await fetch(`${buildApiBase()}/compute/api-keys`, {
-        credentials: "include",
-      });
-      if (!response.ok) return;
-      const payload = await response.json();
-      setApiKeys(payload.api_keys || []);
-    } catch (err) {
-      console.warn("Failed to load API keys:", err.message);
-    } finally {
-      setApiKeysLoading(false);
-    }
-  };
-
   const handleCreateContainer = async (e) => {
     e.preventDefault();
     if (!newContainer.name.trim()) return;
@@ -414,42 +394,6 @@ function App() {
     }
   };
 
-  const handleCreateApiKey = async (e) => {
-    e.preventDefault();
-    if (!newApiKeyName.trim()) return;
-    try {
-      const response = await fetch(`${buildApiBase()}/compute/api-keys`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: newApiKeyName.trim() }),
-      });
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || "Failed to create API key");
-      }
-      const payload = await response.json();
-      setCreatedApiKey(payload.key); // Show the key once
-      setNewApiKeyName("");
-      await loadApiKeys();
-    } catch (err) {
-      setContainersError(err.message);
-    }
-  };
-
-  const handleDeleteApiKey = async (id) => {
-    try {
-      const response = await fetch(`${buildApiBase()}/compute/api-keys/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to delete API key");
-      await loadApiKeys();
-    } catch (err) {
-      setContainersError(err.message);
-    }
-  };
-
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -515,7 +459,6 @@ function App() {
     }
     loadContainers();
     loadSshKeys();
-    loadApiKeys();
   }, [user, activeTab]);
 
   const openNamespace = (namespace) => {
@@ -1380,13 +1323,6 @@ function App() {
                     >
                       SSH Keys
                     </button>
-                    <button
-                      type="button"
-                      className={`compute-nav-item ${computeView === "api-keys" ? "active" : ""}`}
-                      onClick={() => setComputeView("api-keys")}
-                    >
-                      API Keys
-                    </button>
                   </div>
 
                   {computeView === "containers" && (
@@ -1648,79 +1584,6 @@ function App() {
                     </section>
                   )}
 
-                  {computeView === "api-keys" && (
-                    <section className="panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>API Keys</h2>
-                          <p>Keys for programmatic access to the Compute API.</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={loadApiKeys}
-                          disabled={apiKeysLoading}
-                        >
-                          {apiKeysLoading ? "Loading..." : "Refresh"}
-                        </button>
-                      </div>
-                      <div className="api-key-form">
-                        <h3>Create API Key</h3>
-                        <form onSubmit={handleCreateApiKey}>
-                          <div className="field-inline">
-                            <input
-                              type="text"
-                              placeholder="Key name (e.g., CI/CD)"
-                              value={newApiKeyName}
-                              onChange={(e) => setNewApiKeyName(e.target.value)}
-                            />
-                            <button type="submit">Create</button>
-                          </div>
-                        </form>
-                        {createdApiKey && (
-                          <div className="created-key-notice">
-                            <p>
-                              <strong>Save this key now!</strong> It will not be shown again.
-                            </p>
-                            <code className="api-key-value">{createdApiKey}</code>
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => setCreatedApiKey(null)}
-                            >
-                              Dismiss
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="api-keys-list">
-                        {apiKeysLoading && apiKeys.length === 0 && (
-                          <p className="empty">Loading API keys...</p>
-                        )}
-                        {!apiKeysLoading && apiKeys.length === 0 && (
-                          <p className="empty">No API keys yet.</p>
-                        )}
-                        {apiKeys.map((key) => (
-                          <div className="api-key-row" key={key.id}>
-                            <div className="api-key-info">
-                              <strong>{key.name}</strong>
-                              <span className="api-key-meta">
-                                Created {formatTimestamp(key.created_at)}
-                                {key.last_used && ` · Last used ${formatTimestamp(key.last_used)}`}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => handleDeleteApiKey(key.id)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
                 </>
               )}
             </>

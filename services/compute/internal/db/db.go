@@ -34,14 +34,6 @@ func Open(path string) (*DB, error) {
 
 func (db *DB) migrate() error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS api_keys (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
-			key_hash TEXT NOT NULL,
-			name TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_used DATETIME
-		)`,
 		`CREATE TABLE IF NOT EXISTS containers (
 			id TEXT PRIMARY KEY,
 			user_id INTEGER NOT NULL,
@@ -65,7 +57,6 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_ssh_keys_user_id ON ssh_keys(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)`,
 	}
 
 	for _, m := range migrations {

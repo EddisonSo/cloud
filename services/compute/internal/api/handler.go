@@ -42,11 +42,6 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("POST /compute/ssh-keys", h.authMiddleware(h.AddSSHKey))
 	h.mux.HandleFunc("DELETE /compute/ssh-keys/{id}", h.authMiddleware(h.DeleteSSHKey))
 
-	// API key endpoints
-	h.mux.HandleFunc("GET /compute/api-keys", h.authMiddleware(h.ListAPIKeys))
-	h.mux.HandleFunc("POST /compute/api-keys", h.authMiddleware(h.CreateAPIKey))
-	h.mux.HandleFunc("DELETE /compute/api-keys/{id}", h.authMiddleware(h.DeleteAPIKey))
-
 	return h
 }
 
@@ -59,10 +54,9 @@ func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
-// authMiddleware validates session or API key and injects user info into context
+// authMiddleware validates session and injects user info into context
 func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Try session cookie first
 		token := auth.GetSessionToken(r)
 		if token != "" {
 			username, err := h.validator.ValidateSession(token)
@@ -75,25 +69,6 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// For now, use username as user ID (simplified)
 				// In production, would lookup user ID from username
 				r = r.WithContext(setUserContext(r.Context(), 1, username))
-				next(w, r)
-				return
-			}
-		}
-
-		// Try API key
-		apiKey := auth.GetAPIKeyFromRequest(r)
-		if apiKey != "" {
-			keyHash := auth.HashAPIKey(apiKey)
-			key, err := h.db.GetAPIKeyByHash(keyHash)
-			if err != nil {
-				slog.Error("api key lookup failed", "error", err)
-				http.Error(w, "authentication error", http.StatusInternalServerError)
-				return
-			}
-			if key != nil {
-				// Update last used
-				_ = h.db.UpdateAPIKeyLastUsed(key.ID)
-				r = r.WithContext(setUserContext(r.Context(), key.UserID, ""))
 				next(w, r)
 				return
 			}
