@@ -57,7 +57,7 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, containerToResponse(c))
 	}
 
-	writeJSON(w, resp)
+	writeJSON(w, map[string]any{"containers": resp})
 }
 
 func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {

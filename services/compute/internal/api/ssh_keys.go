@@ -47,7 +47,7 @@ func (h *Handler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, sshKeyToResponse(k))
 	}
 
-	writeJSON(w, resp)
+	writeJSON(w, map[string]any{"ssh_keys": resp})
 }
 
 func (h *Handler) AddSSHKey(w http.ResponseWriter, r *http.Request) {

@@ -46,7 +46,7 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, apiKeyToResponse(k, false))
 	}
 
-	writeJSON(w, resp)
+	writeJSON(w, map[string]any{"api_keys": resp})
 }
 
 func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
