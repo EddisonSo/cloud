@@ -126,6 +126,23 @@ function App() {
   const [downloadProgress, setDownloadProgress] = useState({});
   const [deleting, setDeleting] = useState({});
   const [namespaces, setNamespaces] = useState([]);
+  // Compute state
+  const [containers, setContainers] = useState([]);
+  const [containersLoading, setContainersLoading] = useState(false);
+  const [containersError, setContainersError] = useState("");
+  const [sshKeys, setSshKeys] = useState([]);
+  const [sshKeysLoading, setSshKeysLoading] = useState(false);
+  const [apiKeys, setApiKeys] = useState([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [computeView, setComputeView] = useState("containers"); // containers, ssh-keys, api-keys
+  const [showCreateContainer, setShowCreateContainer] = useState(false);
+  const [newContainer, setNewContainer] = useState({ name: "", memory_mb: 512, storage_gb: 5 });
+  const [creatingContainer, setCreatingContainer] = useState(false);
+  const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
+  const [addingSshKey, setAddingSshKey] = useState(false);
+  const [containerActions, setContainerActions] = useState({}); // {id: 'starting'|'stopping'|'deleting'}
+  const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [createdApiKey, setCreatedApiKey] = useState(null); // For showing the key once after creation
   const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
@@ -152,8 +169,8 @@ function App() {
     },
     compute: {
       eyebrow: "Compute Services",
-      title: "Virtual Compute",
-      lead: "Provisioned compute is on deck. This space will hold clusters and runtime controls.",
+      title: "Dev Containers",
+      lead: "Manage dev environment containers with dedicated IPs and SSH access.",
     },
     "message-queue": {
       eyebrow: "Messaging",
@@ -250,6 +267,189 @@ function App() {
     }
   };
 
+  // Compute data loading functions
+  const loadContainers = async () => {
+    try {
+      setContainersLoading(true);
+      setContainersError("");
+      const response = await fetch(`${buildApiBase()}/compute/containers`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          setContainersError("Sign in to manage containers");
+          return;
+        }
+        throw new Error("Failed to load containers");
+      }
+      const payload = await response.json();
+      setContainers(payload.containers || []);
+    } catch (err) {
+      setContainersError(err.message);
+    } finally {
+      setContainersLoading(false);
+    }
+  };
+
+  const loadSshKeys = async () => {
+    try {
+      setSshKeysLoading(true);
+      const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
+        credentials: "include",
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setSshKeys(payload.ssh_keys || []);
+    } catch (err) {
+      console.warn("Failed to load SSH keys:", err.message);
+    } finally {
+      setSshKeysLoading(false);
+    }
+  };
+
+  const loadApiKeys = async () => {
+    try {
+      setApiKeysLoading(true);
+      const response = await fetch(`${buildApiBase()}/compute/api-keys`, {
+        credentials: "include",
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      setApiKeys(payload.api_keys || []);
+    } catch (err) {
+      console.warn("Failed to load API keys:", err.message);
+    } finally {
+      setApiKeysLoading(false);
+    }
+  };
+
+  const handleCreateContainer = async (e) => {
+    e.preventDefault();
+    if (!newContainer.name.trim()) return;
+    try {
+      setCreatingContainer(true);
+      const response = await fetch(`${buildApiBase()}/compute/containers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: newContainer.name.trim(),
+          memory_mb: newContainer.memory_mb,
+          storage_gb: newContainer.storage_gb,
+          ssh_key_ids: sshKeys.map((k) => k.id), // Use all SSH keys
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create container");
+      }
+      setNewContainer({ name: "", memory_mb: 512, storage_gb: 5 });
+      setShowCreateContainer(false);
+      await loadContainers();
+    } catch (err) {
+      setContainersError(err.message);
+    } finally {
+      setCreatingContainer(false);
+    }
+  };
+
+  const handleContainerAction = async (id, action) => {
+    setContainerActions((prev) => ({ ...prev, [id]: action }));
+    try {
+      const method = action === "deleting" ? "DELETE" : "POST";
+      const endpoint =
+        action === "deleting"
+          ? `${buildApiBase()}/compute/containers/${id}`
+          : `${buildApiBase()}/compute/containers/${id}/${action === "starting" ? "start" : "stop"}`;
+      const response = await fetch(endpoint, { method, credentials: "include" });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Failed to ${action.replace("ing", "")} container`);
+      }
+      await loadContainers();
+    } catch (err) {
+      setContainersError(err.message);
+    } finally {
+      setContainerActions((prev) => ({ ...prev, [id]: null }));
+    }
+  };
+
+  const handleAddSshKey = async (e) => {
+    e.preventDefault();
+    if (!newSshKey.name.trim() || !newSshKey.public_key.trim()) return;
+    try {
+      setAddingSshKey(true);
+      const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: newSshKey.name.trim(),
+          public_key: newSshKey.public_key.trim(),
+        }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to add SSH key");
+      }
+      setNewSshKey({ name: "", public_key: "" });
+      await loadSshKeys();
+    } catch (err) {
+      setContainersError(err.message);
+    } finally {
+      setAddingSshKey(false);
+    }
+  };
+
+  const handleDeleteSshKey = async (id) => {
+    try {
+      const response = await fetch(`${buildApiBase()}/compute/ssh-keys/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to delete SSH key");
+      await loadSshKeys();
+    } catch (err) {
+      setContainersError(err.message);
+    }
+  };
+
+  const handleCreateApiKey = async (e) => {
+    e.preventDefault();
+    if (!newApiKeyName.trim()) return;
+    try {
+      const response = await fetch(`${buildApiBase()}/compute/api-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newApiKeyName.trim() }),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create API key");
+      }
+      const payload = await response.json();
+      setCreatedApiKey(payload.key); // Show the key once
+      setNewApiKeyName("");
+      await loadApiKeys();
+    } catch (err) {
+      setContainersError(err.message);
+    }
+  };
+
+  const handleDeleteApiKey = async (id) => {
+    try {
+      const response = await fetch(`${buildApiBase()}/compute/api-keys/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to delete API key");
+      await loadApiKeys();
+    } catch (err) {
+      setContainersError(err.message);
+    }
+  };
+
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -307,6 +507,16 @@ function App() {
     }
     loadFiles(activeNamespace);
   }, [activeNamespace, activeTab, showNamespaceView]);
+
+  // Load compute data when tab is active
+  useEffect(() => {
+    if (!user || activeTab !== "compute") {
+      return;
+    }
+    loadContainers();
+    loadSshKeys();
+    loadApiKeys();
+  }, [user, activeTab]);
 
   const openNamespace = (namespace) => {
     const nextNamespace = normalizeNamespace(namespace);
@@ -1143,52 +1353,377 @@ function App() {
             </section>
           )}
           {activeTab === "compute" && (
-            <section className="panel placeholder">
-              <div className="panel-header">
-                <div>
-                  <h2>Compute</h2>
-                  <p>Provision and manage compute workloads once the service is ready.</p>
-                </div>
-                <span className="badge">Unimplemented</span>
-              </div>
-              <div className="placeholder-body">
-                <div className="placeholder-hero">
-                  <svg
-                    className="placeholder-image"
-                    viewBox="0 0 200 140"
-                    role="img"
-                    aria-label="Building illustration"
-                  >
-                    <rect x="20" y="30" width="60" height="90" rx="8" fill="#dbeafe" />
-                    <rect x="85" y="15" width="95" height="105" rx="10" fill="#e2e8f0" />
-                    <rect x="30" y="45" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="50" y="45" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="30" y="65" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="50" y="65" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="30" y="85" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="50" y="85" width="12" height="12" rx="2" fill="#93c5fd" />
-                    <rect x="100" y="30" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="124" y="30" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="148" y="30" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="100" y="52" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="124" y="52" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="148" y="52" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="100" y="74" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="124" y="74" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="148" y="74" width="16" height="14" rx="2" fill="#94a3b8" />
-                    <rect x="120" y="92" width="40" height="28" rx="4" fill="#cbd5f5" />
-                    <rect x="0" y="120" width="200" height="12" rx="6" fill="#bfdbfe" />
-                  </svg>
-                </div>
-                <div>
-                  <h3>Compute infrastructure coming soon</h3>
-                  <p>
-                    This area will provide access to clusters, nodes, and runtime policies. For now,
-                    it is staged for future integration.
-                  </p>
-                </div>
-              </div>
-            </section>
+            <>
+              {!user ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Compute</h2>
+                      <p>Sign in to manage compute containers.</p>
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                <>
+                  <div className="compute-nav">
+                    <button
+                      type="button"
+                      className={`compute-nav-item ${computeView === "containers" ? "active" : ""}`}
+                      onClick={() => setComputeView("containers")}
+                    >
+                      Containers
+                    </button>
+                    <button
+                      type="button"
+                      className={`compute-nav-item ${computeView === "ssh-keys" ? "active" : ""}`}
+                      onClick={() => setComputeView("ssh-keys")}
+                    >
+                      SSH Keys
+                    </button>
+                    <button
+                      type="button"
+                      className={`compute-nav-item ${computeView === "api-keys" ? "active" : ""}`}
+                      onClick={() => setComputeView("api-keys")}
+                    >
+                      API Keys
+                    </button>
+                  </div>
+
+                  {computeView === "containers" && (
+                    <section className="panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Containers</h2>
+                          <p>Dev environment containers with dedicated IPs.</p>
+                        </div>
+                        <div className="panel-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={loadContainers}
+                            disabled={containersLoading}
+                          >
+                            {containersLoading ? "Loading..." : "Refresh"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateContainer(true)}
+                            disabled={sshKeys.length === 0}
+                            title={sshKeys.length === 0 ? "Add an SSH key first" : ""}
+                          >
+                            Create Container
+                          </button>
+                        </div>
+                      </div>
+                      {containersError && <p className="status error">{containersError}</p>}
+                      {sshKeys.length === 0 && (
+                        <p className="status warn">Add an SSH key before creating containers.</p>
+                      )}
+                      {showCreateContainer && (
+                        <div className="create-container-form">
+                          <h3>New Container</h3>
+                          <form onSubmit={handleCreateContainer}>
+                            <div className="field">
+                              <label htmlFor="container-name">Name</label>
+                              <input
+                                id="container-name"
+                                type="text"
+                                placeholder="my-dev-env"
+                                value={newContainer.name}
+                                onChange={(e) =>
+                                  setNewContainer((prev) => ({ ...prev, name: e.target.value }))
+                                }
+                              />
+                            </div>
+                            <div className="field-row">
+                              <div className="field">
+                                <label htmlFor="container-memory">Memory (MB)</label>
+                                <select
+                                  id="container-memory"
+                                  value={newContainer.memory_mb}
+                                  onChange={(e) =>
+                                    setNewContainer((prev) => ({
+                                      ...prev,
+                                      memory_mb: Number(e.target.value),
+                                    }))
+                                  }
+                                >
+                                  <option value={256}>256 MB</option>
+                                  <option value={512}>512 MB</option>
+                                  <option value={1024}>1 GB</option>
+                                  <option value={2048}>2 GB</option>
+                                </select>
+                              </div>
+                              <div className="field">
+                                <label htmlFor="container-storage">Storage (GB)</label>
+                                <select
+                                  id="container-storage"
+                                  value={newContainer.storage_gb}
+                                  onChange={(e) =>
+                                    setNewContainer((prev) => ({
+                                      ...prev,
+                                      storage_gb: Number(e.target.value),
+                                    }))
+                                  }
+                                >
+                                  <option value={5}>5 GB</option>
+                                  <option value={10}>10 GB</option>
+                                  <option value={20}>20 GB</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="form-actions">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => setShowCreateContainer(false)}
+                              >
+                                Cancel
+                              </button>
+                              <button type="submit" disabled={creatingContainer}>
+                                {creatingContainer ? "Creating..." : "Create"}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+                      <div className="container-list">
+                        {containersLoading && containers.length === 0 && (
+                          <p className="empty">Loading containers...</p>
+                        )}
+                        {!containersLoading && containers.length === 0 && (
+                          <p className="empty">No containers yet. Create one to get started.</p>
+                        )}
+                        {containers.length > 0 && (
+                          <div className="container-head">
+                            <span>Name</span>
+                            <span>Status</span>
+                            <span>IP Address</span>
+                            <span>Resources</span>
+                            <span>Actions</span>
+                          </div>
+                        )}
+                        {containers.map((container) => (
+                          <div className="container-row" key={container.id}>
+                            <div className="container-col name">
+                              <strong>{container.name}</strong>
+                              <span className="container-id">{container.id.slice(0, 8)}</span>
+                            </div>
+                            <div className="container-col status">
+                              <span className={`container-status ${container.status}`}>
+                                {container.status}
+                              </span>
+                            </div>
+                            <div className="container-col ip">
+                              {container.external_ip ? (
+                                <code>{container.external_ip}</code>
+                              ) : (
+                                <span className="muted">Pending...</span>
+                              )}
+                            </div>
+                            <div className="container-col resources">
+                              <span>{container.memory_mb} MB</span>
+                              <span>{container.storage_gb} GB</span>
+                            </div>
+                            <div className="container-col actions">
+                              {container.status === "running" && (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={containerActions[container.id]}
+                                  onClick={() => handleContainerAction(container.id, "stopping")}
+                                >
+                                  {containerActions[container.id] === "stopping"
+                                    ? "Stopping..."
+                                    : "Stop"}
+                                </button>
+                              )}
+                              {container.status === "stopped" && (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={containerActions[container.id]}
+                                  onClick={() => handleContainerAction(container.id, "starting")}
+                                >
+                                  {containerActions[container.id] === "starting"
+                                    ? "Starting..."
+                                    : "Start"}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="danger"
+                                disabled={containerActions[container.id]}
+                                onClick={() => handleContainerAction(container.id, "deleting")}
+                              >
+                                {containerActions[container.id] === "deleting"
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {containers.length > 0 && containers.some((c) => c.external_ip) && (
+                        <div className="ssh-hint">
+                          <p>
+                            Connect via SSH: <code>ssh root@IP_ADDRESS</code>
+                          </p>
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {computeView === "ssh-keys" && (
+                    <section className="panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>SSH Keys</h2>
+                          <p>Public keys for container access.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={loadSshKeys}
+                          disabled={sshKeysLoading}
+                        >
+                          {sshKeysLoading ? "Loading..." : "Refresh"}
+                        </button>
+                      </div>
+                      <div className="ssh-key-form">
+                        <h3>Add SSH Key</h3>
+                        <form onSubmit={handleAddSshKey}>
+                          <div className="field">
+                            <label htmlFor="ssh-key-name">Name</label>
+                            <input
+                              id="ssh-key-name"
+                              type="text"
+                              placeholder="My Laptop"
+                              value={newSshKey.name}
+                              onChange={(e) =>
+                                setNewSshKey((prev) => ({ ...prev, name: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="ssh-key-public">Public Key</label>
+                            <textarea
+                              id="ssh-key-public"
+                              placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."
+                              rows={3}
+                              value={newSshKey.public_key}
+                              onChange={(e) =>
+                                setNewSshKey((prev) => ({ ...prev, public_key: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <button type="submit" disabled={addingSshKey}>
+                            {addingSshKey ? "Adding..." : "Add Key"}
+                          </button>
+                        </form>
+                      </div>
+                      <div className="ssh-keys-list">
+                        {sshKeysLoading && sshKeys.length === 0 && (
+                          <p className="empty">Loading SSH keys...</p>
+                        )}
+                        {!sshKeysLoading && sshKeys.length === 0 && (
+                          <p className="empty">No SSH keys yet. Add one to enable container access.</p>
+                        )}
+                        {sshKeys.map((key) => (
+                          <div className="ssh-key-row" key={key.id}>
+                            <div className="ssh-key-info">
+                              <strong>{key.name}</strong>
+                              <code className="fingerprint">{key.fingerprint}</code>
+                            </div>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => handleDeleteSshKey(key.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {computeView === "api-keys" && (
+                    <section className="panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>API Keys</h2>
+                          <p>Keys for programmatic access to the Compute API.</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={loadApiKeys}
+                          disabled={apiKeysLoading}
+                        >
+                          {apiKeysLoading ? "Loading..." : "Refresh"}
+                        </button>
+                      </div>
+                      <div className="api-key-form">
+                        <h3>Create API Key</h3>
+                        <form onSubmit={handleCreateApiKey}>
+                          <div className="field-inline">
+                            <input
+                              type="text"
+                              placeholder="Key name (e.g., CI/CD)"
+                              value={newApiKeyName}
+                              onChange={(e) => setNewApiKeyName(e.target.value)}
+                            />
+                            <button type="submit">Create</button>
+                          </div>
+                        </form>
+                        {createdApiKey && (
+                          <div className="created-key-notice">
+                            <p>
+                              <strong>Save this key now!</strong> It will not be shown again.
+                            </p>
+                            <code className="api-key-value">{createdApiKey}</code>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => setCreatedApiKey(null)}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="api-keys-list">
+                        {apiKeysLoading && apiKeys.length === 0 && (
+                          <p className="empty">Loading API keys...</p>
+                        )}
+                        {!apiKeysLoading && apiKeys.length === 0 && (
+                          <p className="empty">No API keys yet.</p>
+                        )}
+                        {apiKeys.map((key) => (
+                          <div className="api-key-row" key={key.id}>
+                            <div className="api-key-info">
+                              <strong>{key.name}</strong>
+                              <span className="api-key-meta">
+                                Created {formatTimestamp(key.created_at)}
+                                {key.last_used && ` · Last used ${formatTimestamp(key.last_used)}`}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => handleDeleteApiKey(key.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </>
+              )}
+            </>
           )}
           {activeTab === "message-queue" && (
             <section className="panel placeholder">
