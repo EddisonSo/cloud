@@ -467,6 +467,71 @@ function App() {
     loadSshKeys();
   }, [user, activeTab]);
 
+  // Compute WebSocket for real-time container status updates
+  useEffect(() => {
+    if (!user || activeTab !== "compute") {
+      return;
+    }
+
+    let ws = null;
+    let reconnectTimeout = null;
+    let isCleaningUp = false;
+
+    const connect = () => {
+      if (isCleaningUp) return;
+
+      ws = new WebSocket(`${buildWsBase()}/compute/ws`);
+
+      ws.onopen = () => {
+        console.log("Compute WebSocket connected");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "containers") {
+            // Initial container list from server
+            setContainers(msg.data || []);
+          } else if (msg.type === "container_status") {
+            // Status update for a single container
+            const update = msg.data;
+            setContainers((prev) =>
+              prev.map((c) =>
+                c.id === update.container_id
+                  ? {
+                      ...c,
+                      status: update.status,
+                      external_ip: update.external_ip || c.external_ip,
+                    }
+                  : c
+              )
+            );
+          }
+        } catch (err) {
+          console.error("Failed to parse compute WebSocket message:", err);
+        }
+      };
+
+      ws.onerror = () => {
+        console.warn("Compute WebSocket error");
+      };
+
+      ws.onclose = () => {
+        if (!isCleaningUp) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      isCleaningUp = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    };
+  }, [user, activeTab]);
+
   const openNamespace = (namespace) => {
     const nextNamespace = normalizeNamespace(namespace);
     if (!nextNamespace) {

@@ -42,6 +42,9 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("POST /compute/ssh-keys", h.authMiddleware(h.AddSSHKey))
 	h.mux.HandleFunc("DELETE /compute/ssh-keys/{id}", h.authMiddleware(h.DeleteSSHKey))
 
+	// WebSocket endpoint for real-time updates
+	h.mux.HandleFunc("GET /compute/ws", h.authMiddleware(h.HandleWebSocket))
+
 	return h
 }
 

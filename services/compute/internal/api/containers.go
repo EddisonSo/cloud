@@ -172,6 +172,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreateNamespace(ctx, container.Namespace, container.UserID, container.ID); err != nil {
 		slog.Error("failed to create namespace", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
@@ -179,6 +180,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreateSSHSecret(ctx, container.Namespace, authorizedKeys.String()); err != nil {
 		slog.Error("failed to create ssh secret", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
@@ -186,6 +188,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreatePVC(ctx, container.Namespace, container.StorageGB); err != nil {
 		slog.Error("failed to create pvc", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
@@ -193,6 +196,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreateNetworkPolicy(ctx, container.Namespace); err != nil {
 		slog.Error("failed to create network policy", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
@@ -200,6 +204,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB); err != nil {
 		slog.Error("failed to create pod", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
@@ -207,11 +212,15 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	if err := h.k8s.CreateLoadBalancer(ctx, container.Namespace); err != nil {
 		slog.Error("failed to create load balancer", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
 	}
 
 	h.db.UpdateContainerStatus(container.ID, "running")
 	slog.Info("container provisioned", "container", container.ID, "namespace", container.Namespace)
+
+	// Broadcast running status via WebSocket
+	GetHub().SendContainerStatus(container.UserID, container.ID, "running", nil)
 
 	// Poll for external IP
 	go h.pollExternalIP(container)
@@ -240,6 +249,8 @@ func (h *Handler) pollExternalIP(container *db.Container) {
 					slog.Error("failed to update container ip", "container", container.ID, "error", err)
 				}
 				slog.Info("external IP assigned", "container", container.ID, "ip", ip)
+				// Broadcast IP assignment via WebSocket
+				GetHub().SendContainerStatus(container.UserID, container.ID, "running", &ip)
 				return
 			}
 		}
@@ -359,6 +370,8 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	container.Status = "stopped"
+	// Broadcast stopped status via WebSocket
+	GetHub().SendContainerStatus(container.UserID, container.ID, "stopped", nil)
 	writeJSON(w, containerToResponse(container))
 }
 
@@ -395,6 +408,8 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	container.Status = "pending"
+	// Broadcast pending status via WebSocket
+	GetHub().SendContainerStatus(container.UserID, container.ID, "pending", nil)
 	writeJSON(w, containerToResponse(container))
 }
 
