@@ -23,7 +23,7 @@ type Container struct {
 func (db *DB) CreateContainer(c *Container) error {
 	_, err := db.Exec(`
 		INSERT INTO containers (id, user_id, name, namespace, status, memory_mb, storage_gb, image)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		c.ID, c.UserID, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image,
 	)
 	if err != nil {
@@ -36,7 +36,7 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 	c := &Container{}
 	err := db.QueryRow(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image, created_at, stopped_at
-		FROM containers WHERE id = ?`, id,
+		FROM containers WHERE id = $1`, id,
 	).Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image, &c.CreatedAt, &c.StoppedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -50,7 +50,7 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image, created_at, stopped_at
-		FROM containers WHERE user_id = ? ORDER BY created_at DESC`, userID,
+		FROM containers WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query containers: %w", err)
@@ -69,7 +69,7 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 }
 
 func (db *DB) UpdateContainerStatus(id, status string) error {
-	_, err := db.Exec(`UPDATE containers SET status = ? WHERE id = ?`, status, id)
+	_, err := db.Exec(`UPDATE containers SET status = $1 WHERE id = $2`, status, id)
 	if err != nil {
 		return fmt.Errorf("update container status: %w", err)
 	}
@@ -77,7 +77,7 @@ func (db *DB) UpdateContainerStatus(id, status string) error {
 }
 
 func (db *DB) UpdateContainerIP(id, ip string) error {
-	_, err := db.Exec(`UPDATE containers SET external_ip = ? WHERE id = ?`, ip, id)
+	_, err := db.Exec(`UPDATE containers SET external_ip = $1 WHERE id = $2`, ip, id)
 	if err != nil {
 		return fmt.Errorf("update container ip: %w", err)
 	}
@@ -85,7 +85,7 @@ func (db *DB) UpdateContainerIP(id, ip string) error {
 }
 
 func (db *DB) UpdateContainerStopped(id string) error {
-	_, err := db.Exec(`UPDATE containers SET status = 'stopped', stopped_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
+	_, err := db.Exec(`UPDATE containers SET status = 'stopped', stopped_at = CURRENT_TIMESTAMP WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("update container stopped: %w", err)
 	}
@@ -93,7 +93,7 @@ func (db *DB) UpdateContainerStopped(id string) error {
 }
 
 func (db *DB) DeleteContainer(id string) error {
-	_, err := db.Exec(`DELETE FROM containers WHERE id = ?`, id)
+	_, err := db.Exec(`DELETE FROM containers WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete container: %w", err)
 	}
@@ -102,7 +102,7 @@ func (db *DB) DeleteContainer(id string) error {
 
 func (db *DB) CountContainersByUser(userID int64) (int, error) {
 	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM containers WHERE user_id = ? AND status != 'deleted'`, userID).Scan(&count)
+	err := db.QueryRow(`SELECT COUNT(*) FROM containers WHERE user_id = $1 AND status != 'deleted'`, userID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count containers: %w", err)
 	}

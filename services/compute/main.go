@@ -16,7 +16,6 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
-	dbPath := flag.String("db", "/data/compute.db", "SQLite database path")
 	logService := flag.String("log-service", "", "Log service address")
 	flag.Parse()
 
@@ -29,8 +28,13 @@ func main() {
 	slog.SetDefault(logger.Logger)
 	defer logger.Close()
 
-	// Database
-	database, err := db.Open(*dbPath)
+	// Database connection string from environment
+	dbConnStr := os.Getenv("DATABASE_URL")
+	if dbConnStr == "" {
+		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=disable"
+	}
+
+	database, err := db.Open(dbConnStr)
 	if err != nil {
 		slog.Error("failed to open database", "error", err)
 		os.Exit(1)

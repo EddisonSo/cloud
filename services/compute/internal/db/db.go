@@ -4,23 +4,25 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/lib/pq"
 )
 
 type DB struct {
 	*sql.DB
 }
 
-func Open(path string) (*DB, error) {
-	sqlDB, err := sql.Open("sqlite", path)
+// Open connects to PostgreSQL using a connection string
+// Format: postgres://user:password@host:port/dbname?sslmode=disable
+func Open(connStr string) (*DB, error) {
+	sqlDB, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Enable foreign keys
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	// Test connection
+	if err := sqlDB.Ping(); err != nil {
 		sqlDB.Close()
-		return nil, fmt.Errorf("enable foreign keys: %w", err)
+		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
 	db := &DB{sqlDB}
@@ -36,7 +38,7 @@ func (db *DB) migrate() error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS containers (
 			id TEXT PRIMARY KEY,
-			user_id INTEGER NOT NULL,
+			user_id BIGINT NOT NULL,
 			name TEXT NOT NULL,
 			namespace TEXT NOT NULL,
 			status TEXT DEFAULT 'pending',
@@ -44,16 +46,16 @@ func (db *DB) migrate() error {
 			memory_mb INTEGER DEFAULT 512,
 			storage_gb INTEGER DEFAULT 5,
 			image TEXT DEFAULT 'eddisonso/ecloud-compute-base:latest',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			stopped_at DATETIME
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			stopped_at TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS ssh_keys (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
+			id SERIAL PRIMARY KEY,
+			user_id BIGINT NOT NULL,
 			name TEXT NOT NULL,
 			public_key TEXT NOT NULL,
 			fingerprint TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_ssh_keys_user_id ON ssh_keys(user_id)`,

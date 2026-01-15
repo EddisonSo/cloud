@@ -24,7 +24,7 @@ import (
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/websocket"
-	_ "modernc.org/sqlite"
+	_ "github.com/lib/pq"
 )
 
 type fileInfo struct {
@@ -68,7 +68,7 @@ func main() {
 	staticDir := flag.String("static", "frontend", "path to frontend assets")
 	maxUploadMB := flag.Int64("max-upload-mb", 0, "max upload size in MB (0 = unlimited)")
 	uploadTTL := flag.Duration("upload-timeout", 10*time.Minute, "max time allowed for a single upload")
-	authDB := flag.String("auth-db", "auth.db", "path to sqlite database for auth")
+	// authDB flag kept for backwards compatibility but DATABASE_URL takes precedence
 	sessionTTL := flag.Duration("session-ttl", 24*time.Hour, "session lifetime")
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "edd-cloud-interface", "Log source name (e.g., pod name)")
@@ -108,9 +108,16 @@ func main() {
 		log.Fatal("missing SFS_DEFAULT_USERNAME or SFS_DEFAULT_PASSWORD")
 	}
 
-	db, err := sql.Open("sqlite", *authDB)
+	dbConnStr := os.Getenv("DATABASE_URL")
+	if dbConnStr == "" {
+		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbConnStr)
 	if err != nil {
-		log.Fatalf("failed to open auth db: %v", err)
+		log.Fatalf("failed to open database: %v", err)
+	}
+	if err := db.Ping(); err != nil {
+		log.Fatalf("failed to ping database: %v", err)
 	}
 	defer db.Close()
 	if err := initAuthDB(db, defaultUsername, defaultPassword); err != nil {
@@ -166,21 +173,21 @@ func normalizePrefix(prefix string) string {
 func initAuthDB(db *sql.DB, username string, password string) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			username TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL
-		);`,
+		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id SERIAL PRIMARY KEY,
 			user_id INTEGER NOT NULL,
 			token TEXT NOT NULL UNIQUE,
-			expires_at INTEGER NOT NULL,
-			FOREIGN KEY(user_id) REFERENCES users(id)
-		);`,
+			expires_at BIGINT NOT NULL,
+			CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS namespaces (
 			name TEXT PRIMARY KEY,
 			hidden INTEGER NOT NULL DEFAULT 0
-		);`,
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
@@ -198,7 +205,7 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			return err
 		}
 		if _, err := db.Exec(
-			`INSERT INTO users (username, password_hash) VALUES (?, ?)`,
+			`INSERT INTO users (username, password_hash) VALUES ($1, $2)`,
 			username,
 			string(hash),
 		); err != nil {
@@ -221,7 +228,7 @@ func ensureNamespaceRow(db *sql.DB, name string, hidden bool) error {
 		hiddenValue = 1
 	}
 	_, err := db.Exec(
-		`INSERT INTO namespaces (name, hidden) VALUES (?, ?)
+		`INSERT INTO namespaces (name, hidden) VALUES ($1, $2)
 		 ON CONFLICT(name) DO NOTHING`,
 		name,
 		hiddenValue,
@@ -779,7 +786,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		userID int64
 		hash   string
 	)
-	err := s.db.QueryRow(`SELECT id, password_hash FROM users WHERE username = ?`, payload.Username).
+	err := s.db.QueryRow(`SELECT id, password_hash FROM users WHERE username = $1`, payload.Username).
 		Scan(&userID, &hash)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
@@ -797,7 +804,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	expires := time.Now().Add(s.sessionTTL)
 	if _, err := s.db.Exec(
-		`INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, ?)`,
+		`INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
 		userID,
 		token,
 		expires.Unix(),
@@ -830,7 +837,7 @@ func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	token := s.sessionToken(r)
 	if token != "" {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.cookieName,
@@ -867,14 +874,14 @@ func (s *server) currentUser(r *http.Request) (string, bool) {
 		`SELECT users.username, sessions.expires_at
 		 FROM sessions
 		 JOIN users ON sessions.user_id = users.id
-		 WHERE sessions.token = ?`,
+		 WHERE sessions.token = $1`,
 		token,
 	).Scan(&username, &expiresAt)
 	if err != nil {
 		return "", false
 	}
 	if time.Now().Unix() > expiresAt {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
 		return "", false
 	}
 	return username, true
@@ -960,7 +967,7 @@ func (s *server) upsertNamespace(name string, hidden bool) error {
 		hiddenValue = 1
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO namespaces (name, hidden) VALUES (?, ?)
+		`INSERT INTO namespaces (name, hidden) VALUES ($1, $2)
 		 ON CONFLICT(name) DO UPDATE SET hidden = excluded.hidden`,
 		name,
 		hiddenValue,
@@ -969,7 +976,7 @@ func (s *server) upsertNamespace(name string, hidden bool) error {
 }
 
 func (s *server) deleteNamespace(name string) error {
-	_, err := s.db.Exec(`DELETE FROM namespaces WHERE name = ?`, name)
+	_, err := s.db.Exec(`DELETE FROM namespaces WHERE name = $1`, name)
 	return err
 }
 
@@ -986,7 +993,7 @@ func (s *server) updateNamespaceHidden(name string, hidden bool) error {
 	if hidden {
 		hiddenValue = 1
 	}
-	result, err := s.db.Exec(`UPDATE namespaces SET hidden = ? WHERE name = ?`, hiddenValue, name)
+	result, err := s.db.Exec(`UPDATE namespaces SET hidden = $1 WHERE name = $2`, hiddenValue, name)
 	if err != nil {
 		return err
 	}
@@ -1002,7 +1009,7 @@ func (s *server) updateNamespaceHidden(name string, hidden bool) error {
 
 func (s *server) namespaceExists(name string) (bool, error) {
 	var count int
-	if err := s.db.QueryRow(`SELECT COUNT(1) FROM namespaces WHERE name = ?`, name).Scan(&count); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM namespaces WHERE name = $1`, name).Scan(&count); err != nil {
 		return false, err
 	}
 	return count > 0, nil

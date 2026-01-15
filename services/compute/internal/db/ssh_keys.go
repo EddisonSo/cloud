@@ -16,19 +16,15 @@ type SSHKey struct {
 }
 
 func (db *DB) CreateSSHKey(key *SSHKey) error {
-	result, err := db.Exec(`
+	err := db.QueryRow(`
 		INSERT INTO ssh_keys (user_id, name, public_key, fingerprint)
-		VALUES (?, ?, ?, ?)`,
+		VALUES ($1, $2, $3, $4)
+		RETURNING id`,
 		key.UserID, key.Name, key.PublicKey, key.Fingerprint,
-	)
+	).Scan(&key.ID)
 	if err != nil {
 		return fmt.Errorf("insert ssh key: %w", err)
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("get last insert id: %w", err)
-	}
-	key.ID = id
 	return nil
 }
 
@@ -36,7 +32,7 @@ func (db *DB) GetSSHKey(id int64) (*SSHKey, error) {
 	key := &SSHKey{}
 	err := db.QueryRow(`
 		SELECT id, user_id, name, public_key, fingerprint, created_at
-		FROM ssh_keys WHERE id = ?`, id,
+		FROM ssh_keys WHERE id = $1`, id,
 	).Scan(&key.ID, &key.UserID, &key.Name, &key.PublicKey, &key.Fingerprint, &key.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -50,7 +46,7 @@ func (db *DB) GetSSHKey(id int64) (*SSHKey, error) {
 func (db *DB) ListSSHKeysByUser(userID int64) ([]*SSHKey, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, name, public_key, fingerprint, created_at
-		FROM ssh_keys WHERE user_id = ? ORDER BY created_at DESC`, userID,
+		FROM ssh_keys WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query ssh keys: %w", err)
@@ -73,15 +69,15 @@ func (db *DB) GetSSHKeysByIDs(userID int64, ids []int64) ([]*SSHKey, error) {
 		return nil, nil
 	}
 
-	// Build query with placeholders
+	// Build query with PostgreSQL placeholders ($1, $2, etc.)
 	query := `SELECT id, user_id, name, public_key, fingerprint, created_at
-		FROM ssh_keys WHERE user_id = ? AND id IN (`
+		FROM ssh_keys WHERE user_id = $1 AND id IN (`
 	args := []any{userID}
 	for i, id := range ids {
 		if i > 0 {
 			query += ","
 		}
-		query += "?"
+		query += fmt.Sprintf("$%d", i+2)
 		args = append(args, id)
 	}
 	query += ")"
@@ -104,7 +100,7 @@ func (db *DB) GetSSHKeysByIDs(userID int64, ids []int64) ([]*SSHKey, error) {
 }
 
 func (db *DB) DeleteSSHKey(id int64, userID int64) error {
-	result, err := db.Exec(`DELETE FROM ssh_keys WHERE id = ? AND user_id = ?`, id, userID)
+	result, err := db.Exec(`DELETE FROM ssh_keys WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete ssh key: %w", err)
 	}
@@ -117,7 +113,7 @@ func (db *DB) DeleteSSHKey(id int64, userID int64) error {
 
 func (db *DB) CountSSHKeysByUser(userID int64) (int, error) {
 	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM ssh_keys WHERE user_id = ?`, userID).Scan(&count)
+	err := db.QueryRow(`SELECT COUNT(*) FROM ssh_keys WHERE user_id = $1`, userID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count ssh keys: %w", err)
 	}
