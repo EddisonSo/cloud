@@ -1,5 +1,9 @@
 FROM debian:bookworm
 
+# Configure apt sources for more packages
+RUN sed -i 's/^deb /deb [signed-by=\/usr\/share\/keyrings\/debian-archive-keyring.gpg] /' /etc/apt/sources.list && \
+    sed -i 's/bookworm main/bookworm main contrib non-free non-free-firmware/' /etc/apt/sources.list
+
 # Install essential packages
 RUN apt-get update && apt-get install -y \
     openssh-server \
