@@ -1572,7 +1572,7 @@ function App() {
                           <div className="ssh-key-row" key={key.id}>
                             <div className="ssh-key-info">
                               <strong>{key.name}</strong>
-                              <code className="fingerprint">{key.fingerprint}</code>
+                              <code className="public-key">{key.public_key}</code>
                             </div>
                             <button
                               type="button"
@@ -1966,7 +1966,7 @@ function App() {
                           }}
                         />
                         <span className="ssh-key-option-name">{key.name}</span>
-                        <code className="ssh-key-option-fp">{key.fingerprint}</code>
+                        <code className="ssh-key-option-fp">{key.public_key}</code>
                       </label>
                     ))
                   )}

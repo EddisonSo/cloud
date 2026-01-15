@@ -1509,13 +1509,15 @@ button:not(:disabled):hover {
   font-size: 0.95rem;
 }
 
-.fingerprint {
-  font-size: 0.75rem;
+.public-key {
+  font-size: 0.7rem;
   color: var(--muted);
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 400px;
+  display: block;
 }
 
 /* API Keys */

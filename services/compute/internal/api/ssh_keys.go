@@ -22,10 +22,10 @@ type sshKeyRequest struct {
 }
 
 type sshKeyResponse struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Fingerprint string `json:"fingerprint"`
-	CreatedAt   string `json:"created_at"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	PublicKey string `json:"public_key"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (h *Handler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
@@ -140,10 +140,10 @@ func (h *Handler) DeleteSSHKey(w http.ResponseWriter, r *http.Request) {
 
 func sshKeyToResponse(k *db.SSHKey) sshKeyResponse {
 	return sshKeyResponse{
-		ID:          k.ID,
-		Name:        k.Name,
-		Fingerprint: k.Fingerprint,
-		CreatedAt:   k.CreatedAt.Format(time.RFC3339),
+		ID:        k.ID,
+		Name:      k.Name,
+		PublicKey: k.PublicKey,
+		CreatedAt: k.CreatedAt.Format(time.RFC3339),
 	}
 }
 
