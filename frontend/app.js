@@ -135,6 +135,7 @@ function App() {
   const [computeView, setComputeView] = useState("containers"); // containers, ssh-keys
   const [showCreateContainer, setShowCreateContainer] = useState(false);
   const [newContainer, setNewContainer] = useState({ name: "", memory_mb: 512, storage_gb: 5 });
+  const [selectedSshKeyIds, setSelectedSshKeyIds] = useState([]);
   const [creatingContainer, setCreatingContainer] = useState(false);
   const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
   const [addingSshKey, setAddingSshKey] = useState(false);
@@ -306,6 +307,10 @@ function App() {
   const handleCreateContainer = async (e) => {
     e.preventDefault();
     if (!newContainer.name.trim()) return;
+    if (selectedSshKeyIds.length === 0) {
+      setContainersError("Select at least one SSH key");
+      return;
+    }
     try {
       setCreatingContainer(true);
       const response = await fetch(`${buildApiBase()}/compute/containers`, {
@@ -316,7 +321,7 @@ function App() {
           name: newContainer.name.trim(),
           memory_mb: newContainer.memory_mb,
           storage_gb: newContainer.storage_gb,
-          ssh_key_ids: sshKeys.map((k) => k.id), // Use all SSH keys
+          ssh_key_ids: selectedSshKeyIds,
         }),
       });
       if (!response.ok) {
@@ -324,6 +329,7 @@ function App() {
         throw new Error(message || "Failed to create container");
       }
       setNewContainer({ name: "", memory_mb: 512, storage_gb: 5 });
+      setSelectedSshKeyIds([]);
       setShowCreateContainer(false);
       await loadContainers();
     } catch (err) {
@@ -1355,74 +1361,6 @@ function App() {
                       {sshKeys.length === 0 && (
                         <p className="status warn">Add an SSH key before creating containers.</p>
                       )}
-                      {showCreateContainer && (
-                        <div className="create-container-form">
-                          <h3>New Container</h3>
-                          <form onSubmit={handleCreateContainer}>
-                            <div className="field">
-                              <label htmlFor="container-name">Name</label>
-                              <input
-                                id="container-name"
-                                type="text"
-                                placeholder="my-dev-env"
-                                value={newContainer.name}
-                                onChange={(e) =>
-                                  setNewContainer((prev) => ({ ...prev, name: e.target.value }))
-                                }
-                              />
-                            </div>
-                            <div className="field-row">
-                              <div className="field">
-                                <label htmlFor="container-memory">Memory (MB)</label>
-                                <select
-                                  id="container-memory"
-                                  value={newContainer.memory_mb}
-                                  onChange={(e) =>
-                                    setNewContainer((prev) => ({
-                                      ...prev,
-                                      memory_mb: Number(e.target.value),
-                                    }))
-                                  }
-                                >
-                                  <option value={256}>256 MB</option>
-                                  <option value={512}>512 MB</option>
-                                  <option value={1024}>1 GB</option>
-                                  <option value={2048}>2 GB</option>
-                                </select>
-                              </div>
-                              <div className="field">
-                                <label htmlFor="container-storage">Storage (GB)</label>
-                                <select
-                                  id="container-storage"
-                                  value={newContainer.storage_gb}
-                                  onChange={(e) =>
-                                    setNewContainer((prev) => ({
-                                      ...prev,
-                                      storage_gb: Number(e.target.value),
-                                    }))
-                                  }
-                                >
-                                  <option value={5}>5 GB</option>
-                                  <option value={10}>10 GB</option>
-                                  <option value={20}>20 GB</option>
-                                </select>
-                              </div>
-                            </div>
-                            <div className="form-actions">
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => setShowCreateContainer(false)}
-                              >
-                                Cancel
-                              </button>
-                              <button type="submit" disabled={creatingContainer}>
-                                {creatingContainer ? "Creating..." : "Create"}
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      )}
                       <div className="container-list">
                         {containersLoading && containers.length === 0 && (
                           <p className="empty">Loading containers...</p>
@@ -1872,6 +1810,122 @@ function App() {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {showCreateContainer && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowCreateContainer(false)}
+          role="presentation"
+        >
+          <div
+            className="modal modal-lg"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-container-title"
+          >
+            <h3 id="create-container-title">Create Container</h3>
+            <form onSubmit={handleCreateContainer}>
+              <div className="field">
+                <label htmlFor="container-name">Name</label>
+                <input
+                  id="container-name"
+                  type="text"
+                  placeholder="my-dev-env"
+                  value={newContainer.name}
+                  onChange={(e) =>
+                    setNewContainer((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  autoFocus
+                />
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="container-memory">Memory</label>
+                  <select
+                    id="container-memory"
+                    value={newContainer.memory_mb}
+                    onChange={(e) =>
+                      setNewContainer((prev) => ({
+                        ...prev,
+                        memory_mb: Number(e.target.value),
+                      }))
+                    }
+                  >
+                    <option value={256}>256 MB</option>
+                    <option value={512}>512 MB</option>
+                    <option value={1024}>1 GB</option>
+                    <option value={2048}>2 GB</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="container-storage">Storage</label>
+                  <select
+                    id="container-storage"
+                    value={newContainer.storage_gb}
+                    onChange={(e) =>
+                      setNewContainer((prev) => ({
+                        ...prev,
+                        storage_gb: Number(e.target.value),
+                      }))
+                    }
+                  >
+                    <option value={5}>5 GB</option>
+                    <option value={10}>10 GB</option>
+                    <option value={20}>20 GB</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>SSH Keys</label>
+                <p className="field-hint">Select keys to copy into the container</p>
+                <div className="ssh-key-select">
+                  {sshKeys.length === 0 ? (
+                    <p className="empty">No SSH keys available. Add one first.</p>
+                  ) : (
+                    sshKeys.map((key) => (
+                      <label key={key.id} className="ssh-key-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedSshKeyIds.includes(key.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSshKeyIds((prev) => [...prev, key.id]);
+                            } else {
+                              setSelectedSshKeyIds((prev) =>
+                                prev.filter((id) => id !== key.id)
+                              );
+                            }
+                          }}
+                        />
+                        <span className="ssh-key-option-name">{key.name}</span>
+                        <code className="ssh-key-option-fp">{key.fingerprint}</code>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setShowCreateContainer(false);
+                    setSelectedSshKeyIds([]);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingContainer || selectedSshKeyIds.length === 0}
+                >
+                  {creatingContainer ? "Creating..." : "Create Container"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

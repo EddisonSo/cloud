@@ -190,7 +190,7 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 						},
 						{
 							Name:      "ssh-keys",
-							MountPath: "/root/.ssh",
+							MountPath: "/etc/ssh/keys",
 							ReadOnly:  true,
 						},
 					},

@@ -1636,3 +1636,99 @@ button:not(:disabled):hover {
     width: 100%;
   }
 }
+
+/* Create Container Modal */
+.modal-lg {
+  width: min(520px, 95%);
+}
+
+.modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal .field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal .field-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.modal .field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.ssh-key-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.ssh-key-select .empty {
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ssh-key-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ssh-key-option:hover {
+  border-color: var(--accent);
+  background: rgba(26, 115, 232, 0.02);
+}
+
+.ssh-key-option:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(26, 115, 232, 0.05);
+}
+
+.ssh-key-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.ssh-key-option-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.ssh-key-option-fp {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: "SF Mono", "Roboto Mono", monospace;
+}
