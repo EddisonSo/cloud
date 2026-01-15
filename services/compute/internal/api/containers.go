@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -151,11 +152,20 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Build authorized_keys
+	// Build authorized_keys with user's keys
 	var authorizedKeys strings.Builder
 	for _, key := range sshKeys {
 		authorizedKeys.WriteString(key.PublicKey)
 		authorizedKeys.WriteString("\n")
+	}
+
+	// Add gateway's public key if available (enables SSH routing via gateway)
+	if gatewayKey, err := os.ReadFile("/data/gateway_key.pub"); err == nil {
+		authorizedKeys.WriteString("# Gateway key for SSH routing\n")
+		authorizedKeys.Write(gatewayKey)
+		if !strings.HasSuffix(string(gatewayKey), "\n") {
+			authorizedKeys.WriteString("\n")
+		}
 	}
 
 	// Create namespace
