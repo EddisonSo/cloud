@@ -1,4 +1,4 @@
-const { useEffect, useRef, useState } = React;
+import { useEffect, useRef, useState } from 'react';
 
 const emptyState = "No files yet. Upload your first file to share it.";
 const defaultNamespace = "default";
@@ -2002,5 +2002,4 @@ function App() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+export default App;
