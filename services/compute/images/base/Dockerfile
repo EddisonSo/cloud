@@ -1,8 +1,11 @@
 FROM debian:bookworm
 
-# Configure apt sources for more packages
-RUN sed -i 's/^deb /deb [signed-by=\/usr\/share\/keyrings\/debian-archive-keyring.gpg] /' /etc/apt/sources.list && \
-    sed -i 's/bookworm main/bookworm main contrib non-free non-free-firmware/' /etc/apt/sources.list
+# Configure apt sources for more packages (contrib, non-free)
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's/bookworm main/bookworm main contrib non-free non-free-firmware/' /etc/apt/sources.list; \
+    fi
 
 # Install essential packages
 RUN apt-get update && apt-get install -y \
