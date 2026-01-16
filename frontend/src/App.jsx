@@ -376,6 +376,23 @@ function App() {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    if (!confirm("Delete this user?")) return;
+    try {
+      const response = await fetch(`${buildApiBase()}/admin/users?id=${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || "Failed to delete user");
+      }
+      await loadAdminData();
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+
   const handleCreateContainer = async (e) => {
     e.preventDefault();
     if (!newContainer.name.trim()) return;
@@ -2118,11 +2135,25 @@ function App() {
                       <div className="admin-table-head">
                         <span>ID</span>
                         <span>Username</span>
+                        <span>Actions</span>
                       </div>
                       {adminUsers.map((u) => (
                         <div className="admin-table-row" key={u.id}>
                           <span>{u.id}</span>
                           <span>{u.username}</span>
+                          <span>
+                            {u.username !== user ? (
+                              <button
+                                type="button"
+                                className="ghost danger-text"
+                                onClick={() => handleDeleteUser(u.id)}
+                              >
+                                Delete
+                              </button>
+                            ) : (
+                              <span className="muted">-</span>
+                            )}
+                          </span>
                         </div>
                       ))}
                     </>
