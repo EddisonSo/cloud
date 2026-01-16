@@ -50,7 +50,7 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
 
 	// Admin endpoints
-	h.mux.HandleFunc("GET /admin/containers", h.adminMiddleware(h.AdminListContainers))
+	h.mux.HandleFunc("GET /compute/admin/containers", h.adminMiddleware(h.AdminListContainers))
 
 	return h
 }

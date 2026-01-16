@@ -98,7 +98,6 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminFiles, setAdminFiles] = useState([]);
   const [adminContainers, setAdminContainers] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -331,15 +330,10 @@ function App() {
     if (!isAdmin) return;
     try {
       setAdminLoading(true);
-      const [filesRes, containersRes, usersRes] = await Promise.all([
-        fetch(`${buildApiBase()}/admin/files`, { credentials: "include" }),
-        fetch(`${buildApiBase()}/admin/containers`, { credentials: "include" }),
+      const [containersRes, usersRes] = await Promise.all([
+        fetch(`${buildApiBase()}/compute/admin/containers`, { credentials: "include" }),
         fetch(`${buildApiBase()}/admin/users`, { credentials: "include" }),
       ]);
-      if (filesRes.ok) {
-        const files = await filesRes.json();
-        setAdminFiles(files || []);
-      }
       if (containersRes.ok) {
         const containers = await containersRes.json();
         setAdminContainers(containers || []);
@@ -2100,36 +2094,6 @@ function App() {
                             {c.external_ip ? <code>{c.external_ip}</code> : <span className="muted">-</span>}
                           </span>
                           <span>{c.memory_mb} MB / {c.storage_gb} GB</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </section>
-              <section className="panel">
-                <div className="panel-header">
-                  <div>
-                    <h2>All Files</h2>
-                    <p>All files across all namespaces.</p>
-                  </div>
-                </div>
-                <div className="admin-table">
-                  {adminFiles.length === 0 ? (
-                    <p className="empty">No files found.</p>
-                  ) : (
-                    <>
-                      <div className="admin-table-head">
-                        <span>Namespace</span>
-                        <span>Name</span>
-                        <span>Size</span>
-                        <span>Modified</span>
-                      </div>
-                      {adminFiles.map((f, idx) => (
-                        <div className="admin-table-row" key={idx}>
-                          <span><code>{f.namespace}</code></span>
-                          <span>{f.name}</span>
-                          <span>{formatBytes(f.size)}</span>
-                          <span>{formatTimestamp(f.modified_at)}</span>
                         </div>
                       ))}
                     </>
