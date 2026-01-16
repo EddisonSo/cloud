@@ -768,10 +768,10 @@ type sessionResponse struct {
 	IsAdmin  bool   `json:"is_admin"`
 }
 
-const adminUsername = "eddisonso@gmail.com"
+var adminUsername = os.Getenv("ADMIN_USERNAME")
 
 func isAdmin(username string) bool {
-	return username == adminUsername
+	return adminUsername != "" && username == adminUsername
 }
 
 func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {

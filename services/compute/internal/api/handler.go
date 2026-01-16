@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
@@ -54,7 +55,7 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	return h
 }
 
-const adminUsername = "eddisonso@gmail.com"
+var adminUsername = os.Getenv("ADMIN_USERNAME")
 
 // adminMiddleware validates session and checks admin status
 func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -67,7 +68,7 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				http.Error(w, "authentication error", http.StatusInternalServerError)
 				return
 			}
-			if username == adminUsername {
+			if adminUsername != "" && username == adminUsername {
 				r = r.WithContext(setUserContext(r.Context(), 1, username))
 				next(w, r)
 				return
