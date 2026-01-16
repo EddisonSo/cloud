@@ -1840,25 +1840,24 @@ button:not(:disabled):hover {
 
 .add-port-form {
   display: flex;
-  gap: 10px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 16px;
 }
 
 .add-port-form input[type="number"] {
-  flex: 1;
-  padding: 10px 14px;
+  width: 80px;
+  padding: 8px 12px;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 8px;
   font-size: 0.9rem;
   background: white;
-  max-width: 100px;
 }
 
 .add-port-form .port-arrow {
-  display: flex;
-  align-items: center;
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .add-port-form button {
