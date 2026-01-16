@@ -151,6 +151,7 @@ func main() {
 	// Admin endpoints
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
 	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
+	mux.HandleFunc("/admin/users", srv.handleAdminUsers)
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
 	mux.Handle("/", srv.staticHandler())
 
@@ -1370,6 +1371,141 @@ func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, result)
+}
+
+func (s *server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
+	username, ok := s.currentUser(r)
+	if !ok || !isAdmin(username) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		s.handleAdminUsersList(w, r)
+	case http.MethodPost:
+		s.handleAdminUsersCreate(w, r)
+	case http.MethodDelete:
+		s.handleAdminUsersDelete(w, r)
+	default:
+		w.Header().Set("Allow", "GET, POST, DELETE")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+type adminUser struct {
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+}
+
+func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.db.Query(`SELECT id, username FROM users ORDER BY id`)
+	if err != nil {
+		http.Error(w, "failed to list users", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	users := make([]adminUser, 0)
+	for rows.Next() {
+		var u adminUser
+		if err := rows.Scan(&u.ID, &u.Username); err != nil {
+			http.Error(w, "failed to scan user", http.StatusInternalServerError)
+			return
+		}
+		users = append(users, u)
+	}
+
+	writeJSON(w, users)
+}
+
+type createUserRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) {
+	var payload createUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	payload.Username = strings.TrimSpace(payload.Username)
+	if payload.Username == "" || payload.Password == "" {
+		http.Error(w, "username and password required", http.StatusBadRequest)
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	var id int64
+	err = s.db.QueryRow(
+		`INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id`,
+		payload.Username,
+		string(hash),
+	).Scan(&id)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "UNIQUE") {
+			http.Error(w, "username already exists", http.StatusConflict)
+			return
+		}
+		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, adminUser{ID: id, Username: payload.Username})
+}
+
+func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "id required", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user exists and get username
+	var targetUsername string
+	err = s.db.QueryRow(`SELECT username FROM users WHERE id = $1`, id).Scan(&targetUsername)
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	// Prevent deleting self
+	currentUsername, _ := s.currentUser(r)
+	if targetUsername == currentUsername {
+		http.Error(w, "cannot delete yourself", http.StatusBadRequest)
+		return
+	}
+
+	// Delete user's sessions first
+	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, id)
+
+	// Delete user
+	result, err := s.db.Exec(`DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		http.Error(w, "failed to delete user", http.StatusInternalServerError)
+		return
+	}
+
+	deleted, _ := result.RowsAffected()
+	if deleted == 0 {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, map[string]string{"status": "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

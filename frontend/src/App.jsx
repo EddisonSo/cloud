@@ -100,7 +100,10 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminFiles, setAdminFiles] = useState([]);
   const [adminContainers, setAdminContainers] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", password: "" });
+  const [creatingUser, setCreatingUser] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [activeTab, setActiveTab] = useState("storage");
@@ -328,9 +331,10 @@ function App() {
     if (!isAdmin) return;
     try {
       setAdminLoading(true);
-      const [filesRes, containersRes] = await Promise.all([
+      const [filesRes, containersRes, usersRes] = await Promise.all([
         fetch(`${buildApiBase()}/admin/files`, { credentials: "include" }),
         fetch(`${buildApiBase()}/admin/containers`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/admin/users`, { credentials: "include" }),
       ]);
       if (filesRes.ok) {
         const files = await filesRes.json();
@@ -340,10 +344,58 @@ function App() {
         const containers = await containersRes.json();
         setAdminContainers(containers || []);
       }
+      if (usersRes.ok) {
+        const users = await usersRes.json();
+        setAdminUsers(users || []);
+      }
     } catch (err) {
       console.warn("Failed to load admin data:", err.message);
     } finally {
       setAdminLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newUser.username.trim() || !newUser.password) return;
+    try {
+      setCreatingUser(true);
+      const response = await fetch(`${buildApiBase()}/admin/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username: newUser.username.trim(),
+          password: newUser.password,
+        }),
+      });
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || "Failed to create user");
+      }
+      setNewUser({ username: "", password: "" });
+      await loadAdminData();
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm("Delete this user?")) return;
+    try {
+      const response = await fetch(`${buildApiBase()}/admin/users?id=${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || "Failed to delete user");
+      }
+      await loadAdminData();
+    } catch (err) {
+      setStatus(err.message);
     }
   };
 
@@ -2078,6 +2130,61 @@ function App() {
                           <span>{f.name}</span>
                           <span>{formatBytes(f.size)}</span>
                           <span>{formatTimestamp(f.modified_at)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Users</h2>
+                    <p>Manage user accounts.</p>
+                  </div>
+                </div>
+                <form className="add-user-form" onSubmit={handleCreateUser}>
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    disabled={creatingUser}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    disabled={creatingUser}
+                  />
+                  <button type="submit" disabled={creatingUser || !newUser.username.trim() || !newUser.password}>
+                    {creatingUser ? "Adding..." : "Add User"}
+                  </button>
+                </form>
+                <div className="admin-table">
+                  {adminUsers.length === 0 ? (
+                    <p className="empty">No users found.</p>
+                  ) : (
+                    <>
+                      <div className="admin-table-head">
+                        <span>ID</span>
+                        <span>Username</span>
+                        <span>Actions</span>
+                      </div>
+                      {adminUsers.map((u) => (
+                        <div className="admin-table-row" key={u.id}>
+                          <span>{u.id}</span>
+                          <span>{u.username}</span>
+                          <span>
+                            <button
+                              type="button"
+                              className="ghost danger-text"
+                              onClick={() => handleDeleteUser(u.id)}
+                            >
+                              Delete
+                            </button>
+                          </span>
                         </div>
                       ))}
                     </>
