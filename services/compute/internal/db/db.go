@@ -69,6 +69,7 @@ func (db *DB) migrate() error {
 			UNIQUE(container_id, port)
 		)`,
 		`ALTER TABLE ingress_rules ADD COLUMN IF NOT EXISTS target_port INTEGER DEFAULT 80`,
+		`ALTER TABLE ingress_rules ADD COLUMN IF NOT EXISTS protocol TEXT DEFAULT 'tcp'`,
 		`CREATE INDEX IF NOT EXISTS idx_ingress_rules_container_id ON ingress_rules(container_id)`,
 		// Protocol access through gateway (SSH and HTTPS only, no HTTP)
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS ssh_enabled BOOLEAN DEFAULT false`,
