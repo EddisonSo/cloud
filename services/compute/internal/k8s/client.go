@@ -306,6 +306,15 @@ func (c *Client) GetPodStatus(ctx context.Context, namespace string) (string, er
 	}
 }
 
+// GetPodIP returns the internal cluster IP of the container pod
+func (c *Client) GetPodIP(ctx context.Context, namespace string) (string, error) {
+	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, "container", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get pod: %w", err)
+	}
+	return pod.Status.PodIP, nil
+}
+
 // DeletePod deletes the container pod
 func (c *Client) DeletePod(ctx context.Context, namespace string) error {
 	err := c.clientset.CoreV1().Pods(namespace).Delete(ctx, "container", metav1.DeleteOptions{})
