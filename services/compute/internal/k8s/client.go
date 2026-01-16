@@ -110,10 +110,50 @@ func (c *Client) CreatePVC(ctx context.Context, namespace string, storageGB int)
 	return nil
 }
 
-// CreateNetworkPolicy creates network isolation policy
+// CreateNetworkPolicy creates network isolation policy (blocks all external ingress by default)
 func (c *Client) CreateNetworkPolicy(ctx context.Context, namespace string) error {
+	return c.UpdateNetworkPolicy(ctx, namespace, nil) // Start with no ports open
+}
+
+// UpdateNetworkPolicy updates the network policy to allow only specified ports from external sources
+func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allowedPorts []int) error {
 	udpProtocol := corev1.ProtocolUDP
+	tcpProtocol := corev1.ProtocolTCP
 	dnsPort := int32(53)
+
+	// Build ingress rules
+	var ingressRules []networkingv1.NetworkPolicyIngressRule
+
+	// Always allow ingress from within the cluster (for cloud terminal via internal pod IP)
+	ingressRules = append(ingressRules, networkingv1.NetworkPolicyIngressRule{
+		From: []networkingv1.NetworkPolicyPeer{
+			{
+				IPBlock: &networkingv1.IPBlock{
+					CIDR: "10.0.0.0/8", // Internal cluster network
+				},
+			},
+		},
+	})
+
+	// Add rules for each allowed external port
+	for _, port := range allowedPorts {
+		p := int32(port)
+		ingressRules = append(ingressRules, networkingv1.NetworkPolicyIngressRule{
+			From: []networkingv1.NetworkPolicyPeer{
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR: "0.0.0.0/0", // External traffic
+					},
+				},
+			},
+			Ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcpProtocol,
+					Port:     &intOrString{IntVal: p},
+				},
+			},
+		})
+	}
 
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -126,9 +166,7 @@ func (c *Client) CreateNetworkPolicy(ctx context.Context, namespace string) erro
 				networkingv1.PolicyTypeIngress,
 				networkingv1.PolicyTypeEgress,
 			},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{}, // Allow all ingress
-			},
+			Ingress: ingressRules,
 			Egress: []networkingv1.NetworkPolicyEgressRule{
 				{
 					// Allow DNS
@@ -140,7 +178,7 @@ func (c *Client) CreateNetworkPolicy(ctx context.Context, namespace string) erro
 					},
 				},
 				{
-					// Allow internet, block internal
+					// Allow internet, block internal (except DNS)
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							IPBlock: &networkingv1.IPBlock{
@@ -154,9 +192,15 @@ func (c *Client) CreateNetworkPolicy(ctx context.Context, namespace string) erro
 		},
 	}
 
-	_, err := c.clientset.NetworkingV1().NetworkPolicies(namespace).Create(ctx, policy, metav1.CreateOptions{})
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return fmt.Errorf("create network policy: %w", err)
+	// Try to update, if not exists then create
+	_, err := c.clientset.NetworkingV1().NetworkPolicies(namespace).Update(ctx, policy, metav1.UpdateOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = c.clientset.NetworkingV1().NetworkPolicies(namespace).Create(ctx, policy, metav1.CreateOptions{})
+		}
+		if err != nil {
+			return fmt.Errorf("update network policy: %w", err)
+		}
 	}
 	return nil
 }

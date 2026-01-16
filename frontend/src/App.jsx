@@ -149,6 +149,10 @@ function App() {
   const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
   const [addingSshKey, setAddingSshKey] = useState(false);
   const [containerActions, setContainerActions] = useState({}); // {id: 'starting'|'stopping'|'deleting'}
+  // Ingress/Ports state
+  const [portsContainer, setPortsContainer] = useState(null);
+  const [portsLoading, setPortsLoading] = useState(false);
+  const [portsData, setPortsData] = useState({ allowed_ports: [] });
   // Terminal state
   const [terminalContainer, setTerminalContainer] = useState(null);
   const [terminalConnecting, setTerminalConnecting] = useState(false);
@@ -486,6 +490,64 @@ function App() {
       await loadSshKeys();
     } catch (err) {
       setContainersError(err.message);
+    }
+  };
+
+  // Ports/Ingress functions
+  const openPorts = async (container) => {
+    setPortsContainer(container);
+    setPortsLoading(true);
+    try {
+      const response = await fetch(
+        `${buildApiBase()}/compute/containers/${container.id}/ingress`,
+        { credentials: "include" }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setPortsData(data);
+      }
+    } catch (err) {
+      console.warn("Failed to load ports:", err.message);
+    } finally {
+      setPortsLoading(false);
+    }
+  };
+
+  const closePorts = () => {
+    setPortsContainer(null);
+    setPortsData({ allowed_ports: [] });
+  };
+
+  const togglePort = async (port, enabled) => {
+    if (!portsContainer) return;
+    try {
+      if (enabled) {
+        // Enable port
+        const response = await fetch(
+          `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ port }),
+          }
+        );
+        if (!response.ok) throw new Error("Failed to enable port");
+      } else {
+        // Disable port
+        const response = await fetch(
+          `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress/${port}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+          }
+        );
+        if (!response.ok) throw new Error("Failed to disable port");
+      }
+      // Refresh ports
+      await openPorts(portsContainer);
+    } catch (err) {
+      setStatus(err.message);
     }
   };
 
@@ -1704,13 +1766,22 @@ function App() {
                             </div>
                             <div className="container-col actions">
                               {container.status === "running" && container.external_ip && (
-                                <button
-                                  type="button"
-                                  className="terminal-btn"
-                                  onClick={() => openTerminal(container)}
-                                >
-                                  Terminal
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    className="terminal-btn"
+                                    onClick={() => openTerminal(container)}
+                                  >
+                                    Terminal
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => openPorts(container)}
+                                  >
+                                    Ports
+                                  </button>
+                                </>
                               )}
                               {container.status === "running" && (
                                 <button
@@ -2367,6 +2438,55 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {portsContainer && (
+        <div
+          className="modal-overlay"
+          onClick={closePorts}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ports-title"
+          >
+            <h3 id="ports-title">Manage Ports - {portsContainer.name}</h3>
+            <p className="modal-desc">
+              Control which ports are accessible from the internet. Cloud Terminal always works via internal connection.
+            </p>
+            {portsLoading ? (
+              <p className="loading">Loading ports...</p>
+            ) : (
+              <div className="ports-list">
+                {portsData.allowed_ports
+                  .sort((a, b) => a.port - b.port)
+                  .map((p) => (
+                    <div className="port-row" key={p.port}>
+                      <div className="port-info">
+                        <strong>{p.port}</strong>
+                        <span className="port-protocol">{p.protocol}</span>
+                      </div>
+                      <label className="toggle">
+                        <input
+                          type="checkbox"
+                          checked={p.enabled}
+                          onChange={(e) => togglePort(p.port, e.target.checked)}
+                        />
+                        <span className="toggle-slider"></span>
+                      </label>
+                    </div>
+                  ))}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" onClick={closePorts}>
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

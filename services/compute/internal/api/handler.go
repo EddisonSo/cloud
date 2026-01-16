@@ -49,6 +49,11 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	// Cloud terminal endpoint
 	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
 
+	// Ingress rules endpoints
+	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.ListIngressRules))
+	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.AddIngressRule))
+	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.RemoveIngressRule))
+
 	// Admin endpoints
 	h.mux.HandleFunc("GET /compute/admin/containers", h.adminMiddleware(h.AdminListContainers))
 

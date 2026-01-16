@@ -59,6 +59,15 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_containers_user_id ON containers(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_ssh_keys_user_id ON ssh_keys(user_id)`,
+		`CREATE TABLE IF NOT EXISTS ingress_rules (
+			id SERIAL PRIMARY KEY,
+			container_id TEXT NOT NULL REFERENCES containers(id) ON DELETE CASCADE,
+			port INTEGER NOT NULL,
+			enabled BOOLEAN DEFAULT true,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(container_id, port)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ingress_rules_container_id ON ingress_rules(container_id)`,
 	}
 
 	for _, m := range migrations {
