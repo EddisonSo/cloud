@@ -1,24 +1,12 @@
-FROM debian:bookworm
+FROM buildpack-deps:bookworm
 
-# Configure apt sources for more packages (contrib, non-free)
-RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources; \
-    elif [ -f /etc/apt/sources.list ]; then \
-        sed -i 's/bookworm main/bookworm main contrib non-free non-free-firmware/' /etc/apt/sources.list; \
-    fi
-
-# Install essential packages
+# Install additional packages (buildpack-deps already has build-essential, curl, wget, git, ca-certificates)
 RUN apt-get update && apt-get install -y \
     openssh-server \
     sudo \
-    curl \
-    wget \
-    git \
     vim \
     tmux \
     htop \
-    build-essential \
-    ca-certificates \
     inotify-tools \
     && rm -rf /var/lib/apt/lists/*
 
