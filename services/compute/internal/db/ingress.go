@@ -7,7 +7,6 @@ type IngressRule struct {
 	ContainerID string    `json:"container_id"`
 	Port        int       `json:"port"`        // External port
 	TargetPort  int       `json:"target_port"` // Internal container port
-	Protocol    string    `json:"protocol"`    // tcp or udp
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -30,7 +29,7 @@ func IsTargetPortAllowed(port int) bool {
 
 func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	rows, err := db.Query(`
-		SELECT id, container_id, port, COALESCE(target_port, port), protocol, created_at
+		SELECT id, container_id, port, COALESCE(target_port, port), created_at
 		FROM ingress_rules
 		WHERE container_id = $1
 		ORDER BY port`,
@@ -44,7 +43,7 @@ func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	var rules []*IngressRule
 	for rows.Next() {
 		r := &IngressRule{}
-		if err := rows.Scan(&r.ID, &r.ContainerID, &r.Port, &r.TargetPort, &r.Protocol, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.ContainerID, &r.Port, &r.TargetPort, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		rules = append(rules, r)
@@ -52,15 +51,15 @@ func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	return rules, rows.Err()
 }
 
-func (db *DB) AddIngressRule(containerID string, port, targetPort int, protocol string) (*IngressRule, error) {
+func (db *DB) AddIngressRule(containerID string, port, targetPort int) (*IngressRule, error) {
 	var r IngressRule
 	err := db.QueryRow(`
-		INSERT INTO ingress_rules (container_id, port, target_port, protocol)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (container_id, port) DO UPDATE SET target_port = $3, protocol = $4
-		RETURNING id, container_id, port, target_port, protocol, created_at`,
-		containerID, port, targetPort, protocol,
-	).Scan(&r.ID, &r.ContainerID, &r.Port, &r.TargetPort, &r.Protocol, &r.CreatedAt)
+		INSERT INTO ingress_rules (container_id, port, target_port)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (container_id, port) DO UPDATE SET target_port = $3
+		RETURNING id, container_id, port, target_port, created_at`,
+		containerID, port, targetPort,
+	).Scan(&r.ID, &r.ContainerID, &r.Port, &r.TargetPort, &r.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

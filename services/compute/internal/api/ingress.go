@@ -101,7 +101,7 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rule, err := h.db.AddIngressRule(containerID, req.Port, targetPort, "tcp")
+	rule, err := h.db.AddIngressRule(containerID, req.Port, targetPort)
 	if err != nil {
 		slog.Error("failed to add ingress rule", "error", err)
 		writeError(w, "failed to add ingress rule", http.StatusInternalServerError)
