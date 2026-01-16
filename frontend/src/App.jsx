@@ -155,7 +155,6 @@ function App() {
   const [sshEnabled, setSshEnabled] = useState(false);
   const [savingSSH, setSavingSSH] = useState(false);
   const [ingressRules, setIngressRules] = useState([]);
-  const [allowedPorts, setAllowedPorts] = useState([]);
   const [newPort, setNewPort] = useState("");
   const [newTargetPort, setNewTargetPort] = useState("");
   const [addingRule, setAddingRule] = useState(false);
@@ -505,7 +504,6 @@ function App() {
     setAccessLoading(true);
     setSshEnabled(container.ssh_enabled || false);
     setIngressRules([]);
-    setAllowedPorts([]);
     setNewPort("");
     try {
       // Fetch SSH status and ingress rules in parallel
@@ -520,7 +518,6 @@ function App() {
       if (ingressRes.ok) {
         const data = await ingressRes.json();
         setIngressRules(data.rules || []);
-        setAllowedPorts(data.allowed_ports || []);
       }
     } catch (err) {
       console.warn("Failed to load access settings:", err.message);
@@ -533,7 +530,6 @@ function App() {
     setAccessContainer(null);
     setSshEnabled(false);
     setIngressRules([]);
-    setAllowedPorts([]);
   };
 
   const toggleSSH = async () => {
@@ -2554,26 +2550,21 @@ function App() {
                 </div>
                 <div className="access-section">
                   <h4>Ingress Rules</h4>
-                  <p className="section-desc">Map external ports to internal container ports</p>
+                  <p className="section-desc">Map external ports (80, 443, 8080) to container ports</p>
                   <form className="add-port-form" onSubmit={addIngressRule}>
-                    <select
+                    <input
+                      type="number"
+                      placeholder="External"
                       value={newPort}
                       onChange={(e) => setNewPort(e.target.value)}
                       disabled={addingRule}
-                    >
-                      <option value="">External port...</option>
-                      {allowedPorts
-                        .filter((p) => !ingressRules.some((r) => r.port === p))
-                        .map((p) => (
-                          <option key={p} value={p}>
-                            {p} {p === 80 ? "(HTTP)" : p === 443 ? "(HTTPS)" : ""}
-                          </option>
-                        ))}
-                    </select>
-                    <span className="port-arrow">→</span>
+                      min="1"
+                      max="65535"
+                    />
+                    <span className="port-arrow">:</span>
                     <input
                       type="number"
-                      placeholder="Target port"
+                      placeholder="Container"
                       value={newTargetPort}
                       onChange={(e) => setNewTargetPort(e.target.value)}
                       disabled={addingRule}
@@ -2591,8 +2582,7 @@ function App() {
                       ingressRules.map((rule) => (
                         <div className="ingress-rule-row" key={rule.id}>
                           <div className="rule-info">
-                            <strong>{rule.port}</strong>
-                            <span className="port-mapping">→ {rule.target_port || rule.port}</span>
+                            <strong>{rule.port}:{rule.target_port || rule.port}</strong>
                             <span className="rule-label">
                               {rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : "TCP"}
                             </span>

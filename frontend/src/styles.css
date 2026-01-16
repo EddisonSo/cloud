@@ -1844,7 +1844,6 @@ button:not(:disabled):hover {
   margin-bottom: 16px;
 }
 
-.add-port-form select,
 .add-port-form input[type="number"] {
   flex: 1;
   padding: 10px 14px;
@@ -1852,10 +1851,7 @@ button:not(:disabled):hover {
   border-radius: 8px;
   font-size: 0.9rem;
   background: white;
-}
-
-.add-port-form input[type="number"] {
-  max-width: 120px;
+  max-width: 100px;
 }
 
 .add-port-form .port-arrow {
