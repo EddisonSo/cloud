@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -749,8 +750,13 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
+	// Detect content type from extension
+	ext := filepath.Ext(file)
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
 		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
