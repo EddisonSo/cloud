@@ -1108,6 +1108,7 @@ function App() {
       await fetch(`${buildApiBase()}/api/logout`, { method: "POST" });
     } finally {
       setUser(null);
+      setIsAdmin(false);
     }
   };
 
