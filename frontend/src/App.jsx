@@ -2069,7 +2069,7 @@ function App() {
                     {adminLoading ? "Loading..." : "Refresh"}
                   </button>
                 </div>
-                <div className="admin-table">
+                <div className="admin-table cols-5">
                   {adminContainers.length === 0 ? (
                     <p className="empty">No containers found.</p>
                   ) : (
@@ -2127,7 +2127,7 @@ function App() {
                     {creatingUser ? "Adding..." : "Add User"}
                   </button>
                 </form>
-                <div className="admin-table">
+                <div className="admin-table cols-3">
                   {adminUsers.length === 0 ? (
                     <p className="empty">No users found.</p>
                   ) : (

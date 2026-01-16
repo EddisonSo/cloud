@@ -1566,7 +1566,6 @@ button:not(:disabled):hover {
 
 .admin-table-head {
   display: grid;
-  grid-template-columns: 80px 1fr 100px 140px 120px;
   gap: 16px;
   padding: 10px 16px;
   font-size: 0.8rem;
@@ -1579,7 +1578,6 @@ button:not(:disabled):hover {
 
 .admin-table-row {
   display: grid;
-  grid-template-columns: 80px 1fr 100px 140px 120px;
   gap: 16px;
   padding: 12px 16px;
   background: #f8fafc;
@@ -1587,6 +1585,16 @@ button:not(:disabled):hover {
   border: 1px solid rgba(15, 23, 42, 0.06);
   font-size: 0.9rem;
   align-items: center;
+}
+
+.admin-table.cols-5 .admin-table-head,
+.admin-table.cols-5 .admin-table-row {
+  grid-template-columns: 80px 1fr 100px 140px 120px;
+}
+
+.admin-table.cols-3 .admin-table-head,
+.admin-table.cols-3 .admin-table-row {
+  grid-template-columns: 60px 1fr 100px;
 }
 
 .admin-table-row span {
