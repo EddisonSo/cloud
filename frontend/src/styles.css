@@ -1854,6 +1854,13 @@ button:not(:disabled):hover {
   border-radius: 8px;
   font-size: 0.9rem;
   background: white;
+  -moz-appearance: textfield;
+}
+
+.add-port-form input[type="number"]::-webkit-outer-spin-button,
+.add-port-form input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .add-port-form .port-arrow {
