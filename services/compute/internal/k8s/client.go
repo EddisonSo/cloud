@@ -190,12 +190,22 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 					},
 				},
 				{
-					// Allow internet, block internal (except DNS)
+					// Allow internal cluster traffic (for responses to compute service, etc.)
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "10.0.0.0/8",
+							},
+						},
+					},
+				},
+				{
+					// Allow internet (external traffic)
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							IPBlock: &networkingv1.IPBlock{
 								CIDR:   "0.0.0.0/0",
-								Except: []string{"10.0.0.0/8"},
+								Except: []string{"10.0.0.0/8", "192.168.0.0/16", "172.16.0.0/12"},
 							},
 						},
 					},
