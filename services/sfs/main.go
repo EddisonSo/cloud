@@ -149,7 +149,7 @@ func main() {
 	mux.HandleFunc("/storage/upload", srv.handleUpload)
 	mux.HandleFunc("/storage/download", srv.handleDownload)
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
-	mux.HandleFunc("GET /storage/{namespace}/download/{file...}", srv.handleFileDownload)
+	mux.HandleFunc("GET /storage/download/{namespace}/{file...}", srv.handleFileDownload)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
 	// Admin endpoints
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
