@@ -192,8 +192,8 @@ function App() {
     },
     compute: {
       eyebrow: "Compute Services",
-      title: "Dev Containers",
-      lead: "Manage dev environment containers with dedicated IPs and SSH access.",
+      title: "Stateful Containers",
+      lead: "Stateful containers with persistent storage and dedicated IPs.",
     },
     "message-queue": {
       eyebrow: "Messaging",
@@ -1769,7 +1769,7 @@ function App() {
                       <div className="panel-header">
                         <div>
                           <h2>Containers</h2>
-                          <p>Dev environment containers with dedicated IPs.</p>
+                          <p>Stateful containers with persistent storage.</p>
                         </div>
                         <div className="panel-actions">
                           <button
