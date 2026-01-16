@@ -2550,11 +2550,11 @@ function App() {
                 </div>
                 <div className="access-section">
                   <h4>Ingress Rules</h4>
-                  <p className="section-desc">Map external ports (80, 443, 8080) to container ports</p>
+                  <p className="section-desc">Route ingress ports (80, 443, 8080) to target ports</p>
                   <form className="add-port-form" onSubmit={addIngressRule}>
                     <input
                       type="number"
-                      placeholder="External"
+                      placeholder="Ingress"
                       value={newPort}
                       onChange={(e) => setNewPort(e.target.value)}
                       disabled={addingRule}
@@ -2564,7 +2564,7 @@ function App() {
                     <span className="port-arrow">:</span>
                     <input
                       type="number"
-                      placeholder="Container"
+                      placeholder="Target"
                       value={newTargetPort}
                       onChange={(e) => setNewTargetPort(e.target.value)}
                       disabled={addingRule}
