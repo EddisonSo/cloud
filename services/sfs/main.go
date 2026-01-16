@@ -149,6 +149,7 @@ func main() {
 	mux.HandleFunc("/storage/upload", srv.handleUpload)
 	mux.HandleFunc("/storage/download", srv.handleDownload)
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
+	mux.HandleFunc("GET /storage/{namespace}/{file...}/download", srv.handleFileDownload)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
 	// Admin endpoints
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
@@ -757,6 +758,46 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", contentType)
+
+	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
+		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
+		return
+	}
+}
+
+// handleFileDownload forces file download: GET /storage/{namespace}/{file...}/download
+func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
+	namespace := r.PathValue("namespace")
+	file := r.PathValue("file")
+
+	if namespace == "" || file == "" {
+		http.Error(w, "namespace and file required", http.StatusBadRequest)
+		return
+	}
+
+	namespace, err := sanitizeNamespace(namespace)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if namespace == hiddenNamespace {
+		if _, ok := s.currentUser(r); !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+
+	ext := filepath.Ext(file)
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
 		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
