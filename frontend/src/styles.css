@@ -1840,6 +1840,7 @@ button:not(:disabled):hover {
 
 .add-port-form {
   display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
@@ -1948,7 +1949,7 @@ button:not(:disabled):hover {
   width: min(520px, 95%);
 }
 
-.modal form {
+.modal form:not(.add-port-form) {
   display: flex;
   flex-direction: column;
   gap: 16px;
