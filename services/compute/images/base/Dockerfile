@@ -42,6 +42,9 @@ RUN chmod +x /entrypoint.sh
 RUN useradd -m -s /bin/bash dev && \
     echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+# Configure tmux with mouse support
+RUN echo "set -g mouse on" > /etc/tmux.conf
+
 # Expose common ports
 EXPOSE 22 80 443 3000 8080
 
