@@ -149,11 +149,14 @@ function App() {
   const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
   const [addingSshKey, setAddingSshKey] = useState(false);
   const [containerActions, setContainerActions] = useState({}); // {id: 'starting'|'stopping'|'deleting'}
-  // Ingress/Ports state
-  const [portsContainer, setPortsContainer] = useState(null);
-  const [portsLoading, setPortsLoading] = useState(false);
-  const [portsData, setPortsData] = useState({ rules: [], allowed_ports: [] });
-  const [newRule, setNewRule] = useState({ port: "", protocol: "tcp" });
+  // Access control state (SSH toggle + ingress rules)
+  const [accessContainer, setAccessContainer] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [sshEnabled, setSshEnabled] = useState(false);
+  const [savingSSH, setSavingSSH] = useState(false);
+  const [ingressRules, setIngressRules] = useState([]);
+  const [allowedPorts, setAllowedPorts] = useState([]);
+  const [newPort, setNewPort] = useState("");
   const [addingRule, setAddingRule] = useState(false);
   // Terminal state
   const [terminalContainer, setTerminalContainer] = useState(null);
@@ -495,61 +498,100 @@ function App() {
     }
   };
 
-  // Ports/Ingress functions
-  const openPorts = async (container) => {
-    setPortsContainer(container);
-    setPortsLoading(true);
-    setNewRule({ port: "", protocol: "tcp" });
+  // Access control functions
+  const openAccess = async (container) => {
+    setAccessContainer(container);
+    setAccessLoading(true);
+    setSshEnabled(container.ssh_enabled || false);
+    setIngressRules([]);
+    setAllowedPorts([]);
+    setNewPort("");
     try {
-      const response = await fetch(
-        `${buildApiBase()}/compute/containers/${container.id}/ingress`,
-        { credentials: "include" }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setPortsData(data);
+      // Fetch SSH status and ingress rules in parallel
+      const [sshRes, ingressRes] = await Promise.all([
+        fetch(`${buildApiBase()}/compute/containers/${container.id}/ssh`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/compute/containers/${container.id}/ingress`, { credentials: "include" }),
+      ]);
+      if (sshRes.ok) {
+        const data = await sshRes.json();
+        setSshEnabled(data.ssh_enabled);
+      }
+      if (ingressRes.ok) {
+        const data = await ingressRes.json();
+        setIngressRules(data.rules || []);
+        setAllowedPorts(data.allowed_ports || []);
       }
     } catch (err) {
-      console.warn("Failed to load ports:", err.message);
+      console.warn("Failed to load access settings:", err.message);
     } finally {
-      setPortsLoading(false);
+      setAccessLoading(false);
     }
   };
 
-  const closePorts = () => {
-    setPortsContainer(null);
-    setPortsData({ rules: [], allowed_ports: [] });
+  const closeAccess = () => {
+    setAccessContainer(null);
+    setSshEnabled(false);
+    setIngressRules([]);
+    setAllowedPorts([]);
   };
 
-  const addRule = async (e) => {
+  const toggleSSH = async () => {
+    if (!accessContainer || savingSSH) return;
+    const newValue = !sshEnabled;
+    setSshEnabled(newValue);
+    setSavingSSH(true);
+    try {
+      const response = await fetch(
+        `${buildApiBase()}/compute/containers/${accessContainer.id}/ssh`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ ssh_enabled: newValue }),
+        }
+      );
+      if (!response.ok) {
+        setSshEnabled(!newValue); // Revert
+        const msg = await response.text();
+        throw new Error(msg || "Failed to update SSH access");
+      }
+      // Update containers list
+      setContainers((prev) =>
+        prev.map((c) => c.id === accessContainer.id ? { ...c, ssh_enabled: newValue } : c)
+      );
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setSavingSSH(false);
+    }
+  };
+
+  const addIngressRule = async (e) => {
     e.preventDefault();
-    if (!portsContainer || !newRule.port) return;
+    if (!accessContainer || !newPort || addingRule) return;
     setAddingRule(true);
     try {
       const response = await fetch(
-        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
+        `${buildApiBase()}/compute/containers/${accessContainer.id}/ingress`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({
-            port: parseInt(newRule.port, 10),
-            protocol: newRule.protocol,
-          }),
+          body: JSON.stringify({ port: parseInt(newPort, 10) }),
         }
       );
       if (!response.ok) {
         const msg = await response.text();
         throw new Error(msg || "Failed to add rule");
       }
-      setNewRule({ port: "", protocol: "tcp" });
-      // Refresh rules
-      const refreshRes = await fetch(
-        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
-        { credentials: "include" }
-      );
-      if (refreshRes.ok) {
-        setPortsData(await refreshRes.json());
+      const rule = await response.json();
+      setIngressRules((prev) => [...prev, rule]);
+      setNewPort("");
+      // Update container https_enabled if port 443
+      if (parseInt(newPort, 10) === 443) {
+        setContainers((prev) =>
+          prev.map((c) => c.id === accessContainer.id ? { ...c, https_enabled: true } : c)
+        );
       }
     } catch (err) {
       setStatus(err.message);
@@ -558,24 +600,20 @@ function App() {
     }
   };
 
-  const removeRule = async (port) => {
-    if (!portsContainer) return;
+  const removeIngressRule = async (port) => {
+    if (!accessContainer) return;
     try {
       const response = await fetch(
-        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress/${port}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
+        `${buildApiBase()}/compute/containers/${accessContainer.id}/ingress/${port}`,
+        { method: "DELETE", credentials: "include" }
       );
       if (!response.ok) throw new Error("Failed to remove rule");
-      // Refresh rules
-      const refreshRes = await fetch(
-        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
-        { credentials: "include" }
-      );
-      if (refreshRes.ok) {
-        setPortsData(await refreshRes.json());
+      setIngressRules((prev) => prev.filter((r) => r.port !== port));
+      // Update container https_enabled if port 443
+      if (port === 443) {
+        setContainers((prev) =>
+          prev.map((c) => c.id === accessContainer.id ? { ...c, https_enabled: false } : c)
+        );
       }
     } catch (err) {
       setStatus(err.message);
@@ -1808,9 +1846,9 @@ function App() {
                                   <button
                                     type="button"
                                     className="ghost"
-                                    onClick={() => openPorts(container)}
+                                    onClick={() => openAccess(container)}
                                   >
-                                    Ports
+                                    Access
                                   </button>
                                 </>
                               )}
@@ -2472,10 +2510,10 @@ function App() {
           </div>
         </div>
       )}
-      {portsContainer && (
+      {accessContainer && (
         <div
           className="modal-overlay"
-          onClick={closePorts}
+          onClick={closeAccess}
           role="presentation"
         >
           <div
@@ -2483,71 +2521,85 @@ function App() {
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="ports-title"
+            aria-labelledby="access-title"
           >
-            <h3 id="ports-title">Ingress Rules - {portsContainer.name}</h3>
+            <h3 id="access-title">Access Control - {accessContainer.name}</h3>
             <p className="modal-desc">
-              Control which ports are accessible from the internet. Cloud Terminal always works via internal connection.
+              Control SSH and port access. Cloud Terminal always works via internal connection.
             </p>
-            {portsLoading ? (
-              <p className="loading">Loading rules...</p>
+            {accessLoading ? (
+              <p className="loading">Loading access settings...</p>
             ) : (
               <>
-                <form className="add-rule-form" onSubmit={addRule}>
-                  <select
-                    value={newRule.port}
-                    onChange={(e) => setNewRule({ ...newRule, port: e.target.value })}
-                    disabled={addingRule}
-                  >
-                    <option value="">Select port...</option>
-                    {portsData.allowed_ports
-                      .filter((p) => !portsData.rules.some((r) => r.port === p))
-                      .map((p) => (
-                        <option key={p} value={p}>
-                          {p} {p === 22 ? "(SSH)" : p === 80 ? "(HTTP)" : p === 443 ? "(HTTPS)" : p === 8080 ? "(HTTP Alt)" : ""}
-                        </option>
-                      ))}
-                  </select>
-                  <select
-                    value={newRule.protocol}
-                    onChange={(e) => setNewRule({ ...newRule, protocol: e.target.value })}
-                    disabled={addingRule}
-                  >
-                    <option value="tcp">TCP</option>
-                    <option value="udp">UDP</option>
-                  </select>
-                  <button type="submit" disabled={addingRule || !newRule.port}>
-                    {addingRule ? "Adding..." : "Add Rule"}
-                  </button>
-                </form>
-                <div className="rules-list">
-                  {portsData.rules.length === 0 ? (
-                    <p className="empty">No ingress rules. All external traffic is blocked.</p>
-                  ) : (
-                    portsData.rules.map((rule) => (
-                      <div className="rule-row" key={rule.id}>
-                        <div className="rule-info">
-                          <strong>{rule.port}</strong>
-                          <span className="rule-protocol">{rule.protocol.toUpperCase()}</span>
-                          <span className="rule-service">
-                            {rule.port === 22 ? "SSH" : rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : rule.port === 8080 ? "HTTP Alt" : ""}
-                          </span>
+                <div className="access-section">
+                  <h4>SSH Access</h4>
+                  <div className="protocol-row">
+                    <div className="protocol-info">
+                      <strong>Enable SSH</strong>
+                      <span className="protocol-desc">ssh {accessContainer.id}@cloud.eddisonso.com</span>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={sshEnabled}
+                        onChange={toggleSSH}
+                        disabled={savingSSH}
+                      />
+                      <span className="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div className="access-section">
+                  <h4>Ingress Rules</h4>
+                  <p className="section-desc">Open ports for external access (80, 443, 8000-8999)</p>
+                  <form className="add-port-form" onSubmit={addIngressRule}>
+                    <select
+                      value={newPort}
+                      onChange={(e) => setNewPort(e.target.value)}
+                      disabled={addingRule}
+                    >
+                      <option value="">Select port...</option>
+                      {allowedPorts
+                        .filter((p) => !ingressRules.some((r) => r.port === p))
+                        .slice(0, 50)
+                        .map((p) => (
+                          <option key={p} value={p}>
+                            {p} {p === 80 ? "(HTTP)" : p === 443 ? "(HTTPS)" : ""}
+                          </option>
+                        ))}
+                    </select>
+                    <button type="submit" disabled={addingRule || !newPort}>
+                      {addingRule ? "Adding..." : "Add"}
+                    </button>
+                  </form>
+                  <div className="ingress-rules-list">
+                    {ingressRules.length === 0 ? (
+                      <p className="empty">No ports open. Add a rule to allow external access.</p>
+                    ) : (
+                      ingressRules.map((rule) => (
+                        <div className="ingress-rule-row" key={rule.id}>
+                          <div className="rule-info">
+                            <strong>{rule.port}</strong>
+                            <span className="rule-label">
+                              {rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : "TCP"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="ghost danger-text"
+                            onClick={() => removeIngressRule(rule.port)}
+                          >
+                            Remove
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          className="ghost danger-text"
-                          onClick={() => removeRule(rule.port)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
               </>
             )}
             <div className="modal-actions">
-              <button type="button" onClick={closePorts}>
+              <button type="button" onClick={closeAccess}>
                 Done
               </button>
             </div>

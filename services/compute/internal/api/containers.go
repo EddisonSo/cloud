@@ -28,14 +28,16 @@ type containerRequest struct {
 }
 
 type containerResponse struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Status     string  `json:"status"`
-	ExternalIP *string `json:"external_ip"`
-	SSHCommand *string `json:"ssh_command,omitempty"`
-	MemoryMB   int     `json:"memory_mb"`
-	StorageGB  int     `json:"storage_gb"`
-	CreatedAt  string  `json:"created_at"`
+	ID           string  `json:"id"`
+	Name         string  `json:"name"`
+	Status       string  `json:"status"`
+	ExternalIP   *string `json:"external_ip"`
+	SSHCommand   *string `json:"ssh_command,omitempty"`
+	MemoryMB     int     `json:"memory_mb"`
+	StorageGB    int     `json:"storage_gb"`
+	CreatedAt    string  `json:"created_at"`
+	SSHEnabled   bool    `json:"ssh_enabled"`
+	HTTPSEnabled bool    `json:"https_enabled"`
 }
 
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
@@ -450,12 +452,14 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 
 func containerToResponse(c *db.Container) containerResponse {
 	resp := containerResponse{
-		ID:        c.ID,
-		Name:      c.Name,
-		Status:    c.Status,
-		MemoryMB:  c.MemoryMB,
-		StorageGB: c.StorageGB,
-		CreatedAt: c.CreatedAt.Format(time.RFC3339),
+		ID:           c.ID,
+		Name:         c.Name,
+		Status:       c.Status,
+		MemoryMB:     c.MemoryMB,
+		StorageGB:    c.StorageGB,
+		CreatedAt:    c.CreatedAt.Format(time.RFC3339),
+		SSHEnabled:   c.SSHEnabled,
+		HTTPSEnabled: c.HTTPSEnabled,
 	}
 
 	if c.ExternalIP.Valid {

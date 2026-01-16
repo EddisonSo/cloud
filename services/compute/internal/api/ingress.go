@@ -12,7 +12,6 @@ import (
 type ingressRuleResponse struct {
 	ID        int64  `json:"id"`
 	Port      int    `json:"port"`
-	Protocol  string `json:"protocol"`
 	CreatedAt int64  `json:"created_at"`
 }
 
@@ -45,13 +44,12 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 
 	resp := ingressResponse{
 		Rules:        make([]ingressRuleResponse, 0, len(rules)),
-		AllowedPorts: db.AllowedPorts,
+		AllowedPorts: db.AllowedPorts(),
 	}
 	for _, rule := range rules {
 		resp.Rules = append(resp.Rules, ingressRuleResponse{
 			ID:        rule.ID,
 			Port:      rule.Port,
-			Protocol:  rule.Protocol,
 			CreatedAt: rule.CreatedAt.Unix(),
 		})
 	}
@@ -60,8 +58,7 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 }
 
 type addIngressRequest struct {
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
+	Port int `json:"port"`
 }
 
 func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
@@ -86,28 +83,23 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate port is allowed
-	portAllowed := false
-	for _, p := range db.AllowedPorts {
-		if p == req.Port {
-			portAllowed = true
-			break
-		}
-	}
-	if !portAllowed {
+	if !db.IsPortAllowed(req.Port) {
 		writeError(w, "port not allowed", http.StatusBadRequest)
 		return
 	}
 
-	// Validate protocol
-	if req.Protocol != "tcp" && req.Protocol != "udp" {
-		req.Protocol = "tcp" // Default to TCP
-	}
-
-	rule, err := h.db.AddIngressRule(containerID, req.Port, req.Protocol)
+	rule, err := h.db.AddIngressRule(containerID, req.Port, "tcp")
 	if err != nil {
 		slog.Error("failed to add ingress rule", "error", err)
 		writeError(w, "failed to add ingress rule", http.StatusInternalServerError)
 		return
+	}
+
+	// If port 443, also enable HTTPS routing through gateway
+	if req.Port == 443 {
+		if err := h.db.UpdateHTTPSEnabled(containerID, true); err != nil {
+			slog.Error("failed to update https enabled", "error", err)
+		}
 	}
 
 	// Update NetworkPolicy in Kubernetes
@@ -119,7 +111,6 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ingressRuleResponse{
 		ID:        rule.ID,
 		Port:      rule.Port,
-		Protocol:  rule.Protocol,
 		CreatedAt: rule.CreatedAt.Unix(),
 	})
 }
@@ -150,6 +141,13 @@ func (h *Handler) RemoveIngressRule(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to remove ingress rule", "error", err)
 		writeError(w, "failed to remove ingress rule", http.StatusInternalServerError)
 		return
+	}
+
+	// If port 443, also disable HTTPS routing through gateway
+	if port == 443 {
+		if err := h.db.UpdateHTTPSEnabled(containerID, false); err != nil {
+			slog.Error("failed to update https enabled", "error", err)
+		}
 	}
 
 	// Update NetworkPolicy in Kubernetes

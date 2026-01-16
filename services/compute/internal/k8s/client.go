@@ -135,7 +135,19 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 		},
 	})
 
-	// Add rules for each allowed external port
+	// Always allow gateway to connect (gateway routes SSH/HTTP/HTTPS through itself)
+	// The gateway enforces protocol access at the routing level, NetworkPolicy just allows the connection
+	ingressRules = append(ingressRules, networkingv1.NetworkPolicyIngressRule{
+		From: []networkingv1.NetworkPolicyPeer{
+			{
+				IPBlock: &networkingv1.IPBlock{
+					CIDR: "192.168.3.200/32", // Gateway LoadBalancer IP
+				},
+			},
+		},
+	})
+
+	// Add rules for each allowed external port (for direct access bypassing gateway)
 	for _, port := range allowedPorts {
 		p := int32(port)
 		ingressRules = append(ingressRules, networkingv1.NetworkPolicyIngressRule{

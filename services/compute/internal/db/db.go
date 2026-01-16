@@ -68,6 +68,9 @@ func (db *DB) migrate() error {
 			UNIQUE(container_id, port)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ingress_rules_container_id ON ingress_rules(container_id)`,
+		// Protocol access through gateway (SSH and HTTPS only, no HTTP)
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS ssh_enabled BOOLEAN DEFAULT false`,
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS https_enabled BOOLEAN DEFAULT false`,
 	}
 
 	for _, m := range migrations {

@@ -49,7 +49,11 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	// Cloud terminal endpoint
 	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
 
-	// Ingress rules endpoints
+	// SSH access toggle (for gateway SSH routing)
+	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.GetSSHAccess))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.UpdateSSHAccess))
+
+	// Ingress rules (ports 80, 443, 8000-8999)
 	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.ListIngressRules))
 	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.AddIngressRule))
 	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.RemoveIngressRule))
@@ -93,14 +97,16 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type containerResponse struct {
-		ID         string `json:"id"`
-		UserID     int64  `json:"user_id"`
-		Name       string `json:"name"`
-		Status     string `json:"status"`
-		ExternalIP string `json:"external_ip,omitempty"`
-		MemoryMB   int    `json:"memory_mb"`
-		StorageGB  int    `json:"storage_gb"`
-		CreatedAt  int64  `json:"created_at"`
+		ID           string `json:"id"`
+		UserID       int64  `json:"user_id"`
+		Name         string `json:"name"`
+		Status       string `json:"status"`
+		ExternalIP   string `json:"external_ip,omitempty"`
+		MemoryMB     int    `json:"memory_mb"`
+		StorageGB    int    `json:"storage_gb"`
+		CreatedAt    int64  `json:"created_at"`
+		SSHEnabled   bool   `json:"ssh_enabled"`
+		HTTPSEnabled bool   `json:"https_enabled"`
 	}
 
 	resp := make([]containerResponse, 0, len(containers))
@@ -110,14 +116,16 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 			ip = c.ExternalIP.String
 		}
 		resp = append(resp, containerResponse{
-			ID:         c.ID,
-			UserID:     c.UserID,
-			Name:       c.Name,
-			Status:     c.Status,
-			ExternalIP: ip,
-			MemoryMB:   c.MemoryMB,
-			StorageGB:  c.StorageGB,
-			CreatedAt:  c.CreatedAt.Unix(),
+			ID:           c.ID,
+			UserID:       c.UserID,
+			Name:         c.Name,
+			Status:       c.Status,
+			ExternalIP:   ip,
+			MemoryMB:     c.MemoryMB,
+			StorageGB:    c.StorageGB,
+			CreatedAt:    c.CreatedAt.Unix(),
+			SSHEnabled:   c.SSHEnabled,
+			HTTPSEnabled: c.HTTPSEnabled,
 		})
 	}
 

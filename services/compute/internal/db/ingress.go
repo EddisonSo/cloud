@@ -10,8 +10,27 @@ type IngressRule struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// Allowed ports for ingress rules
-var AllowedPorts = []int{22, 80, 443, 8080}
+// AllowedPorts returns the list of allowed ports for the UI dropdown
+// Port 22 is reserved for SSH (controlled via ssh_enabled toggle)
+func AllowedPorts() []int {
+	ports := []int{80, 443}
+	for p := 8000; p <= 8999; p++ {
+		ports = append(ports, p)
+	}
+	return ports
+}
+
+// IsPortAllowed checks if a port can be used for ingress rules
+// Allowed: 80, 443, 8000-8999
+func IsPortAllowed(port int) bool {
+	if port == 80 || port == 443 {
+		return true
+	}
+	if port >= 8000 && port <= 8999 {
+		return true
+	}
+	return false
+}
 
 func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	rows, err := db.Query(`
