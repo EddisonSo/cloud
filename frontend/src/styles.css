@@ -1520,6 +1520,46 @@ button:not(:disabled):hover {
   display: block;
 }
 
+/* Terminal */
+.terminal-btn {
+  background: linear-gradient(135deg, #1e1e2e 0%, #313244 100%);
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.terminal-btn:hover {
+  background: linear-gradient(135deg, #313244 0%, #45475a 100%);
+  border-color: #585b70;
+  transform: translateY(-1px);
+}
+
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-container {
+  background: #1e1e2e;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 400px;
+  overflow: hidden;
+}
+
+.terminal-container .xterm {
+  height: 100%;
+}
+
+.terminal-container .xterm-viewport {
+  border-radius: 8px;
+}
+
 /* API Keys */
 .api-key-form {
   background: #f8fafc;

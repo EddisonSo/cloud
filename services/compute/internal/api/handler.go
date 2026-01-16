@@ -45,6 +45,9 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	// WebSocket endpoint for real-time updates
 	h.mux.HandleFunc("GET /compute/ws", h.authMiddleware(h.HandleWebSocket))
 
+	// Cloud terminal endpoint
+	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
+
 	return h
 }
 

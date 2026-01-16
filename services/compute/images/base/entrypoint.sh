@@ -1,4 +1,6 @@
 #!/bin/bash
+# Container entrypoint - sets up SSH keys and starts services
+
 # Copy authorized_keys from mounted secret to /root/.ssh with correct permissions
 if [ -f /etc/ssh/keys/authorized_keys ]; then
     cp /etc/ssh/keys/authorized_keys /root/.ssh/authorized_keys
@@ -6,5 +8,12 @@ if [ -f /etc/ssh/keys/authorized_keys ]; then
     chown root:root /root/.ssh/authorized_keys
 fi
 
-# Start sshd
+# Ensure authorized_keys exists (for temp keys to append to)
+touch /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+
+# Start temp key daemon in background
+/usr/local/bin/temp-key-daemon.sh &
+
+# Start sshd in foreground
 exec /usr/sbin/sshd -D

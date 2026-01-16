@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     htop \
     build-essential \
     ca-certificates \
+    inotify-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure SSH - keys mounted at /etc/ssh/keys, copied to /root/.ssh on startup
@@ -29,7 +30,11 @@ RUN mkdir /var/run/sshd && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && \
     sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-# Copy authorized_keys from mounted secret and fix permissions before starting sshd
+# Add temp key daemon for cloud terminal support
+COPY temp-key-daemon.sh /usr/local/bin/temp-key-daemon.sh
+RUN chmod +x /usr/local/bin/temp-key-daemon.sh
+
+# Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

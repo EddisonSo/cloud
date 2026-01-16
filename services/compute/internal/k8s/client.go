@@ -1,19 +1,24 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 type Client struct {
 	clientset *kubernetes.Clientset
+	config    *rest.Config
 }
 
 func NewClient() (*Client, error) {
@@ -27,7 +32,7 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("create clientset: %w", err)
 	}
 
-	return &Client{clientset: clientset}, nil
+	return &Client{clientset: clientset, config: config}, nil
 }
 
 // CreateNamespace creates a namespace for a container
@@ -326,4 +331,45 @@ func (c *Client) GetGatewayPublicKey(ctx context.Context) (string, error) {
 	}
 
 	return string(pubKey), nil
+}
+
+// InjectTempKey writes a temporary SSH public key to the container for cloud terminal access.
+// The temp-key-daemon inside the container will pick up this key and add it to authorized_keys.
+func (c *Client) InjectTempKey(ctx context.Context, namespace, pubKey, keyID string) error {
+	// Ensure temp-keys directory exists and write the key file
+	cmd := []string{
+		"/bin/sh", "-c",
+		fmt.Sprintf("mkdir -p /tmp/temp-keys && echo '%s' > /tmp/temp-keys/%s",
+			strings.ReplaceAll(pubKey, "'", "'\"'\"'"), keyID),
+	}
+
+	req := c.clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name("container").
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: "main",
+			Command:   cmd,
+			Stdin:     false,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(c.config, "POST", req.URL())
+	if err != nil {
+		return fmt.Errorf("create executor: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		return fmt.Errorf("exec failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	return nil
 }

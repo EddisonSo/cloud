@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 
 const emptyState = "No files yet. Upload your first file to share it.";
 const defaultNamespace = "default";
@@ -140,6 +143,13 @@ function App() {
   const [newSshKey, setNewSshKey] = useState({ name: "", public_key: "" });
   const [addingSshKey, setAddingSshKey] = useState(false);
   const [containerActions, setContainerActions] = useState({}); // {id: 'starting'|'stopping'|'deleting'}
+  // Terminal state
+  const [terminalContainer, setTerminalContainer] = useState(null);
+  const [terminalConnecting, setTerminalConnecting] = useState(false);
+  const [terminalError, setTerminalError] = useState("");
+  const terminalRef = useRef(null);
+  const terminalInstanceRef = useRef(null);
+  const terminalWsRef = useRef(null);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
@@ -399,6 +409,143 @@ function App() {
       setContainersError(err.message);
     }
   };
+
+  // Terminal functions
+  const openTerminal = useCallback((container) => {
+    setTerminalContainer(container);
+    setTerminalError("");
+    setComputeView("terminal");
+  }, []);
+
+  const closeTerminal = useCallback(() => {
+    // Cleanup WebSocket
+    if (terminalWsRef.current) {
+      terminalWsRef.current.close();
+      terminalWsRef.current = null;
+    }
+    // Cleanup terminal instance
+    if (terminalInstanceRef.current) {
+      terminalInstanceRef.current.dispose();
+      terminalInstanceRef.current = null;
+    }
+    setTerminalContainer(null);
+    setTerminalConnecting(false);
+    setTerminalError("");
+    setComputeView("containers");
+  }, []);
+
+  // Initialize terminal when view opens
+  useEffect(() => {
+    if (computeView !== "terminal" || !terminalContainer || !terminalRef.current) {
+      return;
+    }
+
+    // Already have a terminal instance
+    if (terminalInstanceRef.current) {
+      return;
+    }
+
+    setTerminalConnecting(true);
+    setTerminalError("");
+
+    // Create terminal
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 14,
+      fontFamily: '"IBM Plex Mono", monospace',
+      theme: {
+        background: '#1e1e2e',
+        foreground: '#cdd6f4',
+        cursor: '#f5e0dc',
+        cursorAccent: '#1e1e2e',
+        selectionBackground: '#585b70',
+        black: '#45475a',
+        red: '#f38ba8',
+        green: '#a6e3a1',
+        yellow: '#f9e2af',
+        blue: '#89b4fa',
+        magenta: '#f5c2e7',
+        cyan: '#94e2d5',
+        white: '#bac2de',
+        brightBlack: '#585b70',
+        brightRed: '#f38ba8',
+        brightGreen: '#a6e3a1',
+        brightYellow: '#f9e2af',
+        brightBlue: '#89b4fa',
+        brightMagenta: '#f5c2e7',
+        brightCyan: '#94e2d5',
+        brightWhite: '#a6adc8',
+      },
+    });
+
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+    terminalInstanceRef.current = term;
+
+    term.writeln('Connecting to container...');
+
+    // Connect WebSocket
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/compute/containers/${terminalContainer.id}/terminal`;
+    const ws = new WebSocket(wsUrl);
+    terminalWsRef.current = ws;
+
+    ws.onopen = () => {
+      setTerminalConnecting(false);
+      term.clear();
+    };
+
+    ws.onmessage = (event) => {
+      if (event.data instanceof Blob) {
+        event.data.text().then((text) => term.write(text));
+      } else {
+        term.write(event.data);
+      }
+    };
+
+    ws.onerror = () => {
+      setTerminalError('Connection error');
+      setTerminalConnecting(false);
+    };
+
+    ws.onclose = (event) => {
+      if (event.code !== 1000) {
+        term.writeln('\r\n\x1b[31mConnection closed\x1b[0m');
+      }
+      setTerminalConnecting(false);
+    };
+
+    // Send keyboard input to WebSocket
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
+
+    // Handle window resize
+    const handleResize = () => {
+      fitAddon.fit();
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [computeView, terminalContainer]);
+
+  // Cleanup terminal on unmount
+  useEffect(() => {
+    return () => {
+      if (terminalWsRef.current) {
+        terminalWsRef.current.close();
+      }
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.dispose();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -1465,6 +1612,15 @@ function App() {
                               <span>{container.storage_gb} GB</span>
                             </div>
                             <div className="container-col actions">
+                              {container.status === "running" && container.external_ip && (
+                                <button
+                                  type="button"
+                                  className="terminal-btn"
+                                  onClick={() => openTerminal(container)}
+                                >
+                                  Terminal
+                                </button>
+                              )}
                               {container.status === "running" && (
                                 <button
                                   type="button"
@@ -1584,6 +1740,25 @@ function App() {
                           </div>
                         ))}
                       </div>
+                    </section>
+                  )}
+
+                  {computeView === "terminal" && terminalContainer && (
+                    <section className="panel terminal-panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Terminal: {terminalContainer.name}</h2>
+                          <p>
+                            Connected to {terminalContainer.external_ip}
+                            {terminalConnecting && " - Connecting..."}
+                          </p>
+                        </div>
+                        <button type="button" className="ghost" onClick={closeTerminal}>
+                          Close
+                        </button>
+                      </div>
+                      {terminalError && <p className="status error">{terminalError}</p>}
+                      <div className="terminal-container" ref={terminalRef} />
                     </section>
                   )}
 
