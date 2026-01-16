@@ -88,18 +88,13 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	// Small delay for daemon to pick up the key
 	time.Sleep(200 * time.Millisecond)
 
-	// Get internal pod IP for SSH (external IP not reachable from within cluster)
-	podIP, err := h.k8s.GetPodIP(r.Context(), namespace)
-	if err != nil || podIP == "" {
-		slog.Error("failed to get pod IP", "error", err, "container", containerID)
-		ws.WriteMessage(websocket.TextMessage, []byte("error: failed to get container IP"))
-		return
-	}
+	// Use K8s service DNS for reliable cross-node connectivity
+	sshHost := fmt.Sprintf("lb.%s.svc.cluster.local", namespace)
 
-	// Connect to container via SSH using internal pod IP
-	sshClient, err := dialSSH(podIP, 22, "root", privKey)
+	// Connect to container via SSH using K8s service DNS
+	sshClient, err := dialSSH(sshHost, 22, "root", privKey)
 	if err != nil {
-		slog.Error("failed to SSH to container", "error", err, "container", containerID, "ip", podIP)
+		slog.Error("failed to SSH to container", "error", err, "container", containerID, "host", sshHost)
 		ws.WriteMessage(websocket.TextMessage, []byte("error: failed to connect to container"))
 		return
 	}
