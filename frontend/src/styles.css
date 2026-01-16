@@ -1560,6 +1560,60 @@ button:not(:disabled):hover {
   border-radius: 8px;
 }
 
+/* Admin Panel */
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-table-head {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 140px 120px;
+  gap: 16px;
+  padding: 10px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.admin-table-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px 140px 120px;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 0.9rem;
+  align-items: center;
+}
+
+.admin-table-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-table-row code {
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.admin-table-row code.id {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.admin-table-row strong {
+  font-weight: 500;
+}
+
 /* API Keys */
 .api-key-form {
   background: #f8fafc;

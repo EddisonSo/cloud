@@ -97,6 +97,10 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminFiles, setAdminFiles] = useState([]);
+  const [adminContainers, setAdminContainers] = useState([]);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [activeTab, setActiveTab] = useState("storage");
@@ -166,6 +170,7 @@ function App() {
     { id: "datastore", label: "Datastore" },
     { id: "health", label: "Health" },
     { id: "logs", label: "Logs" },
+    ...(isAdmin ? [{ id: "admin", label: "Admin" }] : []),
   ];
 
   const tabCopy = {
@@ -198,6 +203,11 @@ function App() {
       eyebrow: "Observability",
       title: "Cluster Logs",
       lead: "Real-time log streaming from all cluster services.",
+    },
+    admin: {
+      eyebrow: "Administration",
+      title: "Admin Panel",
+      lead: "View all files and containers across the system.",
     },
   };
 
@@ -311,6 +321,29 @@ function App() {
       console.warn("Failed to load SSH keys:", err.message);
     } finally {
       setSshKeysLoading(false);
+    }
+  };
+
+  const loadAdminData = async () => {
+    if (!isAdmin) return;
+    try {
+      setAdminLoading(true);
+      const [filesRes, containersRes] = await Promise.all([
+        fetch(`${buildApiBase()}/admin/files`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/admin/containers`, { credentials: "include" }),
+      ]);
+      if (filesRes.ok) {
+        const files = await filesRes.json();
+        setAdminFiles(files || []);
+      }
+      if (containersRes.ok) {
+        const containers = await containersRes.json();
+        setAdminContainers(containers || []);
+      }
+    } catch (err) {
+      console.warn("Failed to load admin data:", err.message);
+    } finally {
+      setAdminLoading(false);
     }
   };
 
@@ -553,12 +586,15 @@ function App() {
         const response = await fetch(`${buildApiBase()}/api/session`);
         if (!response.ok) {
           setUser(null);
+          setIsAdmin(false);
           return;
         }
         const payload = await response.json();
         setUser(payload.username);
+        setIsAdmin(payload.is_admin || false);
       } catch (err) {
         setUser(null);
+        setIsAdmin(false);
       } finally {
         setAuthChecked(true);
       }
@@ -613,6 +649,14 @@ function App() {
     loadContainers();
     loadSshKeys();
   }, [user, activeTab]);
+
+  // Load admin data when admin tab is active
+  useEffect(() => {
+    if (!isAdmin || activeTab !== "admin") {
+      return;
+    }
+    loadAdminData();
+  }, [isAdmin, activeTab]);
 
   // Compute WebSocket for real-time container status updates
   useEffect(() => {
@@ -1960,6 +2004,87 @@ function App() {
                 )}
               </div>
             </section>
+          )}
+          {activeTab === "admin" && isAdmin && (
+            <>
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>All Containers</h2>
+                    <p>All compute containers across all users.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={loadAdminData}
+                    disabled={adminLoading}
+                  >
+                    {adminLoading ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
+                <div className="admin-table">
+                  {adminContainers.length === 0 ? (
+                    <p className="empty">No containers found.</p>
+                  ) : (
+                    <>
+                      <div className="admin-table-head">
+                        <span>User ID</span>
+                        <span>Name</span>
+                        <span>Status</span>
+                        <span>IP Address</span>
+                        <span>Resources</span>
+                      </div>
+                      {adminContainers.map((c) => (
+                        <div className="admin-table-row" key={c.id}>
+                          <span>{c.user_id}</span>
+                          <span>
+                            <strong>{c.name}</strong>
+                            <code className="id">{c.id.slice(0, 8)}</code>
+                          </span>
+                          <span>
+                            <span className={`container-status ${c.status}`}>{c.status}</span>
+                          </span>
+                          <span>
+                            {c.external_ip ? <code>{c.external_ip}</code> : <span className="muted">-</span>}
+                          </span>
+                          <span>{c.memory_mb} MB / {c.storage_gb} GB</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>All Files</h2>
+                    <p>All files across all namespaces.</p>
+                  </div>
+                </div>
+                <div className="admin-table">
+                  {adminFiles.length === 0 ? (
+                    <p className="empty">No files found.</p>
+                  ) : (
+                    <>
+                      <div className="admin-table-head">
+                        <span>Namespace</span>
+                        <span>Name</span>
+                        <span>Size</span>
+                        <span>Modified</span>
+                      </div>
+                      {adminFiles.map((f, idx) => (
+                        <div className="admin-table-row" key={idx}>
+                          <span><code>{f.namespace}</code></span>
+                          <span>{f.name}</span>
+                          <span>{formatBytes(f.size)}</span>
+                          <span>{formatTimestamp(f.modified_at)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </section>
+            </>
           )}
         </div>
       </main>

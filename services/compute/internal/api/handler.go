@@ -48,7 +48,74 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	// Cloud terminal endpoint
 	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
 
+	// Admin endpoints
+	h.mux.HandleFunc("GET /admin/containers", h.adminMiddleware(h.AdminListContainers))
+
 	return h
+}
+
+const adminUsername = "eddisonso"
+
+// adminMiddleware validates session and checks admin status
+func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := auth.GetSessionToken(r)
+		if token != "" {
+			username, err := h.validator.ValidateSession(token)
+			if err != nil {
+				slog.Error("session validation failed", "error", err)
+				http.Error(w, "authentication error", http.StatusInternalServerError)
+				return
+			}
+			if username == adminUsername {
+				r = r.WithContext(setUserContext(r.Context(), 1, username))
+				next(w, r)
+				return
+			}
+		}
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}
+}
+
+// AdminListContainers lists all containers (admin only)
+func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
+	containers, err := h.db.ListAllContainers()
+	if err != nil {
+		slog.Error("failed to list all containers", "error", err)
+		writeError(w, "failed to list containers", http.StatusInternalServerError)
+		return
+	}
+
+	type containerResponse struct {
+		ID         string `json:"id"`
+		UserID     int64  `json:"user_id"`
+		Name       string `json:"name"`
+		Status     string `json:"status"`
+		ExternalIP string `json:"external_ip,omitempty"`
+		MemoryMB   int    `json:"memory_mb"`
+		StorageGB  int    `json:"storage_gb"`
+		CreatedAt  int64  `json:"created_at"`
+	}
+
+	resp := make([]containerResponse, 0, len(containers))
+	for _, c := range containers {
+		ip := ""
+		if c.ExternalIP.Valid {
+			ip = c.ExternalIP.String
+		}
+		resp = append(resp, containerResponse{
+			ID:         c.ID,
+			UserID:     c.UserID,
+			Name:       c.Name,
+			Status:     c.Status,
+			ExternalIP: ip,
+			MemoryMB:   c.MemoryMB,
+			StorageGB:  c.StorageGB,
+			CreatedAt:  c.CreatedAt.Unix(),
+		})
+	}
+
+	writeJSON(w, resp)
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

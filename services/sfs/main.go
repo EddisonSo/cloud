@@ -148,6 +148,9 @@ func main() {
 	mux.HandleFunc("/storage/upload", srv.handleUpload)
 	mux.HandleFunc("/storage/download", srv.handleDownload)
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
+	// Admin endpoints
+	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
+	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
 	mux.Handle("/", srv.staticHandler())
 
@@ -762,6 +765,13 @@ type loginRequest struct {
 
 type sessionResponse struct {
 	Username string `json:"username"`
+	IsAdmin  bool   `json:"is_admin"`
+}
+
+const adminUsername = "eddisonso"
+
+func isAdmin(username string) bool {
+	return username == adminUsername
 }
 
 func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -822,7 +832,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   r.TLS != nil,
 	})
-	writeJSON(w, sessionResponse{Username: payload.Username})
+	writeJSON(w, sessionResponse{Username: payload.Username, IsAdmin: isAdmin(payload.Username)})
 }
 
 func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
@@ -831,7 +841,7 @@ func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	writeJSON(w, sessionResponse{Username: username})
+	writeJSON(w, sessionResponse{Username: username, IsAdmin: isAdmin(username)})
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -1280,6 +1290,86 @@ func sanitizeNamespace(raw string) (string, error) {
 		}
 	}
 	return trimmed, nil
+}
+
+// Admin handlers
+
+func (s *server) handleAdminFiles(w http.ResponseWriter, r *http.Request) {
+	username, ok := s.currentUser(r)
+	if !ok || !isAdmin(username) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// Get all namespaces
+	namespaces, err := s.loadAllNamespaces()
+	if err != nil {
+		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
+		return
+	}
+
+	var allFiles []fileInfo
+	for _, ns := range namespaces {
+		files, err := s.client.ListFilesWithNamespace(ctx, s.gfsNamespace(ns.Name), s.listPrefix)
+		if err != nil {
+			log.Printf("failed to list files for namespace %s: %v", ns.Name, err)
+			continue
+		}
+		for _, file := range files {
+			relative := relativeNameWithPrefix(file.Path, s.listPrefix)
+			if relative == "" {
+				continue
+			}
+			allFiles = append(allFiles, fileInfo{
+				Name:       relative,
+				Path:       file.Path,
+				Namespace:  ns.Name,
+				Size:       file.Size,
+				CreatedAt:  file.CreatedAt,
+				ModifiedAt: file.ModifiedAt,
+			})
+		}
+	}
+
+	writeJSON(w, allFiles)
+}
+
+func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
+	username, ok := s.currentUser(r)
+	if !ok || !isAdmin(username) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	namespaces, err := s.loadAllNamespaces()
+	if err != nil {
+		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
+		return
+	}
+
+	type adminNamespace struct {
+		Name      string `json:"name"`
+		Hidden    bool   `json:"hidden"`
+		FileCount int    `json:"file_count"`
+	}
+
+	result := make([]adminNamespace, 0, len(namespaces))
+	for _, ns := range namespaces {
+		count, _ := s.countNamespaceFiles(ctx, ns.Name)
+		result = append(result, adminNamespace{
+			Name:      ns.Name,
+			Hidden:    ns.Hidden,
+			FileCount: count,
+		})
+	}
+
+	writeJSON(w, result)
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {

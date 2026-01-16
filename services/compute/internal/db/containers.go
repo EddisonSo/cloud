@@ -68,6 +68,27 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 	return containers, nil
 }
 
+func (db *DB) ListAllContainers() ([]*Container, error) {
+	rows, err := db.Query(`
+		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image, created_at, stopped_at
+		FROM containers ORDER BY created_at DESC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query containers: %w", err)
+	}
+	defer rows.Close()
+
+	var containers []*Container
+	for rows.Next() {
+		c := &Container{}
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image, &c.CreatedAt, &c.StoppedAt); err != nil {
+			return nil, fmt.Errorf("scan container: %w", err)
+		}
+		containers = append(containers, c)
+	}
+	return containers, nil
+}
+
 func (db *DB) UpdateContainerStatus(id, status string) error {
 	_, err := db.Exec(`UPDATE containers SET status = $1 WHERE id = $2`, status, id)
 	if err != nil {
