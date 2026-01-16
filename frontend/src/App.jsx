@@ -152,7 +152,9 @@ function App() {
   // Ingress/Ports state
   const [portsContainer, setPortsContainer] = useState(null);
   const [portsLoading, setPortsLoading] = useState(false);
-  const [portsData, setPortsData] = useState({ allowed_ports: [] });
+  const [portsData, setPortsData] = useState({ rules: [], allowed_ports: [] });
+  const [newRule, setNewRule] = useState({ port: "", protocol: "tcp" });
+  const [addingRule, setAddingRule] = useState(false);
   // Terminal state
   const [terminalContainer, setTerminalContainer] = useState(null);
   const [terminalConnecting, setTerminalConnecting] = useState(false);
@@ -497,6 +499,7 @@ function App() {
   const openPorts = async (container) => {
     setPortsContainer(container);
     setPortsLoading(true);
+    setNewRule({ port: "", protocol: "tcp" });
     try {
       const response = await fetch(
         `${buildApiBase()}/compute/containers/${container.id}/ingress`,
@@ -515,37 +518,65 @@ function App() {
 
   const closePorts = () => {
     setPortsContainer(null);
-    setPortsData({ allowed_ports: [] });
+    setPortsData({ rules: [], allowed_ports: [] });
   };
 
-  const togglePort = async (port, enabled) => {
+  const addRule = async (e) => {
+    e.preventDefault();
+    if (!portsContainer || !newRule.port) return;
+    setAddingRule(true);
+    try {
+      const response = await fetch(
+        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            port: parseInt(newRule.port, 10),
+            protocol: newRule.protocol,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || "Failed to add rule");
+      }
+      setNewRule({ port: "", protocol: "tcp" });
+      // Refresh rules
+      const refreshRes = await fetch(
+        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
+        { credentials: "include" }
+      );
+      if (refreshRes.ok) {
+        setPortsData(await refreshRes.json());
+      }
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setAddingRule(false);
+    }
+  };
+
+  const removeRule = async (port) => {
     if (!portsContainer) return;
     try {
-      if (enabled) {
-        // Enable port
-        const response = await fetch(
-          `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ port }),
-          }
-        );
-        if (!response.ok) throw new Error("Failed to enable port");
-      } else {
-        // Disable port
-        const response = await fetch(
-          `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress/${port}`,
-          {
-            method: "DELETE",
-            credentials: "include",
-          }
-        );
-        if (!response.ok) throw new Error("Failed to disable port");
+      const response = await fetch(
+        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress/${port}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      if (!response.ok) throw new Error("Failed to remove rule");
+      // Refresh rules
+      const refreshRes = await fetch(
+        `${buildApiBase()}/compute/containers/${portsContainer.id}/ingress`,
+        { credentials: "include" }
+      );
+      if (refreshRes.ok) {
+        setPortsData(await refreshRes.json());
       }
-      // Refresh ports
-      await openPorts(portsContainer);
     } catch (err) {
       setStatus(err.message);
     }
@@ -2448,39 +2479,72 @@ function App() {
           role="presentation"
         >
           <div
-            className="modal"
+            className="modal modal-lg"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="ports-title"
           >
-            <h3 id="ports-title">Manage Ports - {portsContainer.name}</h3>
+            <h3 id="ports-title">Ingress Rules - {portsContainer.name}</h3>
             <p className="modal-desc">
               Control which ports are accessible from the internet. Cloud Terminal always works via internal connection.
             </p>
             {portsLoading ? (
-              <p className="loading">Loading ports...</p>
+              <p className="loading">Loading rules...</p>
             ) : (
-              <div className="ports-list">
-                {portsData.allowed_ports
-                  .sort((a, b) => a.port - b.port)
-                  .map((p) => (
-                    <div className="port-row" key={p.port}>
-                      <div className="port-info">
-                        <strong>{p.port}</strong>
-                        <span className="port-protocol">{p.protocol}</span>
+              <>
+                <form className="add-rule-form" onSubmit={addRule}>
+                  <select
+                    value={newRule.port}
+                    onChange={(e) => setNewRule({ ...newRule, port: e.target.value })}
+                    disabled={addingRule}
+                  >
+                    <option value="">Select port...</option>
+                    {portsData.allowed_ports
+                      .filter((p) => !portsData.rules.some((r) => r.port === p))
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p} {p === 22 ? "(SSH)" : p === 80 ? "(HTTP)" : p === 443 ? "(HTTPS)" : p === 8080 ? "(HTTP Alt)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <select
+                    value={newRule.protocol}
+                    onChange={(e) => setNewRule({ ...newRule, protocol: e.target.value })}
+                    disabled={addingRule}
+                  >
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                  </select>
+                  <button type="submit" disabled={addingRule || !newRule.port}>
+                    {addingRule ? "Adding..." : "Add Rule"}
+                  </button>
+                </form>
+                <div className="rules-list">
+                  {portsData.rules.length === 0 ? (
+                    <p className="empty">No ingress rules. All external traffic is blocked.</p>
+                  ) : (
+                    portsData.rules.map((rule) => (
+                      <div className="rule-row" key={rule.id}>
+                        <div className="rule-info">
+                          <strong>{rule.port}</strong>
+                          <span className="rule-protocol">{rule.protocol.toUpperCase()}</span>
+                          <span className="rule-service">
+                            {rule.port === 22 ? "SSH" : rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : rule.port === 8080 ? "HTTP Alt" : ""}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="ghost danger-text"
+                          onClick={() => removeRule(rule.port)}
+                        >
+                          Remove
+                        </button>
                       </div>
-                      <label className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={p.enabled}
-                          onChange={(e) => togglePort(p.port, e.target.checked)}
-                        />
-                        <span className="toggle-slider"></span>
-                      </label>
-                    </div>
-                  ))}
-              </div>
+                    ))
+                  )}
+                </div>
+              </>
             )}
             <div className="modal-actions">
               <button type="button" onClick={closePorts}>

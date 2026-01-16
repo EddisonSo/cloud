@@ -63,7 +63,7 @@ func (db *DB) migrate() error {
 			id SERIAL PRIMARY KEY,
 			container_id TEXT NOT NULL REFERENCES containers(id) ON DELETE CASCADE,
 			port INTEGER NOT NULL,
-			enabled BOOLEAN DEFAULT true,
+			protocol TEXT NOT NULL DEFAULT 'tcp',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(container_id, port)
 		)`,

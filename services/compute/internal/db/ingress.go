@@ -6,24 +6,19 @@ type IngressRule struct {
 	ID          int64     `json:"id"`
 	ContainerID string    `json:"container_id"`
 	Port        int       `json:"port"`
-	Enabled     bool      `json:"enabled"`
+	Protocol    string    `json:"protocol"` // tcp or udp
 	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Allowed ports for ingress rules
-var AllowedPorts = map[int]string{
-	22:   "SSH",
-	80:   "HTTP",
-	443:  "HTTPS",
-	8080: "HTTP Alt",
-}
+var AllowedPorts = []int{22, 80, 443, 8080}
 
 func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	rows, err := db.Query(`
-		SELECT id, container_id, port, enabled, created_at
+		SELECT id, container_id, port, protocol, created_at
 		FROM ingress_rules
 		WHERE container_id = $1
-		ORDER BY port`,
+		ORDER BY port, protocol`,
 		containerID,
 	)
 	if err != nil {
@@ -34,7 +29,7 @@ func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	var rules []*IngressRule
 	for rows.Next() {
 		r := &IngressRule{}
-		if err := rows.Scan(&r.ID, &r.ContainerID, &r.Port, &r.Enabled, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.ContainerID, &r.Port, &r.Protocol, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		rules = append(rules, r)
@@ -42,15 +37,15 @@ func (db *DB) ListIngressRules(containerID string) ([]*IngressRule, error) {
 	return rules, rows.Err()
 }
 
-func (db *DB) AddIngressRule(containerID string, port int) (*IngressRule, error) {
+func (db *DB) AddIngressRule(containerID string, port int, protocol string) (*IngressRule, error) {
 	var r IngressRule
 	err := db.QueryRow(`
-		INSERT INTO ingress_rules (container_id, port, enabled)
-		VALUES ($1, $2, true)
-		ON CONFLICT (container_id, port) DO UPDATE SET enabled = true
-		RETURNING id, container_id, port, enabled, created_at`,
-		containerID, port,
-	).Scan(&r.ID, &r.ContainerID, &r.Port, &r.Enabled, &r.CreatedAt)
+		INSERT INTO ingress_rules (container_id, port, protocol)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (container_id, port) DO UPDATE SET protocol = $3
+		RETURNING id, container_id, port, protocol, created_at`,
+		containerID, port, protocol,
+	).Scan(&r.ID, &r.ContainerID, &r.Port, &r.Protocol, &r.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -66,15 +61,7 @@ func (db *DB) RemoveIngressRule(containerID string, port int) error {
 	return err
 }
 
-func (db *DB) IsPortAllowed(containerID string, port int) (bool, error) {
-	var enabled bool
-	err := db.QueryRow(`
-		SELECT enabled FROM ingress_rules
-		WHERE container_id = $1 AND port = $2`,
-		containerID, port,
-	).Scan(&enabled)
-	if err != nil {
-		return false, nil // Not found means not allowed
-	}
-	return enabled, nil
+func (db *DB) RemoveIngressRuleByID(id int64) error {
+	_, err := db.Exec(`DELETE FROM ingress_rules WHERE id = $1`, id)
+	return err
 }

@@ -13,18 +13,12 @@ type ingressRuleResponse struct {
 	ID        int64  `json:"id"`
 	Port      int    `json:"port"`
 	Protocol  string `json:"protocol"`
-	Enabled   bool   `json:"enabled"`
 	CreatedAt int64  `json:"created_at"`
 }
 
-type allowedPortResponse struct {
-	Port     int    `json:"port"`
-	Protocol string `json:"protocol"`
-	Enabled  bool   `json:"enabled"`
-}
-
 type ingressResponse struct {
-	AllowedPorts []allowedPortResponse `json:"allowed_ports"`
+	Rules        []ingressRuleResponse `json:"rules"`
+	AllowedPorts []int                 `json:"allowed_ports"`
 }
 
 func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
@@ -49,21 +43,16 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build map of enabled ports
-	enabledPorts := make(map[int]bool)
-	for _, rule := range rules {
-		enabledPorts[rule.Port] = rule.Enabled
-	}
-
-	// Return all allowed ports with their status
 	resp := ingressResponse{
-		AllowedPorts: make([]allowedPortResponse, 0),
+		Rules:        make([]ingressRuleResponse, 0, len(rules)),
+		AllowedPorts: db.AllowedPorts,
 	}
-	for port, protocol := range db.AllowedPorts {
-		resp.AllowedPorts = append(resp.AllowedPorts, allowedPortResponse{
-			Port:     port,
-			Protocol: protocol,
-			Enabled:  enabledPorts[port],
+	for _, rule := range rules {
+		resp.Rules = append(resp.Rules, ingressRuleResponse{
+			ID:        rule.ID,
+			Port:      rule.Port,
+			Protocol:  rule.Protocol,
+			CreatedAt: rule.CreatedAt.Unix(),
 		})
 	}
 
@@ -71,7 +60,8 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 }
 
 type addIngressRequest struct {
-	Port int `json:"port"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
 }
 
 func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
@@ -96,12 +86,24 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate port is allowed
-	if _, ok := db.AllowedPorts[req.Port]; !ok {
+	portAllowed := false
+	for _, p := range db.AllowedPorts {
+		if p == req.Port {
+			portAllowed = true
+			break
+		}
+	}
+	if !portAllowed {
 		writeError(w, "port not allowed", http.StatusBadRequest)
 		return
 	}
 
-	rule, err := h.db.AddIngressRule(containerID, req.Port)
+	// Validate protocol
+	if req.Protocol != "tcp" && req.Protocol != "udp" {
+		req.Protocol = "tcp" // Default to TCP
+	}
+
+	rule, err := h.db.AddIngressRule(containerID, req.Port, req.Protocol)
 	if err != nil {
 		slog.Error("failed to add ingress rule", "error", err)
 		writeError(w, "failed to add ingress rule", http.StatusInternalServerError)
@@ -117,8 +119,7 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ingressRuleResponse{
 		ID:        rule.ID,
 		Port:      rule.Port,
-		Protocol:  db.AllowedPorts[rule.Port],
-		Enabled:   rule.Enabled,
+		Protocol:  rule.Protocol,
 		CreatedAt: rule.CreatedAt.Unix(),
 	})
 }
@@ -167,9 +168,7 @@ func (h *Handler) getEnabledPorts(containerID string) []int {
 	}
 	var ports []int
 	for _, rule := range rules {
-		if rule.Enabled {
-			ports = append(ports, rule.Port)
-		}
+		ports = append(ports, rule.Port)
 	}
 	return ports
 }
