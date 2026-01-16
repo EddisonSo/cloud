@@ -1844,13 +1844,25 @@ button:not(:disabled):hover {
   margin-bottom: 16px;
 }
 
-.add-port-form select {
+.add-port-form select,
+.add-port-form input[type="number"] {
   flex: 1;
   padding: 10px 14px;
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 8px;
   font-size: 0.9rem;
   background: white;
+}
+
+.add-port-form input[type="number"] {
+  max-width: 120px;
+}
+
+.add-port-form .port-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .add-port-form button {
@@ -1890,6 +1902,11 @@ button:not(:disabled):hover {
   font-size: 0.75rem;
   color: var(--muted);
   text-transform: uppercase;
+}
+
+.ingress-rule-row .port-mapping {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 /* Responsive compute */

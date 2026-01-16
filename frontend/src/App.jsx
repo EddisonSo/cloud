@@ -157,6 +157,7 @@ function App() {
   const [ingressRules, setIngressRules] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
   const [newPort, setNewPort] = useState("");
+  const [newTargetPort, setNewTargetPort] = useState("");
   const [addingRule, setAddingRule] = useState(false);
   // Terminal state
   const [terminalContainer, setTerminalContainer] = useState(null);
@@ -570,6 +571,7 @@ function App() {
     e.preventDefault();
     if (!accessContainer || !newPort || addingRule) return;
     setAddingRule(true);
+    const targetPort = newTargetPort ? parseInt(newTargetPort, 10) : parseInt(newPort, 10);
     try {
       const response = await fetch(
         `${buildApiBase()}/compute/containers/${accessContainer.id}/ingress`,
@@ -577,7 +579,7 @@ function App() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ port: parseInt(newPort, 10) }),
+          body: JSON.stringify({ port: parseInt(newPort, 10), target_port: targetPort }),
         }
       );
       if (!response.ok) {
@@ -587,6 +589,7 @@ function App() {
       const rule = await response.json();
       setIngressRules((prev) => [...prev, rule]);
       setNewPort("");
+      setNewTargetPort("");
       // Update container https_enabled if port 443
       if (parseInt(newPort, 10) === 443) {
         setContainers((prev) =>
@@ -2551,23 +2554,32 @@ function App() {
                 </div>
                 <div className="access-section">
                   <h4>Ingress Rules</h4>
-                  <p className="section-desc">Open ports for external access (80, 443, 8000-8999)</p>
+                  <p className="section-desc">Map external ports to internal container ports</p>
                   <form className="add-port-form" onSubmit={addIngressRule}>
                     <select
                       value={newPort}
                       onChange={(e) => setNewPort(e.target.value)}
                       disabled={addingRule}
                     >
-                      <option value="">Select port...</option>
+                      <option value="">External port...</option>
                       {allowedPorts
                         .filter((p) => !ingressRules.some((r) => r.port === p))
-                        .slice(0, 50)
                         .map((p) => (
                           <option key={p} value={p}>
                             {p} {p === 80 ? "(HTTP)" : p === 443 ? "(HTTPS)" : ""}
                           </option>
                         ))}
                     </select>
+                    <span className="port-arrow">→</span>
+                    <input
+                      type="number"
+                      placeholder="Target port"
+                      value={newTargetPort}
+                      onChange={(e) => setNewTargetPort(e.target.value)}
+                      disabled={addingRule}
+                      min="1"
+                      max="65535"
+                    />
                     <button type="submit" disabled={addingRule || !newPort}>
                       {addingRule ? "Adding..." : "Add"}
                     </button>
@@ -2580,6 +2592,7 @@ function App() {
                         <div className="ingress-rule-row" key={rule.id}>
                           <div className="rule-info">
                             <strong>{rule.port}</strong>
+                            <span className="port-mapping">→ {rule.target_port || rule.port}</span>
                             <span className="rule-label">
                               {rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : "TCP"}
                             </span>

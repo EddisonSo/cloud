@@ -10,9 +10,10 @@ import (
 )
 
 type ingressRuleResponse struct {
-	ID        int64  `json:"id"`
-	Port      int    `json:"port"`
-	CreatedAt int64  `json:"created_at"`
+	ID         int64  `json:"id"`
+	Port       int    `json:"port"`
+	TargetPort int    `json:"target_port"`
+	CreatedAt  int64  `json:"created_at"`
 }
 
 type ingressResponse struct {
@@ -44,13 +45,14 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 
 	resp := ingressResponse{
 		Rules:        make([]ingressRuleResponse, 0, len(rules)),
-		AllowedPorts: db.AllowedPorts(),
+		AllowedPorts: db.AllowedExternalPorts,
 	}
 	for _, rule := range rules {
 		resp.Rules = append(resp.Rules, ingressRuleResponse{
-			ID:        rule.ID,
-			Port:      rule.Port,
-			CreatedAt: rule.CreatedAt.Unix(),
+			ID:         rule.ID,
+			Port:       rule.Port,
+			TargetPort: rule.TargetPort,
+			CreatedAt:  rule.CreatedAt.Unix(),
 		})
 	}
 
@@ -58,7 +60,8 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 }
 
 type addIngressRequest struct {
-	Port int `json:"port"`
+	Port       int `json:"port"`
+	TargetPort int `json:"target_port"`
 }
 
 func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
@@ -82,13 +85,25 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate port is allowed
-	if !db.IsPortAllowed(req.Port) {
-		writeError(w, "port not allowed", http.StatusBadRequest)
+	// Validate external port is allowed
+	if !db.IsExternalPortAllowed(req.Port) {
+		writeError(w, "external port not allowed", http.StatusBadRequest)
 		return
 	}
 
-	rule, err := h.db.AddIngressRule(containerID, req.Port, "tcp")
+	// Default target port to same as external port if not specified
+	targetPort := req.TargetPort
+	if targetPort == 0 {
+		targetPort = req.Port
+	}
+
+	// Validate target port
+	if !db.IsTargetPortAllowed(targetPort) {
+		writeError(w, "target port must be between 1 and 65535", http.StatusBadRequest)
+		return
+	}
+
+	rule, err := h.db.AddIngressRule(containerID, req.Port, targetPort, "tcp")
 	if err != nil {
 		slog.Error("failed to add ingress rule", "error", err)
 		writeError(w, "failed to add ingress rule", http.StatusInternalServerError)
@@ -109,9 +124,10 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, ingressRuleResponse{
-		ID:        rule.ID,
-		Port:      rule.Port,
-		CreatedAt: rule.CreatedAt.Unix(),
+		ID:         rule.ID,
+		Port:       rule.Port,
+		TargetPort: rule.TargetPort,
+		CreatedAt:  rule.CreatedAt.Unix(),
 	})
 }
 
