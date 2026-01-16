@@ -11,16 +11,14 @@ type IngressRule struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// AllowedExternalPorts for ingress rules (external-facing ports)
-// Port 22 is reserved for SSH (controlled via ssh_enabled toggle)
-var AllowedExternalPorts = []int{80, 443, 8080}
-
 // IsExternalPortAllowed checks if an external port can be used
+// Allowed: 80, 443, 8000-8999. Port 22 is reserved for SSH toggle.
 func IsExternalPortAllowed(port int) bool {
-	for _, p := range AllowedExternalPorts {
-		if p == port {
-			return true
-		}
+	if port == 80 || port == 443 {
+		return true
+	}
+	if port >= 8000 && port <= 8999 {
+		return true
 	}
 	return false
 }

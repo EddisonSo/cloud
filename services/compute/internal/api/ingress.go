@@ -17,8 +17,7 @@ type ingressRuleResponse struct {
 }
 
 type ingressResponse struct {
-	Rules        []ingressRuleResponse `json:"rules"`
-	AllowedPorts []int                 `json:"allowed_ports"`
+	Rules []ingressRuleResponse `json:"rules"`
 }
 
 func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +43,7 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := ingressResponse{
-		Rules:        make([]ingressRuleResponse, 0, len(rules)),
-		AllowedPorts: db.AllowedExternalPorts,
+		Rules: make([]ingressRuleResponse, 0, len(rules)),
 	}
 	for _, rule := range rules {
 		resp.Rules = append(resp.Rules, ingressRuleResponse{

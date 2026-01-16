@@ -2550,7 +2550,7 @@ function App() {
                 </div>
                 <div className="access-section">
                   <h4>Ingress Rules</h4>
-                  <p className="section-desc">Route ingress ports (80, 443, 8080) to target ports</p>
+                  <p className="section-desc">Route ingress ports (80, 443, 8000-8999) to target ports</p>
                   <form className="add-port-form" onSubmit={addIngressRule}>
                     <input
                       type="number"
