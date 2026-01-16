@@ -54,7 +54,7 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	return h
 }
 
-const adminUsername = "eddisonso"
+const adminUsername = "eddisonso@gmail.com"
 
 // adminMiddleware validates session and checks admin status
 func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {

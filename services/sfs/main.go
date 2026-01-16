@@ -768,7 +768,7 @@ type sessionResponse struct {
 	IsAdmin  bool   `json:"is_admin"`
 }
 
-const adminUsername = "eddisonso"
+const adminUsername = "eddisonso@gmail.com"
 
 func isAdmin(username string) bool {
 	return username == adminUsername
