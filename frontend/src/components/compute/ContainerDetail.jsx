@@ -52,22 +52,12 @@ export function ContainerDetail({
           <CardTitle className="text-sm">Container Info</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-3 gap-6 mb-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
                 ID
               </span>
               <CopyableText text={container.id.slice(0, 8)} mono />
-            </div>
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
-                Hostname
-              </span>
-              {container.hostname ? (
-                <CopyableText text={container.hostname} mono className="text-sm" />
-              ) : (
-                <span className="font-mono text-sm">—</span>
-              )}
             </div>
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
@@ -81,6 +71,16 @@ export function ContainerDetail({
               </span>
               <span className="text-sm">{container.storage_gb} GB</span>
             </div>
+          </div>
+          <div>
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
+              Hostname
+            </span>
+            {container.hostname ? (
+              <CopyableText text={container.hostname} mono className="text-sm" />
+            ) : (
+              <span className="font-mono text-sm">—</span>
+            )}
           </div>
 
           {/* Actions */}
