@@ -267,7 +267,8 @@ export function StoragePage() {
               <CardContent>
                 <FileList
                   files={files}
-                                    deleting={deleting}
+                  namespace={activeNamespace}
+                  deleting={deleting}
                   onDownload={(file) => downloadFile(file, user)}
                   onDelete={handleDelete}
                   loading={filesLoading}

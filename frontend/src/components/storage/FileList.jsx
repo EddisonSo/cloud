@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { CopyableText } from "@/components/common";
 import { formatBytes, formatTimestamp } from "@/lib/formatters";
 import { Download, Trash2 } from "lucide-react";
 
 export function FileList({
   files,
+  namespace,
   deleting,
   onDownload,
   onDelete,
@@ -21,11 +23,17 @@ export function FileList({
     );
   }
 
+  const buildFileUrl = (fileName) => {
+    const ns = namespace || "default";
+    return `cloud.eddisonso.com/storage/${encodeURIComponent(ns)}/${encodeURIComponent(fileName)}`;
+  };
+
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_100px_120px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div>Name</div>
+        <div className="text-center">Link</div>
         <div className="text-center">Size</div>
         <div className="text-center">Modified</div>
         <div className="text-right">Actions</div>
@@ -34,14 +42,18 @@ export function FileList({
       {files.map((file) => {
         const fileKey = `${file.namespace || "default"}:${file.name}`;
         const isDeleting = deleting[fileKey];
+        const fileUrl = buildFileUrl(file.name);
 
         return (
           <div
             key={fileKey}
-            className="grid grid-cols-[1fr_100px_120px_auto] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+            className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
           >
             <div className="min-w-0">
               <span className="font-medium truncate block">{file.name}</span>
+            </div>
+            <div className="flex justify-center min-w-0">
+              <CopyableText text={fileUrl} mono className="text-xs truncate" />
             </div>
             <div className="text-sm text-muted-foreground text-center">{formatBytes(file.size)}</div>
             <div className="text-sm text-muted-foreground text-center">{formatTimestamp(file.modified)}</div>
@@ -50,7 +62,7 @@ export function FileList({
                 variant="ghost"
                 size="sm"
                 onClick={() => onDownload?.(file)}
-                className="text-primary hover:text-primary"
+                className="text-primary hover:text-primary hover:bg-primary/10"
               >
                 <Download className="w-4 h-4" />
               </Button>
