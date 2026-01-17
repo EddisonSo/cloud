@@ -42,9 +42,11 @@ export function StoragePage() {
   } = useFiles();
 
   const [showNamespaceView, setShowNamespaceView] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     loadNamespaces();
@@ -68,12 +70,16 @@ export function StoragePage() {
 
   const handleCreateNamespace = async () => {
     if (!namespaceInput.trim()) return;
+    setCreating(true);
     try {
       await createNamespace(namespaceInput.trim(), namespaceHidden);
       setNamespaceInput("");
       setNamespaceHidden(false);
+      setShowCreateModal(false);
     } catch (err) {
       setStatus(err.message);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -147,37 +153,12 @@ export function StoragePage() {
             </p>
           </CardHeader>
           <CardContent>
-            {/* Create Namespace */}
+            {/* Create Namespace Button */}
             {user && (
-              <div className="flex gap-2 mb-6">
-                <div className="flex-1 max-w-xs">
-                  <Label htmlFor="ns-input" className="text-xs mb-1.5 block">Create namespace</Label>
-                  <Input
-                    id="ns-input"
-                    placeholder="eg. team-alpha"
-                    value={namespaceInput}
-                    onChange={(e) => setNamespaceInput(e.target.value)}
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-sm cursor-pointer self-end pb-1">
-                  <input
-                    type="checkbox"
-                    checked={namespaceHidden}
-                    onChange={(e) => setNamespaceHidden(e.target.checked)}
-                    className="w-4 h-4 accent-primary"
-                  />
-                  Hidden
-                </label>
-                <Button
-                  variant="outline"
-                  className="self-end"
-                  onClick={handleCreateNamespace}
-                  disabled={!namespaceInput.trim()}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add
-                </Button>
-              </div>
+              <Button variant="outline" className="mb-6" onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Namespace
+              </Button>
             )}
 
             {/* Namespace Grid */}
@@ -253,6 +234,50 @@ export function StoragePage() {
           </div>
         </div>
       )}
+
+      {/* Create Namespace Modal */}
+      <Modal
+        open={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false);
+          setNamespaceInput("");
+          setNamespaceHidden(false);
+        }}
+        title="Create Namespace"
+        description="Create a new namespace to organize your files."
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="ns-name">Name</Label>
+            <Input
+              id="ns-name"
+              placeholder="eg. team-alpha"
+              value={namespaceInput}
+              onChange={(e) => setNamespaceInput(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <label className="flex items-center gap-3 p-3 rounded-md bg-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={namespaceHidden}
+              onChange={(e) => setNamespaceHidden(e.target.checked)}
+              className="w-4 h-4 accent-primary"
+            />
+            <div>
+              <span className="text-sm font-medium">Hidden</span>
+              <p className="text-xs text-muted-foreground">Hidden namespaces are not visible to guests</p>
+            </div>
+          </label>
+          {status && <p className="text-sm text-destructive">{status}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+            <Button onClick={handleCreateNamespace} disabled={!namespaceInput.trim() || creating}>
+              {creating ? "Creating..." : "Create"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal

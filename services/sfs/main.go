@@ -1326,16 +1326,22 @@ func (s *server) parseSizeHeader(raw string) int64 {
 
 func (s *server) staticHandler() http.Handler {
 	fileServer := http.FileServer(http.Dir(s.staticDir))
+	indexPath := filepath.Join(s.staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// API routes should 404 if not handled by other handlers
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/storage/") {
 			http.NotFound(w, r)
 			return
 		}
-		if r.URL.Path == "/" {
-			http.ServeFile(w, r, filepath.Join(s.staticDir, "index.html"))
+		// Check if file exists on disk
+		filePath := filepath.Join(s.staticDir, filepath.Clean(r.URL.Path))
+		if _, err := os.Stat(filePath); err == nil {
+			// File exists, serve it
+			fileServer.ServeHTTP(w, r)
 			return
 		}
-		fileServer.ServeHTTP(w, r)
+		// File doesn't exist - serve index.html for SPA routing
+		http.ServeFile(w, r, indexPath)
 	})
 }
 

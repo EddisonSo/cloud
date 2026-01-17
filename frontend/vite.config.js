@@ -9,6 +9,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    // Handle SPA routing in dev mode
+    historyApiFallback: true,
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
