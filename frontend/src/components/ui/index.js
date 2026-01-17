@@ -9,3 +9,4 @@ export { Textarea } from "./textarea";
 export { Switch } from "./switch";
 export { Separator } from "./separator";
 export { ScrollArea } from "./scroll-area";
+export { Skeleton } from "./skeleton";

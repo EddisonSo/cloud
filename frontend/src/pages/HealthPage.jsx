@@ -1,5 +1,6 @@
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/common";
 import { Progress } from "@/components/ui/progress";
 import { TAB_COPY } from "@/lib/constants";
@@ -44,12 +45,16 @@ export function HealthPage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Cluster Status
             </p>
-            <div className="flex items-center gap-2">
-              <StatusDot status={health.cluster_ok ? "ok" : "down"} />
-              <span className="text-2xl font-semibold">
-                {health.cluster_ok ? "Healthy" : "Degraded"}
-              </span>
-            </div>
+            {loading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <StatusDot status={health.cluster_ok ? "ok" : "down"} />
+                <span className="text-2xl font-semibold">
+                  {health.cluster_ok ? "Healthy" : "Degraded"}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -57,9 +62,13 @@ export function HealthPage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Nodes Online
             </p>
-            <span className="text-2xl font-semibold">
-              {healthyNodes} / {totalNodes}
-            </span>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <span className="text-2xl font-semibold">
+                {healthyNodes} / {totalNodes}
+              </span>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -67,9 +76,13 @@ export function HealthPage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Total Memory
             </p>
-            <span className="text-2xl font-semibold">
-              {formatBytes(totalMemory)}
-            </span>
+            {loading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <span className="text-2xl font-semibold">
+                {formatBytes(totalMemory)}
+              </span>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -77,9 +90,13 @@ export function HealthPage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Last Updated
             </p>
-            <span className="text-lg font-medium text-muted-foreground">
-              {lastCheck ? lastCheck.toLocaleTimeString() : "—"}
-            </span>
+            {loading ? (
+              <Skeleton className="h-7 w-24" />
+            ) : (
+              <span className="text-lg font-medium text-muted-foreground">
+                {lastCheck ? lastCheck.toLocaleTimeString() : "—"}
+              </span>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -91,7 +108,24 @@ export function HealthPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-muted-foreground py-8 text-center">Loading health data...</p>
+            <div className="space-y-2">
+              <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Node</div>
+                <div>Status</div>
+                <div>CPU</div>
+                <div>Memory</div>
+                <div>Disk</div>
+              </div>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                  <Skeleton className="h-5 w-20" />
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-2 w-full" />
+                  <Skeleton className="h-2 w-full" />
+                  <Skeleton className="h-5 w-16" />
+                </div>
+              ))}
+            </div>
           ) : error ? (
             <p className="text-destructive py-8 text-center">{error}</p>
           ) : health.nodes.length === 0 ? (

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/common";
 import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
@@ -18,6 +19,7 @@ export function StoragePage() {
     namespaces,
     activeNamespace,
     setActiveNamespace,
+    loading: namespacesLoading,
     loadNamespaces,
     createNamespace,
     deleteNamespace,
@@ -146,7 +148,11 @@ export function StoragePage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Total Files
             </p>
-            <span className="text-2xl font-semibold">{totalFiles}</span>
+            {namespacesLoading ? (
+              <Skeleton className="h-8 w-12" />
+            ) : (
+              <span className="text-2xl font-semibold">{totalFiles}</span>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -154,7 +160,11 @@ export function StoragePage() {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
               Namespaces
             </p>
-            <span className="text-2xl font-semibold">{namespaces.length}</span>
+            {namespacesLoading ? (
+              <Skeleton className="h-8 w-8" />
+            ) : (
+              <span className="text-2xl font-semibold">{namespaces.length}</span>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -188,14 +198,25 @@ export function StoragePage() {
 
             {/* Namespace Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {namespaces.map((ns) => (
-                <NamespaceCard
-                  key={ns.name}
-                  namespace={ns}
-                  isActive={activeNamespace === ns.name}
-                  onSelect={handleOpenNamespace}
-                />
-              ))}
+              {namespacesLoading ? (
+                <>
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="p-4 rounded-lg border border-border bg-card">
+                      <Skeleton className="h-5 w-24 mb-2" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  ))}
+                </>
+              ) : (
+                namespaces.map((ns) => (
+                  <NamespaceCard
+                    key={ns.name}
+                    namespace={ns}
+                    isActive={activeNamespace === ns.name}
+                    onSelect={handleOpenNamespace}
+                  />
+                ))
+              )}
             </div>
 
             {status && <p className="text-sm text-muted-foreground mt-4">{status}</p>}
