@@ -63,6 +63,7 @@ export function StoragePage() {
   const [creating, setCreating] = useState(false);
   const [deletingNs, setDeletingNs] = useState(false);
   const [togglingNs, setTogglingNs] = useState(false);
+  const [namespaceError, setNamespaceError] = useState("");
 
   useEffect(() => {
     loadNamespaces();
@@ -85,13 +86,14 @@ export function StoragePage() {
   const handleCreateNamespace = async () => {
     if (!namespaceInput.trim()) return;
     setCreating(true);
+    setNamespaceError("");
     try {
       await createNamespace(namespaceInput.trim(), namespaceHidden);
       setNamespaceInput("");
       setNamespaceHidden(false);
       setShowCreateModal(false);
     } catch (err) {
-      setStatus(err.message);
+      setNamespaceError(err.message);
     } finally {
       setCreating(false);
     }
@@ -228,7 +230,6 @@ export function StoragePage() {
               )}
             </div>
 
-            {status && <p className="text-sm text-muted-foreground mt-4">{status}</p>}
           </CardContent>
         </Card>
       )}
@@ -306,6 +307,7 @@ export function StoragePage() {
           setShowCreateModal(false);
           setNamespaceInput("");
           setNamespaceHidden(false);
+          setNamespaceError("");
         }}
         title="Create Namespace"
         description="Create a new namespace to organize your files."
@@ -333,7 +335,7 @@ export function StoragePage() {
               <p className="text-xs text-muted-foreground">Hidden namespaces are not visible to guests</p>
             </div>
           </label>
-          {status && <p className="text-sm text-destructive">{status}</p>}
+          {namespaceError && <p className="text-sm text-destructive">{namespaceError}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
             <Button onClick={handleCreateNamespace} disabled={!namespaceInput.trim() || creating}>
