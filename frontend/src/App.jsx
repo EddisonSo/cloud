@@ -4,20 +4,31 @@ import { FitAddon } from '@xterm/addon-fit';
 import DataTable, { createTheme } from 'react-data-table-component';
 import '@xterm/xterm/css/xterm.css';
 
-// Custom theme for DataTable
-createTheme('cloudshare', {
-  text: { primary: '#0f172a', secondary: '#5b6677' },
+// Custom dark theme for DataTable
+createTheme('eddcloud', {
+  text: { primary: '#e6edf3', secondary: '#8b949e' },
   background: { default: 'transparent' },
-  divider: { default: 'rgba(15, 23, 42, 0.08)' },
-  highlightOnHover: { default: 'rgba(26, 115, 232, 0.04)', text: '#0f172a' },
-  striped: { default: 'rgba(15, 23, 42, 0.02)', text: '#0f172a' },
-}, 'light');
+  divider: { default: '#21262d' },
+  highlightOnHover: { default: '#30363d', text: '#e6edf3' },
+  striped: { default: '#161b22', text: '#e6edf3' },
+}, 'dark');
 
 const tableStyles = {
-  headRow: { style: { backgroundColor: '#f1f5f9', borderRadius: '8px 8px 0 0', minHeight: '44px' } },
-  headCells: { style: { fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#5b6677' } },
-  rows: { style: { minHeight: '52px', fontSize: '0.9rem' } },
+  headRow: { style: { backgroundColor: '#21262d', borderRadius: '8px 8px 0 0', minHeight: '44px' } },
+  headCells: { style: { fontSize: '0.6875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6e7681' } },
+  rows: { style: { minHeight: '52px', fontSize: '0.8125rem', backgroundColor: 'transparent', borderBottom: '1px solid #21262d' } },
   cells: { style: { paddingLeft: '16px', paddingRight: '16px', overflow: 'visible' } },
+};
+
+// Navigation icons (inline SVG)
+const NavIcons = {
+  storage: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v1A1.5 1.5 0 0 1 12.5 6h-9A1.5 1.5 0 0 1 2 4.5v-1Zm0 5A1.5 1.5 0 0 1 3.5 7h9A1.5 1.5 0 0 1 14 8.5v1a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 9.5v-1Zm1.5 4.5A1.5 1.5 0 0 0 2 14.5v.5c0 .28.22.5.5.5h11a.5.5 0 0 0 .5-.5v-.5a1.5 1.5 0 0 0-1.5-1.5h-9Z"/></svg>,
+  compute: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 0 0-1 1v2h8V2a1 1 0 0 0-1-1H5ZM4 5v6h8V5H4Zm0 7v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2H4ZM2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2Zm5 10a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 0 1h-1A.5.5 0 0 1 7 12Z"/></svg>,
+  'message-queue': <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2Zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4Z"/></svg>,
+  datastore: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1c-1.573 0-3.022.289-4.096.777C2.875 2.245 2 2.993 2 4s.875 1.755 1.904 2.223C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777C13.125 5.755 14 5.007 14 4s-.875-1.755-1.904-2.223C11.022 1.289 9.573 1 8 1ZM2 6.161V8c0 1.007.875 1.755 1.904 2.223C4.978 10.711 6.427 11 8 11s3.022-.289 4.096-.777C13.125 9.755 14 9.007 14 8V6.161c-.43.34-.946.622-1.5.849C11.306 7.547 9.719 8 8 8s-3.306-.453-4.5-.99A6.75 6.75 0 0 1 2 6.161ZM2 10.161V12c0 1.007.875 1.755 1.904 2.223C4.978 14.711 6.427 15 8 15s3.022-.289 4.096-.777C13.125 13.755 14 13.007 14 12v-1.839c-.43.34-.946.622-1.5.849C11.306 11.547 9.719 12 8 12s-3.306-.453-4.5-.99A6.75 6.75 0 0 1 2 10.161Z"/></svg>,
+  health: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM3.668 2.501l-.288.646a.847.847 0 0 0 1.479.815l.245-.368a7.02 7.02 0 0 1 5.088 0l.245.368a.847.847 0 0 0 1.479-.815l-.288-.646A6.97 6.97 0 0 1 15 8a6.97 6.97 0 0 1-2.197 5.098l.288.646a.847.847 0 0 1-1.479.815l-.245-.368a7.02 7.02 0 0 1-5.088 0l-.245.368a.847.847 0 0 1-1.479-.815l.288-.646A6.97 6.97 0 0 1 1 8a6.97 6.97 0 0 1 2.668-5.499ZM8 4.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"/></svg>,
+  logs: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14a2.5 2.5 0 0 1-2.5 2.5v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0Zm-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7ZM5 6.5A.5.5 0 0 1 5.5 6h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5ZM5.5 8a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3Z"/></svg>,
+  admin: <svg className="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492ZM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0Z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319Zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319Z"/></svg>,
 };
 
 const emptyState = "No files yet. Upload your first file to share it.";
@@ -1322,8 +1333,8 @@ function App() {
     <div className="page">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">GFS</span>
-          <span className="brand-name">Cloud Share</span>
+          <span className="brand-mark">E</span>
+          <span className="brand-name">Edd Cloud</span>
         </div>
         <nav className="nav">
           {navItems.map((item) => (
@@ -1345,62 +1356,88 @@ function App() {
                 }
               }}
             >
+              {NavIcons[item.id]}
               {item.label}
+              {item.id === "health" && (
+                <span className={`nav-status ${health.cluster_ok ? "" : "down"}`} />
+              )}
             </button>
           ))}
         </nav>
-        {user ? (
-          <button type="button" className="ghost logout" onClick={handleLogout}>
-            Sign out
-          </button>
-        ) : (
-          <section className="panel login mini">
-            <form onSubmit={handleLogin} className="login-form">
-              <div className="field">
-                <label htmlFor="login-username">Username</label>
-                <input
-                  id="login-username"
-                  type="text"
-                  value={loginForm.username}
-                  onChange={(event) =>
-                    setLoginForm((prev) => ({ ...prev, username: event.target.value }))
-                  }
-                  autoComplete="username"
-                />
+        <div className="sidebar-foot">
+          {user ? (
+            <>
+              <div className="user-card">
+                <div className="user-avatar">{user.charAt(0).toUpperCase()}</div>
+                <div className="user-info">
+                  <div className="user-name">{user}</div>
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="login-password">Password</label>
-                <input
-                  id="login-password"
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(event) =>
-                    setLoginForm((prev) => ({ ...prev, password: event.target.value }))
-                  }
-                  autoComplete="current-password"
-                />
-              </div>
-              <button type="submit">Sign in</button>
-              {loginError && <p className="status error">{loginError}</p>}
-            </form>
-          </section>
-        )}
+              <button type="button" className="ghost logout" onClick={handleLogout}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <section className="panel login mini">
+              <form onSubmit={handleLogin} className="login-form">
+                <div className="field">
+                  <label htmlFor="login-username">Username</label>
+                  <input
+                    id="login-username"
+                    type="text"
+                    value={loginForm.username}
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({ ...prev, username: event.target.value }))
+                    }
+                    autoComplete="username"
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="login-password">Password</label>
+                  <input
+                    id="login-password"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({ ...prev, password: event.target.value }))
+                    }
+                    autoComplete="current-password"
+                  />
+                </div>
+                <button type="submit">Sign in</button>
+                {loginError && <p className="status error">{loginError}</p>}
+              </form>
+            </section>
+          )}
+        </div>
       </aside>
 
       <main className="content">
         <header className="topbar">
-          <div>
+          <div className="topbar-left">
             <p className="eyebrow">{activeCopy.eyebrow}</p>
             <h1>{activeCopy.title}</h1>
             <p className="lead">{activeCopy.lead}</p>
           </div>
+        </header>
+
+        {activeTab === "storage" && (
           <div className="summary">
             <div className="summary-card">
-              <span className="summary-label">Total files</span>
+              <span className="summary-label">Total Files</span>
               <span className="summary-value">{namespaces.reduce((sum, ns) => sum + (ns.count || 0), 0)}</span>
             </div>
+            <div className="summary-card">
+              <span className="summary-label">Namespaces</span>
+              <span className="summary-value">{namespaces.length}</span>
+            </div>
+            <div className="summary-card">
+              <span className="summary-label">Active</span>
+              <span className="summary-value">{activeNamespace || "—"}</span>
+              <span className="summary-meta">current namespace</span>
+            </div>
           </div>
-        </header>
+        )}
 
         <div className="layout">
           {activeTab === "storage" && (
@@ -1784,6 +1821,25 @@ function App() {
                 </section>
               ) : (
                 <>
+                  <div className="summary">
+                    <div className="summary-card">
+                      <span className="summary-label">Containers</span>
+                      <span className="summary-value">{containers.length}</span>
+                    </div>
+                    <div className="summary-card">
+                      <span className="summary-label">Running</span>
+                      <span className="summary-value success">{containers.filter(c => c.status === 'running').length}</span>
+                    </div>
+                    <div className="summary-card">
+                      <span className="summary-label">SSH Keys</span>
+                      <span className="summary-value">{sshKeys.length}</span>
+                    </div>
+                    <div className="summary-card">
+                      <span className="summary-label">Total Memory</span>
+                      <span className="summary-value">{containers.reduce((sum, c) => sum + (c.memory_mb || 0), 0)} MB</span>
+                    </div>
+                  </div>
+
                   <div className="compute-nav">
                     <button
                       type="button"
@@ -1878,7 +1934,7 @@ function App() {
                           },
                         ]}
                         data={containers}
-                        theme="cloudshare"
+                        theme="eddcloud"
                         customStyles={tableStyles}
                         noDataComponent={<p className="table-empty">{containersLoading ? "Loading containers..." : "No containers yet. Create one to get started."}</p>}
                         highlightOnHover
@@ -2140,7 +2196,7 @@ function App() {
                           },
                         ]}
                         data={sshKeys}
-                        theme="cloudshare"
+                        theme="eddcloud"
                         customStyles={tableStyles}
                         noDataComponent={<p className="table-empty">{sshKeysLoading ? "Loading SSH keys..." : "No SSH keys yet. Add one to enable container access."}</p>}
                         highlightOnHover
@@ -2407,7 +2463,7 @@ function App() {
                       : `${row.storage_gb} GB` },
                   ]}
                   data={adminContainers}
-                  theme="cloudshare"
+                  theme="eddcloud"
                   customStyles={tableStyles}
                   noDataComponent={<p className="table-empty">No containers found.</p>}
                   highlightOnHover
@@ -2453,7 +2509,7 @@ function App() {
                     )},
                   ]}
                   data={adminUsers}
-                  theme="cloudshare"
+                  theme="eddcloud"
                   customStyles={tableStyles}
                   noDataComponent={<p className="table-empty">No users found.</p>}
                   highlightOnHover
