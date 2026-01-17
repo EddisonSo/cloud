@@ -12,7 +12,7 @@ import { formatBytes } from "@/lib/formatters";
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
-  const { health, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
+  const { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
@@ -200,6 +200,73 @@ export function HealthPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pod Metrics Table */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Pod Metrics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Pod</div>
+                <div className="text-center">Node</div>
+                <div className="text-center">CPU</div>
+                <div className="text-center">Memory</div>
+                <div className="text-center">Disk</div>
+              </div>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-5 w-12 mx-auto" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
+                </div>
+              ))}
+            </div>
+          ) : (podMetrics.pods || []).length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center">
+              {user ? "No pods found" : "Log in to view pod metrics"}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {/* Header */}
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Pod</div>
+                <div className="text-center">Node</div>
+                <div className="text-center">CPU</div>
+                <div className="text-center">Memory</div>
+                <div className="text-center">Disk</div>
+              </div>
+              {/* Rows */}
+              {(podMetrics.pods || []).map((pod, idx) => (
+                <div
+                  key={pod.name || idx}
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                >
+                  <div className="font-medium truncate" title={pod.name}>
+                    {pod.name}
+                  </div>
+                  <div className="text-sm text-muted-foreground text-center">
+                    {pod.node}
+                  </div>
+                  <div className="text-sm text-center">
+                    {((pod.cpu_usage || 0) / 1000000).toFixed(1)}m
+                  </div>
+                  <div className="text-sm text-center">
+                    {formatBytes(pod.memory_usage || 0)}
+                  </div>
+                  <div className="text-sm text-center">
+                    {formatBytes(pod.disk_usage || 0)}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

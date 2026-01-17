@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { buildWsBase } from "@/lib/api";
+import { buildApiBase, buildWsBase } from "@/lib/api";
 
 export function useHealth(user, enabled = false) {
   const [health, setHealth] = useState({ cluster_ok: false, nodes: [] });
+  const [podMetrics, setPodMetrics] = useState({ pods: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastCheck, setLastCheck] = useState(null);
@@ -78,5 +79,28 @@ export function useHealth(user, enabled = false) {
     };
   }, [user, enabled, updateFrequency]);
 
-  return { health, loading, error, lastCheck, updateFrequency, setUpdateFrequency };
+  // Fetch pod metrics
+  useEffect(() => {
+    if (!user || !enabled) return;
+
+    const fetchPodMetrics = async () => {
+      try {
+        const res = await fetch(`${buildApiBase()}/pod-metrics`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPodMetrics(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch pod metrics:", err);
+      }
+    };
+
+    fetchPodMetrics();
+    const interval = setInterval(fetchPodMetrics, 5000);
+    return () => clearInterval(interval);
+  }, [user, enabled]);
+
+  return { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency };
 }
