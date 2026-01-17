@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AppLayout() {
-  const { user, login } = useAuth();
+  const { user, loading: authLoading, login } = useAuth();
   const { health } = useHealth(user, true);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
@@ -30,7 +30,8 @@ export function AppLayout() {
     }
   };
 
-  if (!user) {
+  // Show login only after auth check confirms user is not logged in
+  if (!authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="absolute top-4 right-4">
