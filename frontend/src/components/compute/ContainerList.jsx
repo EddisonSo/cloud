@@ -53,7 +53,7 @@ export function ContainerList({
             <div className="w-20">
               <StatusBadge status={container.status} />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
               {container.hostname ? (
                 <CopyableText text={container.hostname} mono className="text-sm" />
               ) : (
