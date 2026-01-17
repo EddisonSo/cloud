@@ -12,6 +12,8 @@ RUN go mod download && go build -o /out/sfs .
 
 FROM alpine:3.20
 
+RUN apk add --no-cache mailcap
+
 WORKDIR /app
 COPY --from=builder /out/sfs /app/sfs
 
