@@ -35,10 +35,7 @@ export function Sidebar({ healthOk = true }) {
   return (
     <aside className="fixed top-0 left-0 h-screen w-[220px] flex flex-col bg-card border-r border-border p-4 overflow-y-auto">
       {/* Brand */}
-      <div className="flex items-center gap-3 px-2 py-1 mb-4">
-        <span className="flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-br from-primary to-purple-500 text-white text-sm font-bold">
-          E
-        </span>
+      <div className="px-2 py-1 mb-4">
         <span className="font-semibold text-[15px]">Edd Cloud</span>
       </div>
 

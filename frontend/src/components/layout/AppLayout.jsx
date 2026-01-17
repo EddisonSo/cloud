@@ -39,11 +39,6 @@ export function AppLayout() {
         </div>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <span className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-purple-500 text-white text-xl font-bold">
-                E
-              </span>
-            </div>
             <CardTitle>Sign in to Edd Cloud</CardTitle>
           </CardHeader>
           <CardContent>
