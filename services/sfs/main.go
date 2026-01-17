@@ -155,6 +155,8 @@ func main() {
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
 	mux.HandleFunc("GET /storage/download/{namespace}/{file...}", srv.handleFileDownload)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
+	mux.HandleFunc("GET /storage/{namespace}", srv.handleStorageError)
+	mux.HandleFunc("GET /storage", srv.handleStorageError)
 	// Admin endpoints
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
 	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
@@ -829,6 +831,12 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reporter.Done()
+}
+
+// handleStorageError returns error page for incomplete storage URLs
+func (s *server) handleStorageError(w http.ResponseWriter, r *http.Request) {
+	serveErrorPage(w, http.StatusBadRequest, "Invalid Request",
+		"Please specify a namespace and file. Example: /storage/default/myfile.txt")
 }
 
 // handleFileGet serves files via path: GET /storage/{namespace}/{file...}
