@@ -57,9 +57,10 @@ const (
 )
 
 type namespaceInfo struct {
-	Name   string `json:"name"`
-	Count  int    `json:"count"`
-	Hidden bool   `json:"hidden"`
+	Name    string `json:"name"`
+	Count   int    `json:"count"`
+	Hidden  bool   `json:"hidden"`
+	OwnerID *int   `json:"owner_id,omitempty"`
 }
 
 func main() {
@@ -196,7 +197,8 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		)`,
 		`CREATE TABLE IF NOT EXISTS namespaces (
 			name TEXT PRIMARY KEY,
-			hidden INTEGER NOT NULL DEFAULT 0
+			hidden INTEGER NOT NULL DEFAULT 0,
+			owner_id INTEGER REFERENCES users(id)
 		)`,
 	}
 	for _, stmt := range stmts {
@@ -207,6 +209,9 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 
 	// Migration: add display_name column if it doesn't exist
 	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`)
+
+	// Migration: add owner_id column to namespaces if it doesn't exist
+	_, _ = db.Exec(`ALTER TABLE namespaces ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)`)
 
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
@@ -263,11 +268,9 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if namespace == hiddenNamespace {
-			if _, ok := s.currentUser(r); !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
+		if !s.canAccessNamespace(r, namespace) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
 		}
 	} else {
 		namespace = defaultNamespace
@@ -319,54 +322,48 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	hiddenSet, err := s.loadHiddenNamespaces()
-	if err != nil {
-		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
-		return
-	}
-
-	_, authed := s.currentUser(r)
+	currentUserID, _ := s.currentUserID(r)
 	namespaceRows, err := s.loadAllNamespaces()
 	if err != nil {
 		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
 		return
 	}
 
-	counts := make(map[string]int)
+	// Build map for quick lookup
+	nsMap := make(map[string]namespaceInfo)
 	for _, entry := range namespaceRows {
-		hiddenSet[entry.Name] = entry.Hidden
-		if entry.Hidden && !authed {
-			continue
+		// Hidden namespaces: only show to owner
+		if entry.Hidden {
+			if entry.OwnerID == nil || *entry.OwnerID != currentUserID {
+				continue
+			}
 		}
 		count, err := s.countNamespaceFiles(ctx, entry.Name)
 		if err != nil {
 			http.Error(w, "failed to list namespace files", http.StatusBadGateway)
 			return
 		}
-		counts[entry.Name] = count
+		entry.Count = count
+		nsMap[entry.Name] = entry
 	}
 
-	if _, ok := counts[defaultNamespace]; !ok {
-		if !hiddenSet[defaultNamespace] || authed {
-			count, err := s.countNamespaceFiles(ctx, defaultNamespace)
-			if err != nil {
-				http.Error(w, "failed to list namespace files", http.StatusBadGateway)
-				return
-			}
-			counts[defaultNamespace] = count
+	// Add default namespace if not present
+	if _, ok := nsMap[defaultNamespace]; !ok {
+		count, err := s.countNamespaceFiles(ctx, defaultNamespace)
+		if err != nil {
+			http.Error(w, "failed to list namespace files", http.StatusBadGateway)
+			return
 		}
-	}
-
-	resp := make([]namespaceInfo, 0, len(counts))
-	for name, count := range counts {
-		if hiddenSet[name] && !authed {
-			continue
-		}
-		resp = append(resp, namespaceInfo{
-			Name:   name,
+		nsMap[defaultNamespace] = namespaceInfo{
+			Name:   defaultNamespace,
 			Count:  count,
-			Hidden: hiddenSet[name],
-		})
+			Hidden: false,
+		}
+	}
+
+	resp := make([]namespaceInfo, 0, len(nsMap))
+	for _, ns := range nsMap {
+		resp = append(resp, ns)
 	}
 
 	writeJSON(w, resp)
@@ -407,15 +404,24 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.upsertNamespace(name, payload.Hidden); err != nil {
+	// Set owner for hidden namespaces
+	var ownerID *int
+	if payload.Hidden {
+		if uid, ok := s.currentUserID(r); ok {
+			ownerID = &uid
+		}
+	}
+
+	if err := s.upsertNamespace(name, payload.Hidden, ownerID); err != nil {
 		http.Error(w, "failed to save namespace", http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, namespaceInfo{
-		Name:   name,
-		Count:  0,
-		Hidden: payload.Hidden,
+		Name:    name,
+		Count:   0,
+		Hidden:  payload.Hidden,
+		OwnerID: ownerID,
 	})
 }
 
@@ -426,6 +432,12 @@ func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
 	name, err := sanitizeNamespace(r.URL.Query().Get("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check ownership for hidden namespaces
+	if !s.canAccessNamespace(r, name) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -475,6 +487,12 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check ownership for hidden namespaces
+	if !s.canAccessNamespace(r, name) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	if name == hiddenNamespace && !payload.Hidden {
 		http.Error(w, "hidden namespace must be marked hidden", http.StatusBadRequest)
 		return
@@ -500,6 +518,12 @@ func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Requ
 	name, err := sanitizeNamespace(r.PathValue("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check ownership for hidden namespaces
+	if !s.canAccessNamespace(r, name) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -536,6 +560,12 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 	name, err := sanitizeNamespace(r.PathValue("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check ownership for hidden namespaces
+	if !s.canAccessNamespace(r, name) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -770,11 +800,9 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if namespace == hiddenNamespace {
-			if _, ok := s.currentUser(r); !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
+		if !s.canAccessNamespace(r, namespace) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
 		}
 	}
 
@@ -820,11 +848,9 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if namespace == hiddenNamespace {
-		if _, ok := s.currentUser(r); !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
+	if !s.canAccessNamespace(r, namespace) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
@@ -860,11 +886,9 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if namespace == hiddenNamespace {
-		if _, ok := s.currentUser(r); !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
+	if !s.canAccessNamespace(r, namespace) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
@@ -1066,6 +1090,33 @@ func (s *server) currentUser(r *http.Request) (string, bool) {
 	return username, true
 }
 
+func (s *server) currentUserID(r *http.Request) (int, bool) {
+	token := s.sessionToken(r)
+	if token == "" {
+		return 0, false
+	}
+
+	var (
+		userID    int
+		expiresAt int64
+	)
+	err := s.db.QueryRow(
+		`SELECT users.id, sessions.expires_at
+		 FROM sessions
+		 JOIN users ON sessions.user_id = users.id
+		 WHERE sessions.token = $1`,
+		token,
+	).Scan(&userID, &expiresAt)
+	if err != nil {
+		return 0, false
+	}
+	if time.Now().Unix() > expiresAt {
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
+		return 0, false
+	}
+	return userID, true
+}
+
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {
 	token := s.sessionToken(r)
 	if token == "" {
@@ -1148,7 +1199,7 @@ func (s *server) loadHiddenNamespaces() (map[string]bool, error) {
 }
 
 func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
-	rows, err := s.db.Query(`SELECT name, hidden FROM namespaces`)
+	rows, err := s.db.Query(`SELECT name, hidden, owner_id FROM namespaces`)
 	if err != nil {
 		return nil, err
 	}
@@ -1158,12 +1209,14 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 	for rows.Next() {
 		var name string
 		var hiddenFlag int
-		if err := rows.Scan(&name, &hiddenFlag); err != nil {
+		var ownerID *int
+		if err := rows.Scan(&name, &hiddenFlag, &ownerID); err != nil {
 			return nil, err
 		}
 		namespaces = append(namespaces, namespaceInfo{
-			Name:   name,
-			Hidden: hiddenFlag != 0,
+			Name:    name,
+			Hidden:  hiddenFlag != 0,
+			OwnerID: ownerID,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -1172,16 +1225,17 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 	return namespaces, nil
 }
 
-func (s *server) upsertNamespace(name string, hidden bool) error {
+func (s *server) upsertNamespace(name string, hidden bool, ownerID *int) error {
 	hiddenValue := 0
 	if hidden {
 		hiddenValue = 1
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO namespaces (name, hidden) VALUES ($1, $2)
+		`INSERT INTO namespaces (name, hidden, owner_id) VALUES ($1, $2, $3)
 		 ON CONFLICT(name) DO UPDATE SET hidden = excluded.hidden`,
 		name,
 		hiddenValue,
+		ownerID,
 	)
 	return err
 }
@@ -1224,6 +1278,37 @@ func (s *server) namespaceExists(name string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// canAccessNamespace checks if a user can access a namespace.
+// Hidden namespaces are only accessible by their owner.
+func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
+	// Get namespace info
+	var hidden int
+	var ownerID *int
+	err := s.db.QueryRow(
+		`SELECT hidden, owner_id FROM namespaces WHERE name = $1`,
+		namespace,
+	).Scan(&hidden, &ownerID)
+	if err != nil {
+		// Namespace doesn't exist in DB - allow access (e.g., default namespace)
+		return true
+	}
+
+	// Non-hidden namespaces are accessible to everyone
+	if hidden == 0 {
+		return true
+	}
+
+	// Hidden namespace: must be owner
+	userID, ok := s.currentUserID(r)
+	if !ok {
+		return false
+	}
+	if ownerID == nil {
+		return false
+	}
+	return *ownerID == userID
 }
 
 func (s *server) countNamespaceFiles(ctx context.Context, namespace string) (int, error) {
