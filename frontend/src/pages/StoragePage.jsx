@@ -43,9 +43,13 @@ export function StoragePage() {
   const [showNamespaceView, setShowNamespaceView] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deletingNs, setDeletingNs] = useState(false);
+  const [togglingNs, setTogglingNs] = useState(false);
 
   useEffect(() => {
     loadNamespaces();
@@ -84,12 +88,16 @@ export function StoragePage() {
 
   const handleDeleteNamespace = async () => {
     if (!activeNamespace) return;
+    setDeletingNs(true);
     try {
       await deleteNamespace(activeNamespace);
+      setShowDeleteConfirm(false);
       setShowSettingsModal(false);
       handleCloseNamespace();
     } catch (err) {
       setStatus(err.message);
+    } finally {
+      setDeletingNs(false);
     }
   };
 
@@ -97,10 +105,14 @@ export function StoragePage() {
     if (!activeNamespace) return;
     const currentNs = namespaces.find((ns) => ns.name === activeNamespace);
     if (!currentNs) return;
+    setTogglingNs(true);
     try {
       await toggleNamespaceHidden(activeNamespace, !currentNs.hidden);
+      setShowToggleConfirm(false);
     } catch (err) {
       setStatus(err.message);
+    } finally {
+      setTogglingNs(false);
     }
   };
 
@@ -309,7 +321,7 @@ export function StoragePage() {
       >
         <div className="space-y-4">
           <button
-            onClick={handleToggleHidden}
+            onClick={() => setShowToggleConfirm(true)}
             className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary hover:bg-secondary/80 transition-colors text-left"
           >
             {currentNamespace?.hidden ? (
@@ -329,7 +341,7 @@ export function StoragePage() {
             </div>
           </button>
           <button
-            onClick={handleDeleteNamespace}
+            onClick={() => setShowDeleteConfirm(true)}
             className="w-full flex items-center gap-3 p-3 rounded-md bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive"
           >
             <Trash2 className="w-4 h-4" />
@@ -340,6 +352,56 @@ export function StoragePage() {
               </p>
             </div>
           </button>
+        </div>
+      </Modal>
+
+      {/* Toggle Visibility Confirmation Modal */}
+      <Modal
+        open={showToggleConfirm}
+        onClose={() => setShowToggleConfirm(false)}
+        title={currentNamespace?.hidden ? "Show Namespace" : "Hide Namespace"}
+        description={
+          currentNamespace?.hidden
+            ? <>Make <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code> visible to guests?</>
+            : <>Hide <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code> from guests?</>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {currentNamespace?.hidden
+              ? "This namespace will become visible to all visitors."
+              : "This namespace will only be visible to authenticated users."}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowToggleConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleToggleHidden} disabled={togglingNs}>
+              {togglingNs ? "Updating..." : "Confirm"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Namespace Confirmation Modal */}
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete Namespace"
+        description={<>Are you sure you want to delete <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code>?</>}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            This will permanently delete the namespace and all its files. This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteNamespace} disabled={deletingNs}>
+              {deletingNs ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>
