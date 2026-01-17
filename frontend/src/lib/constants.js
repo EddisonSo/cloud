@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 export const NAV_ITEMS = [
-  { id: "storage", label: "Storage", icon: HardDrive, path: "/storage" },
   {
     id: "compute",
     label: "Compute",
@@ -22,6 +21,7 @@ export const NAV_ITEMS = [
       { id: "ssh-keys", label: "SSH Keys", icon: Key, path: "/compute/ssh-keys" },
     ],
   },
+  { id: "storage", label: "Storage", icon: HardDrive, path: "/storage" },
   { id: "message-queue", label: "Message Queue", icon: MessageSquare, path: "/message-queue" },
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
