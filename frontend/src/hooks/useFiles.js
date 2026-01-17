@@ -9,7 +9,7 @@ export function useFiles() {
   const [uploadProgress, setUploadProgress] = useState({ bytes: 0, total: 0, active: false });
   const [downloadProgress, setDownloadProgress] = useState({});
   const [deleting, setDeleting] = useState({});
-  const [status, setStatus] = useState("Ready to share.");
+  const [status, setStatus] = useState("");
   const fileInputRef = useRef(null);
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
 
