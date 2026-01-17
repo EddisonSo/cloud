@@ -1,5 +1,10 @@
 export function resolveApiHost() {
-  return window.location.host;
+  // Use cloud-api subdomain for API calls
+  const host = window.location.host;
+  if (host.startsWith("cloud.")) {
+    return host.replace("cloud.", "cloud-api.");
+  }
+  return host;
 }
 
 export function buildApiBase() {
