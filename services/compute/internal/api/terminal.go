@@ -150,6 +150,26 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 
 	var wg sync.WaitGroup
 
+	// WebSocket keepalive ping
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					slog.Debug("ping failed", "error", err)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
 	// WebSocket -> SSH (stdin)
 	wg.Add(1)
 	go func() {
