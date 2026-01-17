@@ -1794,6 +1794,9 @@ func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) 
 	// Delete user's sessions first
 	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, id)
 
+	// Clear ownership of user's namespaces (they become inaccessible)
+	_, _ = s.db.Exec(`UPDATE namespaces SET owner_id = NULL WHERE owner_id = $1`, id)
+
 	// Delete user
 	result, err := s.db.Exec(`DELETE FROM users WHERE id = $1`, id)
 	if err != nil {
