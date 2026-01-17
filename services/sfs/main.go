@@ -155,7 +155,6 @@ func main() {
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
 	mux.HandleFunc("GET /storage/download/{namespace}/{file...}", srv.handleFileDownload)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
-	mux.HandleFunc("GET /storage/{namespace}", srv.handleStorageError)
 	mux.HandleFunc("GET /storage", srv.handleStorageError)
 	// Admin endpoints
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
