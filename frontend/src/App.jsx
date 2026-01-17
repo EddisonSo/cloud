@@ -17,7 +17,7 @@ const tableStyles = {
   headRow: { style: { backgroundColor: '#f1f5f9', borderRadius: '8px 8px 0 0', minHeight: '44px' } },
   headCells: { style: { fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#5b6677' } },
   rows: { style: { minHeight: '52px', fontSize: '0.9rem' } },
-  cells: { style: { paddingLeft: '16px', paddingRight: '16px' } },
+  cells: { style: { paddingLeft: '16px', paddingRight: '16px', overflow: 'visible' } },
 };
 
 const emptyState = "No files yet. Upload your first file to share it.";
@@ -1867,7 +1867,7 @@ function App() {
                           },
                           {
                             name: 'Actions',
-                            width: '280px',
+                            minWidth: '220px',
                             right: true,
                             cell: row => (
                               <div className="table-actions">
@@ -1879,16 +1879,16 @@ function App() {
                                 )}
                                 {row.status === "running" && (
                                   <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "stopping")}>
-                                    {containerActions[row.id] === "stopping" ? "Stopping..." : "Stop"}
+                                    {containerActions[row.id] === "stopping" ? "..." : "Stop"}
                                   </button>
                                 )}
                                 {row.status === "stopped" && (
                                   <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "starting")}>
-                                    {containerActions[row.id] === "starting" ? "Starting..." : "Start"}
+                                    {containerActions[row.id] === "starting" ? "..." : "Start"}
                                   </button>
                                 )}
                                 <button type="button" className="danger" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "deleting")}>
-                                  {containerActions[row.id] === "deleting" ? "Deleting..." : "Delete"}
+                                  {containerActions[row.id] === "deleting" ? "..." : "Delete"}
                                 </button>
                               </div>
                             ),

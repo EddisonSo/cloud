@@ -2163,15 +2163,18 @@ button:not(:disabled):hover {
 
 .table-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+  max-width: 100%;
 }
 
 .table-actions button {
-  padding: 4px 10px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .table-empty {
