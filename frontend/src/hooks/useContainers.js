@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { buildApiBase, buildWsBase } from "@/lib/api";
 
 export function useContainers(user) {
@@ -6,8 +6,13 @@ export function useContainers(user) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actions, setActions] = useState({});
+  const loadedRef = useRef(false);
 
-  const loadContainers = useCallback(async () => {
+  const loadContainers = useCallback(async (forceRefresh = false) => {
+    // Skip if already loaded and not forcing refresh
+    if (loadedRef.current && !forceRefresh) {
+      return containers;
+    }
     try {
       setLoading(true);
       setError("");
@@ -23,12 +28,15 @@ export function useContainers(user) {
       }
       const payload = await response.json();
       setContainers(payload.containers || []);
+      loadedRef.current = true;
+      return payload.containers || [];
     } catch (err) {
       setError(err.message);
+      return [];
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [containers]);
 
   const createContainer = useCallback(async (data) => {
     const response = await fetch(`${buildApiBase()}/compute/containers`, {
@@ -41,7 +49,7 @@ export function useContainers(user) {
       const message = await response.text();
       throw new Error(message || "Failed to create container");
     }
-    await loadContainers();
+    await loadContainers(true);
     return response.json();
   }, [loadContainers]);
 
@@ -58,7 +66,7 @@ export function useContainers(user) {
         const message = await response.text();
         throw new Error(message || `Failed to ${action.replace("ing", "")} container`);
       }
-      await loadContainers();
+      await loadContainers(true);
     } finally {
       setActions((prev) => ({ ...prev, [id]: null }));
     }

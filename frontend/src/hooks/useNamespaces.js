@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { buildApiBase } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 
@@ -6,10 +6,15 @@ export function useNamespaces() {
   const [namespaces, setNamespaces] = useState([]);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [loading, setLoading] = useState(false);
+  const loadedRef = useRef(false);
 
   const normalizeNamespace = (value) => (value && value.trim() ? value.trim() : DEFAULT_NAMESPACE);
 
-  const loadNamespaces = useCallback(async () => {
+  const loadNamespaces = useCallback(async (forceRefresh = false) => {
+    // Skip if already loaded and not forcing refresh
+    if (loadedRef.current && !forceRefresh) {
+      return namespaces;
+    }
     try {
       setLoading(true);
       const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
@@ -25,6 +30,7 @@ export function useNamespaces() {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
+      loadedRef.current = true;
       return sorted;
     } catch (err) {
       console.warn(err.message);
@@ -32,7 +38,7 @@ export function useNamespaces() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [namespaces]);
 
   const createNamespace = useCallback(async (name, hidden = false) => {
     const normalizedName = normalizeNamespace(name);
@@ -47,7 +53,7 @@ export function useNamespaces() {
       const message = await response.text();
       throw new Error(message || "Failed to create namespace");
     }
-    await loadNamespaces();
+    await loadNamespaces(true);
     return response.json();
   }, [loadNamespaces]);
 
@@ -60,7 +66,7 @@ export function useNamespaces() {
       const message = await response.text();
       throw new Error(message || "Failed to delete namespace");
     }
-    await loadNamespaces();
+    await loadNamespaces(true);
   }, [loadNamespaces]);
 
   const toggleNamespaceHidden = useCallback(async (name, hidden) => {
@@ -74,7 +80,7 @@ export function useNamespaces() {
       }
     );
     if (!response.ok) throw new Error("Failed to update namespace");
-    await loadNamespaces();
+    await loadNamespaces(true);
   }, [loadNamespaces]);
 
   return {

@@ -12,22 +12,35 @@ export function useFiles() {
   const [status, setStatus] = useState("");
   const fileInputRef = useRef(null);
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
+  const loadedNamespaceRef = useRef(null);
 
-  const loadFiles = useCallback(async (namespace) => {
+  const loadFiles = useCallback(async (namespace, forceRefresh = false) => {
+    const selectedNamespace = namespace || DEFAULT_NAMESPACE;
+    // Skip if already loaded for this namespace and not forcing refresh
+    if (loadedNamespaceRef.current === selectedNamespace && !forceRefresh) {
+      return files;
+    }
     try {
       setLoading(true);
-      const selectedNamespace = namespace || DEFAULT_NAMESPACE;
       const response = await fetch(
-        `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`
+        `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`,
+        { credentials: "include" }
       );
       if (!response.ok) throw new Error("Failed to load files");
       const payload = await response.json();
       setFiles(payload);
+      loadedNamespaceRef.current = selectedNamespace;
+      return payload;
     } catch (err) {
       setStatus(err.message);
+      return [];
     } finally {
       setLoading(false);
     }
+  }, [files]);
+
+  const clearFilesCache = useCallback(() => {
+    loadedNamespaceRef.current = null;
   }, []);
 
   const uploadFile = useCallback(async (namespace, onComplete) => {
@@ -83,6 +96,7 @@ export function useFiles() {
       setStatus(`Uploaded ${file.name}`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setSelectedFileName("No file selected");
+      await loadFiles(namespace, true);
       onComplete?.();
     } catch (err) {
       setStatus(err.message);
@@ -90,7 +104,7 @@ export function useFiles() {
       setUploading(false);
       socket.close();
     }
-  }, []);
+  }, [loadFiles]);
 
   const downloadFile = useCallback(async (file, user) => {
     const transferId = createTransferId();
@@ -142,20 +156,21 @@ export function useFiles() {
     try {
       const response = await fetch(
         `${buildApiBase()}/storage/delete?name=${encodeURIComponent(file.name)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`,
-        { method: "DELETE" }
+        { method: "DELETE", credentials: "include" }
       );
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Delete failed");
       }
       setStatus(`Deleted ${file.name}`);
+      await loadFiles(namespace, true);
       onComplete?.();
     } catch (err) {
       setStatus(err.message);
     } finally {
       setDeleting((prev) => ({ ...prev, [fileKey]: false }));
     }
-  }, []);
+  }, [loadFiles]);
 
   return {
     files,
@@ -170,6 +185,7 @@ export function useFiles() {
     selectedFileName,
     setSelectedFileName,
     loadFiles,
+    clearFilesCache,
     uploadFile,
     downloadFile,
     deleteFile,
