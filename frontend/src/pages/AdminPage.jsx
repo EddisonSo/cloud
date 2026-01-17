@@ -126,46 +126,42 @@ export function AdminPage() {
     <div>
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Users
-            </p>
-            {loading ? (
-              <TextSkeleton text="00" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{users.length}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Containers
-            </p>
-            {loading ? (
-              <TextSkeleton text="00" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{containers.length}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Running
-            </p>
-            {loading ? (
-              <TextSkeleton text="00" className="text-2xl font-semibold text-green-400" />
-            ) : (
-              <span className="text-2xl font-semibold text-green-400">
-                {containers.filter((c) => c.status === "running").length}
-              </span>
-            )}
-          </CardContent>
-        </Card>
+      {/* Summary Stats */}
+      <div className="flex flex-wrap gap-4 mb-6 text-sm text-muted-foreground">
+        <span>
+          Users:{" "}
+          {loading ? (
+            <TextSkeleton text="0" className="font-medium text-foreground" />
+          ) : (
+            <span className="font-medium text-foreground">{users.length}</span>
+          )}
+        </span>
+        <span>
+          Containers:{" "}
+          {loading ? (
+            <TextSkeleton text="0" className="font-medium text-foreground" />
+          ) : (
+            <span className="font-medium text-foreground">{containers.length}</span>
+          )}
+        </span>
+        <span>
+          Running:{" "}
+          {loading ? (
+            <TextSkeleton text="0" className="font-medium text-green-400" />
+          ) : (
+            <span className="font-medium text-green-400">
+              {containers.filter((c) => c.status === "running").length}
+            </span>
+          )}
+        </span>
+        <span>
+          Namespaces:{" "}
+          {loading ? (
+            <TextSkeleton text="0" className="font-medium text-foreground" />
+          ) : (
+            <span className="font-medium text-foreground">{namespaces.length}</span>
+          )}
+        </span>
       </div>
 
       {/* Users Section */}
