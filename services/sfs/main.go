@@ -103,10 +103,10 @@ func main() {
 		log.Fatalf("failed to resolve static path: %v", err)
 	}
 
-	defaultUsername := strings.TrimSpace(os.Getenv("SFS_DEFAULT_USERNAME"))
-	defaultPassword := os.Getenv("SFS_DEFAULT_PASSWORD")
+	defaultUsername := strings.TrimSpace(os.Getenv("DEFAULT_USERNAME"))
+	defaultPassword := os.Getenv("DEFAULT_PASSWORD")
 	if defaultUsername == "" || defaultPassword == "" {
-		log.Fatal("missing SFS_DEFAULT_USERNAME or SFS_DEFAULT_PASSWORD")
+		log.Fatal("missing DEFAULT_USERNAME or DEFAULT_PASSWORD")
 	}
 
 	dbConnStr := os.Getenv("DATABASE_URL")
