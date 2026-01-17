@@ -61,9 +61,13 @@ export function ContainerDetail({
             </div>
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
-                External IP
+                Hostname
               </span>
-              <span className="font-mono text-sm">{container.external_ip || "—"}</span>
+              {container.hostname ? (
+                <CopyableText text={container.hostname} mono className="text-sm" />
+              ) : (
+                <span className="font-mono text-sm">—</span>
+              )}
             </div>
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
@@ -142,7 +146,7 @@ export function ContainerDetail({
           <div>
             <h4 className="text-sm font-semibold mb-3">HTTP Ingress Rules</h4>
             <p className="text-xs text-muted-foreground mb-3">
-              Expose ports to the internet via the external IP.
+              Expose ports to the internet via the hostname.
             </p>
 
             {/* Add Rule */}

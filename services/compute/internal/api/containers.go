@@ -31,7 +31,7 @@ type containerResponse struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
 	Status        string   `json:"status"`
-	ExternalIP    *string  `json:"external_ip"`
+	Hostname      string   `json:"hostname"`
 	SSHCommand    *string  `json:"ssh_command,omitempty"`
 	MemoryMB      int      `json:"memory_mb"`
 	MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
@@ -479,10 +479,18 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func containerToResponse(c *db.Container) containerResponse {
+	// Use first 8 chars of container ID for hostname
+	shortID := c.ID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	hostname := fmt.Sprintf("%s.compute.eddisonso.com", shortID)
+
 	resp := containerResponse{
 		ID:           c.ID,
 		Name:         c.Name,
 		Status:       c.Status,
+		Hostname:     hostname,
 		MemoryMB:     c.MemoryMB,
 		StorageGB:    c.StorageGB,
 		CreatedAt:    c.CreatedAt.Format(time.RFC3339),
@@ -491,8 +499,7 @@ func containerToResponse(c *db.Container) containerResponse {
 	}
 
 	if c.ExternalIP.Valid {
-		resp.ExternalIP = &c.ExternalIP.String
-		sshCmd := fmt.Sprintf("ssh root@%s", c.ExternalIP.String)
+		sshCmd := fmt.Sprintf("ssh root@%s", hostname)
 		resp.SSHCommand = &sshCmd
 	}
 

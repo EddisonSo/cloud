@@ -28,10 +28,10 @@ export function ContainerList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_100px_120px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[1fr_90px_1fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div>Container</div>
         <div>Status</div>
-        <div>External IP</div>
+        <div>Hostname</div>
         <div className="text-right">Actions</div>
       </div>
       {/* Rows */}
@@ -43,7 +43,7 @@ export function ContainerList({
         return (
           <div
             key={container.id}
-            className="grid grid-cols-[1fr_100px_120px_auto] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
+            className="grid grid-cols-[1fr_90px_1fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
             onClick={() => onSelect?.(container)}
           >
             <div className="min-w-0">
@@ -53,8 +53,12 @@ export function ContainerList({
             <div>
               <StatusBadge status={container.status} />
             </div>
-            <div className="text-sm text-muted-foreground font-mono">
-              {container.external_ip || "—"}
+            <div className="min-w-0">
+              {container.hostname ? (
+                <CopyableText text={container.hostname} mono className="text-sm" />
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
             </div>
             <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
               {isRunning && (
