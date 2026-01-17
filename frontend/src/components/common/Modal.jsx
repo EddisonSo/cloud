@@ -14,7 +14,6 @@ export function Modal({ open, onClose, title, description, children, className }
       if (e.key === "Escape") onClose?.();
     };
     window.addEventListener("keydown", onKeyDown);
-    cancelRef.current?.focus();
 
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);

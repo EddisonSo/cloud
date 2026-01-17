@@ -404,12 +404,10 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set owner for hidden namespaces
+	// Set owner for namespace
 	var ownerID *int
-	if payload.Hidden {
-		if uid, ok := s.currentUserID(r); ok {
-			ownerID = &uid
-		}
+	if uid, ok := s.currentUserID(r); ok {
+		ownerID = &uid
 	}
 
 	if err := s.upsertNamespace(name, payload.Hidden, ownerID); err != nil {
