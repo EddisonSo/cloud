@@ -143,7 +143,7 @@ export function HealthPage() {
                   <Skeleton className="h-5 w-16 mx-auto" />
                   <Skeleton className="h-2 w-full" />
                   <Skeleton className="h-2 w-full" />
-                  <Skeleton className="h-5 w-16 mx-auto" />
+                  <Skeleton className="h-2 w-full" />
                 </div>
               ))}
             </div>
@@ -191,8 +191,11 @@ export function HealthPage() {
                         {(node.memory_percent || 0).toFixed(1)}%
                       </span>
                     </div>
-                    <div className="text-sm text-muted-foreground text-center">
-                      {formatBytes(node.disk_capacity || 0)}
+                    <div className="space-y-1 text-center">
+                      <Progress value={node.disk_percent || 0} className="h-2" />
+                      <span className="text-xs text-muted-foreground">
+                        {formatBytes(node.disk_usage || 0)} / {formatBytes(node.disk_capacity || 0)}
+                      </span>
                     </div>
                   </div>
                 );
