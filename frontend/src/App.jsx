@@ -7,6 +7,37 @@ const emptyState = "No files yet. Upload your first file to share it.";
 const defaultNamespace = "default";
 const hiddenNamespace = "hidden";
 
+// Reusable Table component for consistent styling
+function Table({ columns, data, emptyMessage = "No data", keyField = "id", renderCell }) {
+  if (!data || data.length === 0) {
+    return <p className="table-empty">{emptyMessage}</p>;
+  }
+  return (
+    <table className="data-table">
+      <thead>
+        <tr>
+          {columns.map((col) => (
+            <th key={col.key} style={col.width ? { width: col.width } : undefined}>
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((row) => (
+          <tr key={row[keyField]}>
+            {columns.map((col) => (
+              <td key={col.key}>
+                {renderCell ? renderCell(col.key, row) : row[col.key]}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes === 0) {
     return "0 B";
@@ -2215,37 +2246,37 @@ function App() {
                     {adminLoading ? "Loading..." : "Refresh"}
                   </button>
                 </div>
-                <div className="admin-table cols-5">
-                  {adminContainers.length === 0 ? (
-                    <p className="empty">No containers found.</p>
-                  ) : (
-                    <>
-                      <div className="admin-table-head">
-                        <span>User ID</span>
-                        <span>Name</span>
-                        <span>Status</span>
-                        <span>IP Address</span>
-                        <span>Resources</span>
-                      </div>
-                      {adminContainers.map((c) => (
-                        <div className="admin-table-row" key={c.id}>
-                          <span>{c.user_id}</span>
-                          <span>
-                            <strong>{c.name}</strong>
-                            <code className="id">{c.id.slice(0, 8)}</code>
-                          </span>
-                          <span>
-                            <span className={`container-status ${c.status}`}>{c.status}</span>
-                          </span>
-                          <span>
-                            {c.external_ip ? <code>{c.external_ip}</code> : <span className="muted">-</span>}
-                          </span>
-                          <span>{c.memory_mb} MB / {c.storage_gb} GB</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
+                <Table
+                  columns={[
+                    { key: "user_id", label: "User ID", width: "80px" },
+                    { key: "name", label: "Name" },
+                    { key: "status", label: "Status", width: "100px" },
+                    { key: "ip", label: "IP Address", width: "140px" },
+                    { key: "resources", label: "Resources", width: "140px" },
+                  ]}
+                  data={adminContainers}
+                  emptyMessage="No containers found."
+                  renderCell={(key, row) => {
+                    switch (key) {
+                      case "name":
+                        return (
+                          <>
+                            <span className="cell-primary">{row.name}</span>
+                            <br />
+                            <code className="cell-secondary">{row.id.slice(0, 8)}</code>
+                          </>
+                        );
+                      case "status":
+                        return <span className={`status-badge ${row.status}`}>{row.status}</span>;
+                      case "ip":
+                        return row.external_ip ? <code>{row.external_ip}</code> : <span className="muted">-</span>;
+                      case "resources":
+                        return `${row.memory_mb} MB / ${row.storage_gb} GB`;
+                      default:
+                        return row[key];
+                    }
+                  }}
+                />
               </section>
               <section className="panel">
                 <div className="panel-header">
@@ -2273,38 +2304,33 @@ function App() {
                     {creatingUser ? "Adding..." : "Add User"}
                   </button>
                 </form>
-                <div className="admin-table cols-3">
-                  {adminUsers.length === 0 ? (
-                    <p className="empty">No users found.</p>
-                  ) : (
-                    <>
-                      <div className="admin-table-head">
-                        <span>ID</span>
-                        <span>Username</span>
-                        <span>Actions</span>
-                      </div>
-                      {adminUsers.map((u) => (
-                        <div className="admin-table-row" key={u.id}>
-                          <span>{u.id}</span>
-                          <span>{u.username}</span>
-                          <span>
-                            {u.username !== user ? (
-                              <button
-                                type="button"
-                                className="ghost danger-text"
-                                onClick={() => handleDeleteUser(u.id)}
-                              >
-                                Delete
-                              </button>
-                            ) : (
-                              <span className="muted">-</span>
-                            )}
-                          </span>
+                <Table
+                  columns={[
+                    { key: "id", label: "ID", width: "60px" },
+                    { key: "username", label: "Username" },
+                    { key: "actions", label: "Actions", width: "100px" },
+                  ]}
+                  data={adminUsers}
+                  emptyMessage="No users found."
+                  renderCell={(key, row) => {
+                    if (key === "actions") {
+                      return row.username !== user ? (
+                        <div className="cell-actions">
+                          <button
+                            type="button"
+                            className="ghost danger-text"
+                            onClick={() => handleDeleteUser(row.id)}
+                          >
+                            Delete
+                          </button>
                         </div>
-                      ))}
-                    </>
-                  )}
-                </div>
+                      ) : (
+                        <span className="muted">-</span>
+                      );
+                    }
+                    return row[key];
+                  }}
+                />
               </section>
             </>
           )}
