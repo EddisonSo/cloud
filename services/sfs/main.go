@@ -145,6 +145,8 @@ func main() {
 	mux.HandleFunc("/api/session", srv.handleSession)
 	// Storage endpoints
 	mux.HandleFunc("/storage/namespaces", srv.handleNamespaces)
+	mux.HandleFunc("DELETE /storage/namespaces/{name}", srv.handleNamespaceDeleteByPath)
+	mux.HandleFunc("PUT /storage/namespaces/{name}", srv.handleNamespaceUpdateByPath)
 	mux.HandleFunc("/storage/files", srv.handleList)
 	mux.HandleFunc("/storage/upload", srv.handleUpload)
 	mux.HandleFunc("/storage/download", srv.handleDownload)
@@ -470,6 +472,78 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 	name, err := sanitizeNamespace(payload.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if name == hiddenNamespace && !payload.Hidden {
+		http.Error(w, "hidden namespace must be marked hidden", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.updateNamespaceHidden(name, payload.Hidden); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	writeJSON(w, namespaceInfo{
+		Name:   name,
+		Hidden: payload.Hidden,
+	})
+}
+
+// handleNamespaceDeleteByPath handles DELETE /storage/namespaces/{name}
+func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAuth(w, r); !ok {
+		return
+	}
+
+	name, err := sanitizeNamespace(r.PathValue("name"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	files, err := s.client.ListFilesWithNamespace(ctx, s.gfsNamespace(name), s.listPrefix)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("list files failed: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	for _, file := range files {
+		if err := s.client.DeleteFileWithNamespace(ctx, file.Path, s.gfsNamespace(name)); err != nil {
+			http.Error(w, fmt.Sprintf("delete failed: %v", err), http.StatusBadGateway)
+			return
+		}
+	}
+
+	if err := s.deleteNamespace(name); err != nil {
+		http.Error(w, "failed to delete namespace", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// handleNamespaceUpdateByPath handles PUT /storage/namespaces/{name}
+func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAuth(w, r); !ok {
+		return
+	}
+
+	name, err := sanitizeNamespace(r.PathValue("name"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var payload struct {
+		Hidden bool `json:"hidden"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
