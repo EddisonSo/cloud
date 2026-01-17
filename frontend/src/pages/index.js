@@ -5,3 +5,4 @@ export { DatastorePage } from "./DatastorePage";
 export { HealthPage } from "./HealthPage";
 export { LogsPage } from "./LogsPage";
 export { AdminPage } from "./AdminPage";
+export { NotFoundPage } from "./NotFoundPage";

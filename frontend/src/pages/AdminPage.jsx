@@ -8,13 +8,14 @@ import { StatusBadge, CopyableText } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
 import { buildApiBase } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2, UserPlus } from "lucide-react";
+import { Trash2, UserPlus, Eye, EyeOff } from "lucide-react";
 
 export function AdminPage() {
   const copy = TAB_COPY.admin;
   const { user, isAdmin } = useAuth();
   const [containers, setContainers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [namespaces, setNamespaces] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newUser, setNewUser] = useState({ displayName: "", username: "", password: "" });
   const [creating, setCreating] = useState(false);
@@ -35,9 +36,10 @@ export function AdminPage() {
     setLoading(true);
     setError("");
     try {
-      const [containersRes, usersRes] = await Promise.all([
+      const [containersRes, usersRes, namespacesRes] = await Promise.all([
         fetch(`${buildApiBase()}/compute/admin/containers`, { credentials: "include" }),
         fetch(`${buildApiBase()}/admin/users`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/admin/namespaces`, { credentials: "include" }),
       ]);
       if (containersRes.ok) {
         const data = await parseJsonSafe(containersRes);
@@ -49,6 +51,10 @@ export function AdminPage() {
       } else {
         const errText = await usersRes.text();
         setError(`Failed to load users: ${errText}`);
+      }
+      if (namespacesRes.ok) {
+        const data = await parseJsonSafe(namespacesRes);
+        setNamespaces(data || []);
       }
     } catch (err) {
       setError(`Failed to load admin data: ${err.message}`);
@@ -242,7 +248,7 @@ export function AdminPage() {
       </Card>
 
       {/* Containers Section */}
-      <Card>
+      <Card className="mb-6">
         <CardHeader>
           <CardTitle>All Containers</CardTitle>
         </CardHeader>
@@ -286,6 +292,67 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground lg:hidden">IP:</span>
                     <span className="text-sm text-muted-foreground font-mono truncate">
                       {c.external_ip || "—"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Namespaces Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Namespaces</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-muted-foreground py-4">Loading...</p>
+          ) : namespaces.length === 0 ? (
+            <p className="text-muted-foreground py-4">No namespaces</p>
+          ) : (
+            <div className="space-y-2">
+              {/* Header - hidden on mobile */}
+              <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Name</div>
+                <div>Files</div>
+                <div>Visibility</div>
+                <div>Owner ID</div>
+              </div>
+              {namespaces.map((ns) => (
+                <div
+                  key={ns.name}
+                  className="flex flex-col sm:grid sm:grid-cols-4 gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
+                >
+                  <div className="flex justify-between sm:block min-w-0">
+                    <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
+                    <span className="font-medium truncate">{ns.name}</span>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="text-xs text-muted-foreground sm:hidden">Files:</span>
+                    <span className="text-muted-foreground">{ns.count}</span>
+                  </div>
+                  <div className="flex justify-between sm:block items-center">
+                    <span className="text-xs text-muted-foreground sm:hidden">Visibility:</span>
+                    <span className="flex items-center gap-1 text-sm">
+                      {ns.hidden ? (
+                        <>
+                          <EyeOff className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Hidden</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-4 h-4 text-green-400" />
+                          <span className="text-green-400">Public</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between sm:block min-w-0">
+                    <span className="text-xs text-muted-foreground sm:hidden">Owner:</span>
+                    <span className="text-sm text-muted-foreground">
+                      {ns.owner_id != null ? ns.owner_id : "—"}
                     </span>
                   </div>
                 </div>

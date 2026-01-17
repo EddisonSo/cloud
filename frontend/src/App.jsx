@@ -10,6 +10,7 @@ import {
   HealthPage,
   LogsPage,
   AdminPage,
+  NotFoundPage,
 } from "@/pages";
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
               <Route path="/health" element={<HealthPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </AuthProvider>
