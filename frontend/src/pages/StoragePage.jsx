@@ -9,7 +9,7 @@ import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Settings, Eye, EyeOff, Trash2 } from "lucide-react";
 
 export function StoragePage() {
   const copy = TAB_COPY.storage;
@@ -42,9 +42,9 @@ export function StoragePage() {
 
   const [showNamespaceView, setShowNamespaceView] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [namespaceInput, setNamespaceInput] = useState("");
   const [namespaceHidden, setNamespaceHidden] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -83,14 +83,28 @@ export function StoragePage() {
   };
 
   const handleDeleteNamespace = async () => {
-    if (!deleteTarget) return;
+    if (!activeNamespace) return;
     try {
-      await deleteNamespace(deleteTarget);
-      setDeleteTarget(null);
+      await deleteNamespace(activeNamespace);
+      setShowSettingsModal(false);
+      handleCloseNamespace();
     } catch (err) {
       setStatus(err.message);
     }
   };
+
+  const handleToggleHidden = async () => {
+    if (!activeNamespace) return;
+    const currentNs = namespaces.find((ns) => ns.name === activeNamespace);
+    if (!currentNs) return;
+    try {
+      await toggleNamespaceHidden(activeNamespace, !currentNs.hidden);
+    } catch (err) {
+      setStatus(err.message);
+    }
+  };
+
+  const currentNamespace = namespaces.find((ns) => ns.name === activeNamespace);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -168,9 +182,6 @@ export function StoragePage() {
                   namespace={ns}
                   isActive={activeNamespace === ns.name}
                   onSelect={handleOpenNamespace}
-                  onToggleHidden={toggleNamespaceHidden}
-                  onDelete={setDeleteTarget}
-                  showActions={!!user}
                 />
               ))}
             </div>
@@ -193,11 +204,23 @@ export function StoragePage() {
             <Card className="lg:col-span-2">
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>
-                  <CardTitle>{activeNamespace}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle>{activeNamespace}</CardTitle>
+                    {currentNamespace?.hidden && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground mt-1">
                     {files.length} {files.length === 1 ? "file" : "files"}
                   </p>
                 </div>
+                {user && (
+                  <Button variant="ghost" size="icon" onClick={() => setShowSettingsModal(true)}>
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 <FileList
@@ -277,16 +300,46 @@ export function StoragePage() {
         </div>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
+      {/* Namespace Settings Modal */}
       <Modal
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="Delete Namespace"
-        description={<>Are you sure you want to delete <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{deleteTarget}</code>? This will delete all files in this namespace.</>}
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        title="Namespace Settings"
+        description={<>Settings for <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code></>}
       >
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button variant="destructive" onClick={handleDeleteNamespace}>Delete</Button>
+        <div className="space-y-4">
+          <button
+            onClick={handleToggleHidden}
+            className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary hover:bg-secondary/80 transition-colors text-left"
+          >
+            {currentNamespace?.hidden ? (
+              <Eye className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <EyeOff className="w-4 h-4 text-muted-foreground" />
+            )}
+            <div>
+              <span className="text-sm font-medium">
+                {currentNamespace?.hidden ? "Show Namespace" : "Hide Namespace"}
+              </span>
+              <p className="text-xs text-muted-foreground">
+                {currentNamespace?.hidden
+                  ? "Make this namespace visible to guests"
+                  : "Hide this namespace from guests"}
+              </p>
+            </div>
+          </button>
+          <button
+            onClick={handleDeleteNamespace}
+            className="w-full flex items-center gap-3 p-3 rounded-md bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive"
+          >
+            <Trash2 className="w-4 h-4" />
+            <div>
+              <span className="text-sm font-medium">Delete Namespace</span>
+              <p className="text-xs opacity-80">
+                Permanently delete this namespace and all its files
+              </p>
+            </div>
+          </button>
         </div>
       </Modal>
     </div>

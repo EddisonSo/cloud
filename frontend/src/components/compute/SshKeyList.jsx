@@ -116,12 +116,6 @@ export function SshKeyList({
         </div>
       )}
 
-      {/* SSH Hint */}
-      <div className="p-4 bg-secondary rounded-md">
-        <p className="text-sm text-muted-foreground">
-          Connect via: <code className="bg-background px-2 py-0.5 rounded text-xs">ssh -i ~/.ssh/key root@EXTERNAL_IP</code>
-        </p>
       </div>
-    </div>
   );
 }
