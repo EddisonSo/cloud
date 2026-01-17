@@ -4,8 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CopyableText } from "@/components/common";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Copy } from "lucide-react";
+import { copyToClipboard } from "@/lib/api";
 
 export function SshKeyList({
   sshKeys,
@@ -92,25 +92,46 @@ export function SshKeyList({
         <p className="text-muted-foreground py-4">No SSH keys yet. Add one to access your containers.</p>
       ) : (
         <div className="space-y-2">
+          {/* Header */}
+          <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="w-32">Name</div>
+            <div className="flex-1 min-w-0 text-center">Public Key</div>
+            <div className="w-20 text-right">Actions</div>
+          </div>
+          {/* Rows */}
           {sshKeys.map((key) => (
             <div
               key={key.id}
-              className="flex items-center justify-between gap-4 p-3 bg-secondary rounded-md"
+              className="flex items-center gap-4 px-4 py-3 bg-secondary rounded-md"
             >
-              <div className="flex-1 min-w-0">
-                <span className="font-medium block">{key.name}</span>
-                <span className="text-xs text-muted-foreground font-mono truncate block max-w-md">
-                  {key.public_key?.slice(0, 60)}...
-                </span>
+              <div className="w-32">
+                <span className="font-medium truncate block">{key.name}</span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => onDelete?.(key.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
+                <span className="text-xs text-muted-foreground font-mono truncate">
+                  {key.public_key?.slice(0, 50)}...
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => copyToClipboard(key.public_key)}
+                  title="Copy public key"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <div className="w-20 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => onDelete?.(key.id)}
+                  title="Delete key"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import { ArrowLeft, Plus, Settings, Eye, EyeOff, Trash2 } from "lucide-react";
 
 export function StoragePage() {
   const copy = TAB_COPY.storage;
+  const { namespace: namespaceParam } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const {
     namespaces,
@@ -42,7 +45,15 @@ export function StoragePage() {
     deleteFile,
   } = useFiles();
 
-  const [showNamespaceView, setShowNamespaceView] = useState(false);
+  // Sync URL param with active namespace
+  const showNamespaceView = !!namespaceParam;
+
+  useEffect(() => {
+    if (namespaceParam) {
+      setActiveNamespace(namespaceParam);
+    }
+  }, [namespaceParam, setActiveNamespace]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -64,13 +75,11 @@ export function StoragePage() {
   }, [showNamespaceView, activeNamespace, loadFiles]);
 
   const handleOpenNamespace = (name) => {
-    setActiveNamespace(name);
-    setShowNamespaceView(true);
+    navigate(`/storage/${encodeURIComponent(name)}`);
   };
 
   const handleCloseNamespace = () => {
-    setShowNamespaceView(false);
-    setActiveNamespace("");
+    navigate("/storage");
   };
 
   const handleCreateNamespace = async () => {

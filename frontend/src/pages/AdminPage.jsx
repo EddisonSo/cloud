@@ -205,9 +205,9 @@ export function AdminPage() {
               {/* Header - hidden on mobile */}
               <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>ID</div>
-                <div>Display Name</div>
-                <div>Username</div>
-                <div>Actions</div>
+                <div className="text-center">Display Name</div>
+                <div className="text-center">Username</div>
+                <div className="text-right">Actions</div>
               </div>
               {users.map((u) => (
                 <div
@@ -218,15 +218,15 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
                     <CopyableText text={String(u.id)} mono />
                   </div>
-                  <div className="flex justify-between sm:block">
+                  <div className="flex justify-between sm:block sm:text-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
                     <span className="font-medium truncate">{u.display_name || u.username}</span>
                   </div>
-                  <div className="flex justify-between sm:block">
+                  <div className="flex justify-between sm:block sm:text-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Username:</span>
                     <span className="text-muted-foreground truncate">{u.username}</span>
                   </div>
-                  <div className="flex justify-end sm:justify-start">
+                  <div className="flex justify-end">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -258,10 +258,10 @@ export function AdminPage() {
               {/* Header - hidden on mobile */}
               <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>ID</div>
-                <div>Name</div>
-                <div>Owner</div>
-                <div>Status</div>
-                <div>External IP</div>
+                <div className="text-center">Name</div>
+                <div className="text-center">Owner</div>
+                <div className="text-center">Status</div>
+                <div className="text-right">Hostname</div>
               </div>
               {containers.map((c) => (
                 <div
@@ -272,22 +272,22 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground lg:hidden">ID:</span>
                     <CopyableText text={c.id.slice(0, 8)} mono />
                   </div>
-                  <div className="flex justify-between lg:block min-w-0">
+                  <div className="flex justify-between lg:block lg:text-center min-w-0">
                     <span className="text-xs text-muted-foreground lg:hidden">Name:</span>
                     <span className="font-medium truncate">{c.name}</span>
                   </div>
-                  <div className="flex justify-between lg:block min-w-0">
+                  <div className="flex justify-between lg:block lg:text-center min-w-0">
                     <span className="text-xs text-muted-foreground lg:hidden">Owner:</span>
                     <span className="text-sm text-muted-foreground truncate">{c.owner || "—"}</span>
                   </div>
-                  <div className="flex justify-between lg:block items-center">
+                  <div className="flex justify-between lg:justify-center items-center">
                     <span className="text-xs text-muted-foreground lg:hidden">Status:</span>
                     <StatusBadge status={c.status} />
                   </div>
-                  <div className="flex justify-between lg:block min-w-0">
-                    <span className="text-xs text-muted-foreground lg:hidden">IP:</span>
+                  <div className="flex justify-between lg:block lg:text-right min-w-0">
+                    <span className="text-xs text-muted-foreground lg:hidden">Hostname:</span>
                     <span className="text-sm text-muted-foreground font-mono truncate">
-                      {c.external_ip || "—"}
+                      {c.hostname || "—"}
                     </span>
                   </div>
                 </div>
@@ -312,9 +312,9 @@ export function AdminPage() {
               {/* Header - hidden on mobile */}
               <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Name</div>
-                <div>Files</div>
-                <div>Visibility</div>
-                <div>Owner ID</div>
+                <div className="text-center">Files</div>
+                <div className="text-center">Visibility</div>
+                <div className="text-right">Owner ID</div>
               </div>
               {namespaces.map((ns) => (
                 <div
@@ -325,11 +325,11 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
                     <span className="font-medium truncate">{ns.name}</span>
                   </div>
-                  <div className="flex justify-between sm:block">
+                  <div className="flex justify-between sm:block sm:text-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Files:</span>
                     <span className="text-muted-foreground">{ns.count}</span>
                   </div>
-                  <div className="flex justify-between sm:block items-center">
+                  <div className="flex justify-between sm:justify-center items-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Visibility:</span>
                     <span className="flex items-center gap-1 text-sm">
                       {ns.hidden ? (
@@ -345,10 +345,10 @@ export function AdminPage() {
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between sm:block min-w-0">
+                  <div className="flex justify-between sm:block sm:text-right min-w-0">
                     <span className="text-xs text-muted-foreground sm:hidden">Owner:</span>
                     <span className="text-sm text-muted-foreground">
-                      {ns.owner_id != null ? ns.owner_id : "—"}
+                      {ns.owner_id != null ? ns.owner_id : "System"}
                     </span>
                   </div>
                 </div>

@@ -21,10 +21,11 @@ const (
 )
 
 type containerRequest struct {
-	Name      string  `json:"name"`
-	MemoryMB  int     `json:"memory_mb"`
-	StorageGB int     `json:"storage_gb"`
-	SSHKeyIDs []int64 `json:"ssh_key_ids"`
+	Name       string  `json:"name"`
+	MemoryMB   int     `json:"memory_mb"`
+	StorageGB  int     `json:"storage_gb"`
+	SSHKeyIDs  []int64 `json:"ssh_key_ids"`
+	SSHEnabled bool    `json:"ssh_enabled"`
 }
 
 type containerResponse struct {
@@ -141,14 +142,15 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 
 	// Create container record
 	container := &db.Container{
-		ID:        containerID,
-		UserID:    userID,
-		Name:      req.Name,
-		Namespace: namespace,
-		Status:    "pending",
-		MemoryMB:  memoryMB,
-		StorageGB: storageGB,
-		Image:     defaultImage,
+		ID:         containerID,
+		UserID:     userID,
+		Name:       req.Name,
+		Namespace:  namespace,
+		Status:     "pending",
+		MemoryMB:   memoryMB,
+		StorageGB:  storageGB,
+		Image:      defaultImage,
+		SSHEnabled: req.SSHEnabled,
 	}
 
 	if err := h.db.CreateContainer(container); err != nil {
@@ -498,7 +500,7 @@ func containerToResponse(c *db.Container) containerResponse {
 		HTTPSEnabled: c.HTTPSEnabled,
 	}
 
-	if c.ExternalIP.Valid {
+	if c.SSHEnabled {
 		sshCmd := fmt.Sprintf("ssh root@%s", hostname)
 		resp.SSHCommand = &sshCmd
 	}

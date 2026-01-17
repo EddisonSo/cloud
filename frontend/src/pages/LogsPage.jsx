@@ -24,6 +24,8 @@ export function LogsPage() {
     sources,
     autoScroll,
     setAutoScroll,
+    updateFrequency,
+    setUpdateFrequency,
     containerRef,
     clearLogs,
     logLevelColor,
@@ -89,6 +91,21 @@ export function LogsPage() {
                 <option value="INFO">Info+</option>
                 <option value="WARN">Warn+</option>
                 <option value="ERROR">Error</option>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Update:</span>
+              <Select
+                value={updateFrequency}
+                onChange={(e) => setUpdateFrequency(Number(e.target.value))}
+                className="w-32"
+              >
+                <option value={0}>Real-time</option>
+                <option value={500}>0.5s</option>
+                <option value={1000}>1s</option>
+                <option value={5000}>5s</option>
+                <option value={30000}>30s</option>
+                <option value={60000}>1 min</option>
               </Select>
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">

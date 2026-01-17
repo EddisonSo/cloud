@@ -24,9 +24,9 @@ type Container struct {
 
 func (db *DB) CreateContainer(c *Container) error {
 	_, err := db.Exec(`
-		INSERT INTO containers (id, user_id, name, namespace, status, memory_mb, storage_gb, image)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		c.ID, c.UserID, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image,
+		INSERT INTO containers (id, user_id, name, namespace, status, memory_mb, storage_gb, image, ssh_enabled)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		c.ID, c.UserID, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.SSHEnabled,
 	)
 	if err != nil {
 		return fmt.Errorf("insert container: %w", err)

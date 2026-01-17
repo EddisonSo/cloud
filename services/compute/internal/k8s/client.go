@@ -512,6 +512,38 @@ func (c *Client) GetResourceUsage(ctx context.Context, namespace string) (*Resou
 	return usage, nil
 }
 
+// NamespaceInfo holds information about a K8s namespace
+type NamespaceInfo struct {
+	Name        string
+	Labels      map[string]string
+	CreatedAt   string
+	ContainerID string
+	UserID      string
+}
+
+// ListAllNamespaces returns all namespaces in the cluster
+func (c *Client) ListAllNamespaces(ctx context.Context) ([]NamespaceInfo, error) {
+	nsList, err := c.clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list namespaces: %w", err)
+	}
+
+	result := make([]NamespaceInfo, 0, len(nsList.Items))
+	for _, ns := range nsList.Items {
+		info := NamespaceInfo{
+			Name:      ns.Name,
+			Labels:    ns.Labels,
+			CreatedAt: ns.CreationTimestamp.Format("2006-01-02T15:04:05Z"),
+		}
+		if ns.Labels != nil {
+			info.ContainerID = ns.Labels["container-id"]
+			info.UserID = ns.Labels["user-id"]
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
 // extractJSONField is a simple helper to extract a field value from JSON
 func extractJSONField(json, field string) string {
 	key := fmt.Sprintf(`"%s":"`, field)

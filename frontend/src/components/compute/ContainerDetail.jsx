@@ -130,16 +130,23 @@ export function ContainerDetail({
         </CardHeader>
         <CardContent className="space-y-6">
           {/* SSH Toggle */}
-          <div className="flex items-center justify-between p-4 bg-secondary rounded-md">
-            <div>
-              <span className="font-medium">SSH Access</span>
-              <p className="text-sm text-muted-foreground font-mono">Port 22</p>
+          <div className="p-4 bg-secondary rounded-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium">SSH Access</span>
+                <p className="text-sm text-muted-foreground font-mono">Port 22</p>
+              </div>
+              <Switch
+                checked={access.sshEnabled}
+                onCheckedChange={() => access.toggleSSH()}
+                disabled={access.savingSSH || !isRunning}
+              />
             </div>
-            <Switch
-              checked={access.sshEnabled}
-              onCheckedChange={() => access.toggleSSH()}
-              disabled={access.savingSSH || !isRunning}
-            />
+            {access.sshEnabled && container.ssh_command && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <CopyableText text={container.ssh_command} mono className="text-sm" />
+              </div>
+            )}
           </div>
 
           {/* HTTP Ingress Rules */}

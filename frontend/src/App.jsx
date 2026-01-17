@@ -22,6 +22,7 @@ function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/storage" replace />} />
               <Route path="/storage" element={<StoragePage />} />
+              <Route path="/storage/:namespace" element={<StoragePage />} />
               <Route path="/compute" element={<Navigate to="/compute/containers" replace />} />
               <Route path="/compute/containers" element={<ComputePage view="containers" />} />
               <Route path="/compute/containers/new" element={<ComputePage view="create" />} />

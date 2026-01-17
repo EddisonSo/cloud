@@ -1,6 +1,7 @@
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
+import { Select } from "@/components/ui/select";
 import { StatusDot } from "@/components/common";
 import { Progress } from "@/components/ui/progress";
 import { TAB_COPY } from "@/lib/constants";
@@ -11,7 +12,7 @@ import { formatBytes } from "@/lib/formatters";
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
-  const { health, loading, error, lastCheck } = useHealth(user, true);
+  const { health, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
@@ -104,6 +105,23 @@ export function HealthPage() {
         </Card>
       </div>
 
+      {/* Update Frequency */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm text-muted-foreground">Update frequency:</span>
+        <Select
+          value={updateFrequency}
+          onChange={(e) => setUpdateFrequency(Number(e.target.value))}
+          className="w-32"
+        >
+          <option value={0}>Real-time</option>
+          <option value={500}>0.5s</option>
+          <option value={1000}>1s</option>
+          <option value={5000}>5s</option>
+          <option value={30000}>30s</option>
+          <option value={60000}>1 min</option>
+        </Select>
+      </div>
+
       {/* Node Table */}
       <Card>
         <CardHeader>
@@ -114,10 +132,10 @@ export function HealthPage() {
             <div className="space-y-2">
               <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Node</div>
-                <div>Status</div>
-                <div>CPU</div>
-                <div>Memory</div>
-                <div>Disk</div>
+                <div className="text-center">Status</div>
+                <div className="text-center">CPU</div>
+                <div className="text-center">Memory</div>
+                <div className="text-right">Disk</div>
               </div>
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center">
@@ -140,10 +158,10 @@ export function HealthPage() {
               {/* Header */}
               <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Node</div>
-                <div>Status</div>
-                <div>CPU</div>
-                <div>Memory</div>
-                <div>Disk</div>
+                <div className="text-center">Status</div>
+                <div className="text-center">CPU</div>
+                <div className="text-center">Memory</div>
+                <div className="text-right">Disk</div>
               </div>
               {/* Rows */}
               {health.nodes.map((node, idx) => {
@@ -157,23 +175,23 @@ export function HealthPage() {
                     <div className="font-medium truncate" title={node.name}>
                       {node.name}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
                       <StatusDot status={isHealthy ? "ok" : "warning"} />
                       <span className="text-sm">{isHealthy ? "Healthy" : "Pressure"}</span>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-center">
                       <Progress value={node.cpu_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
                         {(node.cpu_percent || 0).toFixed(1)}%
                       </span>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-center">
                       <Progress value={node.memory_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
                         {(node.memory_percent || 0).toFixed(1)}%
                       </span>
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground text-right">
                       {formatBytes(node.disk_capacity || 0)}
                     </div>
                   </div>

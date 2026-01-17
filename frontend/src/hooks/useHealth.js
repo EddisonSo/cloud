@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { buildWsBase } from "@/lib/api";
 
 export function useHealth(user, enabled = false) {
@@ -6,14 +6,27 @@ export function useHealth(user, enabled = false) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastCheck, setLastCheck] = useState(null);
+  const [updateFrequency, setUpdateFrequency] = useState(0);
+
+  const latestDataRef = useRef(null);
 
   useEffect(() => {
     if (!user || !enabled) return;
 
     let ws = null;
     let reconnectTimeout = null;
+    let updateInterval = null;
+    let isCleaningUp = false;
+
+    const applyUpdate = () => {
+      if (latestDataRef.current) {
+        setHealth({ cluster_ok: true, nodes: latestDataRef.current.nodes || [] });
+        setLastCheck(new Date());
+      }
+    };
 
     const connect = () => {
+      if (isCleaningUp) return;
       setLoading(true);
       setError("");
 
@@ -27,8 +40,12 @@ export function useHealth(user, enabled = false) {
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
-          setLastCheck(new Date());
+          latestDataRef.current = payload;
+
+          if (updateFrequency === 0) {
+            setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
+            setLastCheck(new Date());
+          }
         } catch (err) {
           console.error("Failed to parse cluster info:", err);
         }
@@ -41,17 +58,25 @@ export function useHealth(user, enabled = false) {
 
       ws.onclose = () => {
         setLoading(false);
-        reconnectTimeout = setTimeout(connect, 5000);
+        if (!isCleaningUp) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
       };
     };
 
     connect();
 
+    if (updateFrequency > 0) {
+      updateInterval = setInterval(applyUpdate, updateFrequency);
+    }
+
     return () => {
+      isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (updateInterval) clearInterval(updateInterval);
       if (ws) ws.close();
     };
-  }, [user, enabled]);
+  }, [user, enabled, updateFrequency]);
 
-  return { health, loading, error, lastCheck };
+  return { health, loading, error, lastCheck, updateFrequency, setUpdateFrequency };
 }

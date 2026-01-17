@@ -26,8 +26,8 @@ export function FileList({
       {/* Header */}
       <div className="grid grid-cols-[1fr_100px_120px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div>Name</div>
-        <div>Size</div>
-        <div>Modified</div>
+        <div className="text-center">Size</div>
+        <div className="text-center">Modified</div>
         <div className="text-right">Actions</div>
       </div>
       {/* Rows */}
@@ -43,8 +43,8 @@ export function FileList({
             <div className="min-w-0">
               <span className="font-medium truncate block">{file.name}</span>
             </div>
-            <div className="text-sm text-muted-foreground">{formatBytes(file.size)}</div>
-            <div className="text-sm text-muted-foreground">{formatTimestamp(file.modified)}</div>
+            <div className="text-sm text-muted-foreground text-center">{formatBytes(file.size)}</div>
+            <div className="text-sm text-muted-foreground text-center">{formatTimestamp(file.modified)}</div>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="ghost"
