@@ -138,9 +138,9 @@ export function ContainerDetail({
             />
           </div>
 
-          {/* Ingress Rules */}
+          {/* HTTP Ingress Rules */}
           <div>
-            <h4 className="text-sm font-semibold mb-3">Ingress Rules</h4>
+            <h4 className="text-sm font-semibold mb-3">HTTP Ingress Rules</h4>
             <p className="text-xs text-muted-foreground mb-3">
               Expose ports to the internet via the external IP.
             </p>
