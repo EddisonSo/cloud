@@ -471,6 +471,10 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	container.Status = "pending"
 	// Broadcast pending status via WebSocket
 	GetHub().SendContainerStatus(container.UserID, container.ID, "pending", nil)
+
+	// Poll for container to become ready
+	go h.pollContainerReady(container)
+
 	writeJSON(w, containerToResponse(container))
 }
 
