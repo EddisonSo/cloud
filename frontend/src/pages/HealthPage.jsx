@@ -1,6 +1,7 @@
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge, StatusDot } from "@/components/common";
+import { StatusDot } from "@/components/common";
+import { Progress } from "@/components/ui/progress";
 import { TAB_COPY } from "@/lib/constants";
 import { useHealth } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,8 +12,26 @@ export function HealthPage() {
   const { user } = useAuth();
   const { health, loading, error, lastCheck } = useHealth(user, true);
 
-  const healthyNodes = health.nodes.filter((n) => n.status === "ok").length;
   const totalNodes = health.nodes.length;
+  const healthyNodes = health.nodes.filter((n) => {
+    const conditions = n.conditions || [];
+    return conditions.every((c) => c.status === "False");
+  }).length;
+
+  const totalDisk = health.nodes.reduce((sum, n) => sum + (n.disk_capacity || 0), 0);
+  const totalMemory = health.nodes.reduce((sum, n) => {
+    const cap = n.memory_capacity || "0";
+    return sum + parseKiBytes(cap);
+  }, 0);
+
+  function parseKiBytes(str) {
+    if (!str) return 0;
+    const num = parseInt(str.replace(/[^0-9]/g, ""), 10);
+    if (str.includes("Ki")) return num * 1024;
+    if (str.includes("Mi")) return num * 1024 * 1024;
+    if (str.includes("Gi")) return num * 1024 * 1024 * 1024;
+    return num;
+  }
 
   return (
     <div>
@@ -46,10 +65,10 @@ export function HealthPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
-              Total Storage
+              Total Memory
             </p>
             <span className="text-2xl font-semibold">
-              {formatBytes(health.nodes.reduce((sum, n) => sum + (n.total_space || 0), 0))}
+              {formatBytes(totalMemory)}
             </span>
           </CardContent>
         </Card>
@@ -76,40 +95,53 @@ export function HealthPage() {
           ) : error ? (
             <p className="text-destructive py-8 text-center">{error}</p>
           ) : health.nodes.length === 0 ? (
-            <p className="text-muted-foreground py-8 text-center">No nodes found</p>
+            <p className="text-muted-foreground py-8 text-center">
+              {user ? "No nodes found" : "Log in to view cluster health"}
+            </p>
           ) : (
             <div className="space-y-2">
               {/* Header */}
               <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Node</div>
                 <div>Status</div>
-                <div>Used Space</div>
-                <div>Free Space</div>
-                <div>Chunks</div>
+                <div>CPU</div>
+                <div>Memory</div>
+                <div>Disk</div>
               </div>
               {/* Rows */}
-              {health.nodes.map((node, idx) => (
-                <div
-                  key={node.address || idx}
-                  className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
-                >
-                  <div className="font-medium truncate" title={node.address}>
-                    {node.address}
+              {health.nodes.map((node, idx) => {
+                const conditions = node.conditions || [];
+                const isHealthy = conditions.every((c) => c.status === "False");
+                return (
+                  <div
+                    key={node.name || idx}
+                    className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                  >
+                    <div className="font-medium truncate" title={node.name}>
+                      {node.name}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusDot status={isHealthy ? "ok" : "warning"} />
+                      <span className="text-sm">{isHealthy ? "Healthy" : "Pressure"}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Progress value={node.cpu_percent || 0} className="h-2" />
+                      <span className="text-xs text-muted-foreground">
+                        {(node.cpu_percent || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <Progress value={node.memory_percent || 0} className="h-2" />
+                      <span className="text-xs text-muted-foreground">
+                        {(node.memory_percent || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formatBytes(node.disk_capacity || 0)}
+                    </div>
                   </div>
-                  <div>
-                    <StatusBadge status={node.status} />
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {formatBytes(node.used_space)}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {formatBytes(node.free_space)}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {node.chunk_count?.toLocaleString() || 0}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
