@@ -28,11 +28,11 @@ export function ContainerList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
         <div className="flex-1 min-w-0">Container</div>
         <div className="w-20">Status</div>
         <div className="flex-1 min-w-0">Hostname</div>
-        <div className="w-32 text-center">Actions</div>
+        <div className="w-32">Actions</div>
       </div>
       {/* Rows */}
       {containers.map((container) => {
@@ -43,7 +43,7 @@ export function ContainerList({
         return (
           <div
             key={container.id}
-            className="flex gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
+            className="flex gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80 text-center"
             onClick={() => onSelect?.(container)}
           >
             <div className="flex-1 min-w-0">
