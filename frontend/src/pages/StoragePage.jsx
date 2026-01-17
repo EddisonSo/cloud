@@ -284,7 +284,7 @@ export function StoragePage() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Delete Namespace"
-        description={`Are you sure you want to delete "${deleteTarget}"? This will delete all files in this namespace.`}
+        description={<>Are you sure you want to delete <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{deleteTarget}</code>? This will delete all files in this namespace.</>}
       >
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
