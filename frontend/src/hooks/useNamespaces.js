@@ -1,19 +1,29 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { buildApiBase } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
+import { registerCacheClear } from "@/lib/cache";
+
+// Module-level cache that persists across component mounts
+let cachedNamespaces = null;
+let namespacesLoaded = false;
+
+// Register cache clear function
+registerCacheClear(() => {
+  cachedNamespaces = null;
+  namespacesLoaded = false;
+});
 
 export function useNamespaces() {
-  const [namespaces, setNamespaces] = useState([]);
+  const [namespaces, setNamespaces] = useState(cachedNamespaces || []);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [loading, setLoading] = useState(false);
-  const loadedRef = useRef(false);
 
   const normalizeNamespace = (value) => (value && value.trim() ? value.trim() : DEFAULT_NAMESPACE);
 
   const loadNamespaces = useCallback(async (forceRefresh = false) => {
     // Skip if already loaded and not forcing refresh
-    if (loadedRef.current && !forceRefresh) {
-      return namespaces;
+    if (namespacesLoaded && !forceRefresh) {
+      return cachedNamespaces;
     }
     try {
       setLoading(true);
@@ -30,7 +40,8 @@ export function useNamespaces() {
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
-      loadedRef.current = true;
+      cachedNamespaces = sorted;
+      namespacesLoaded = true;
       return sorted;
     } catch (err) {
       console.warn(err.message);
@@ -38,7 +49,7 @@ export function useNamespaces() {
     } finally {
       setLoading(false);
     }
-  }, [namespaces]);
+  }, []);
 
   const createNamespace = useCallback(async (name, hidden = false) => {
     const normalizedName = normalizeNamespace(name);

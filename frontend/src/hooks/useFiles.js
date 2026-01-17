@@ -1,6 +1,15 @@
 import { useState, useCallback, useRef } from "react";
 import { buildApiBase, buildWsUrl, createTransferId, waitForSocket } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
+import { registerCacheClear } from "@/lib/cache";
+
+// Module-level cache that persists across component mounts
+const filesCache = {};  // { namespace: files[] }
+
+// Register cache clear function
+registerCacheClear(() => {
+  Object.keys(filesCache).forEach((key) => delete filesCache[key]);
+});
 
 export function useFiles() {
   const [files, setFiles] = useState([]);
@@ -12,13 +21,18 @@ export function useFiles() {
   const [status, setStatus] = useState("");
   const fileInputRef = useRef(null);
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
-  const loadedNamespaceRef = useRef(null);
+  const currentNamespaceRef = useRef(null);
 
   const loadFiles = useCallback(async (namespace, forceRefresh = false) => {
     const selectedNamespace = namespace || DEFAULT_NAMESPACE;
     // Skip if already loaded for this namespace and not forcing refresh
-    if (loadedNamespaceRef.current === selectedNamespace && !forceRefresh) {
-      return files;
+    if (filesCache[selectedNamespace] && !forceRefresh) {
+      // If switching namespaces, update state from cache
+      if (currentNamespaceRef.current !== selectedNamespace) {
+        setFiles(filesCache[selectedNamespace]);
+        currentNamespaceRef.current = selectedNamespace;
+      }
+      return filesCache[selectedNamespace];
     }
     try {
       setLoading(true);
@@ -29,7 +43,8 @@ export function useFiles() {
       if (!response.ok) throw new Error("Failed to load files");
       const payload = await response.json();
       setFiles(payload);
-      loadedNamespaceRef.current = selectedNamespace;
+      filesCache[selectedNamespace] = payload;
+      currentNamespaceRef.current = selectedNamespace;
       return payload;
     } catch (err) {
       setStatus(err.message);
@@ -37,10 +52,14 @@ export function useFiles() {
     } finally {
       setLoading(false);
     }
-  }, [files]);
+  }, []);
 
-  const clearFilesCache = useCallback(() => {
-    loadedNamespaceRef.current = null;
+  const clearFilesCache = useCallback((namespace) => {
+    if (namespace) {
+      delete filesCache[namespace];
+    } else {
+      Object.keys(filesCache).forEach(key => delete filesCache[key]);
+    }
   }, []);
 
   const uploadFile = useCallback(async (namespace, onComplete) => {

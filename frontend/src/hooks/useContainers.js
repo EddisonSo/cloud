@@ -1,17 +1,27 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { buildApiBase, buildWsBase } from "@/lib/api";
+import { registerCacheClear } from "@/lib/cache";
+
+// Module-level cache that persists across component mounts
+let cachedContainers = null;
+let containersLoaded = false;
+
+// Register cache clear function
+registerCacheClear(() => {
+  cachedContainers = null;
+  containersLoaded = false;
+});
 
 export function useContainers(user) {
-  const [containers, setContainers] = useState([]);
+  const [containers, setContainers] = useState(cachedContainers || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actions, setActions] = useState({});
-  const loadedRef = useRef(false);
 
   const loadContainers = useCallback(async (forceRefresh = false) => {
     // Skip if already loaded and not forcing refresh
-    if (loadedRef.current && !forceRefresh) {
-      return containers;
+    if (containersLoaded && !forceRefresh) {
+      return cachedContainers;
     }
     try {
       setLoading(true);
@@ -27,16 +37,18 @@ export function useContainers(user) {
         throw new Error("Failed to load containers");
       }
       const payload = await response.json();
-      setContainers(payload.containers || []);
-      loadedRef.current = true;
-      return payload.containers || [];
+      const list = payload.containers || [];
+      setContainers(list);
+      cachedContainers = list;
+      containersLoaded = true;
+      return list;
     } catch (err) {
       setError(err.message);
       return [];
     } finally {
       setLoading(false);
     }
-  }, [containers]);
+  }, []);
 
   const createContainer = useCallback(async (data) => {
     const response = await fetch(`${buildApiBase()}/compute/containers`, {
@@ -89,16 +101,21 @@ export function useContainers(user) {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "containers") {
-            setContainers(msg.data || []);
+            const list = msg.data || [];
+            setContainers(list);
+            cachedContainers = list;
+            containersLoaded = true;
           } else if (msg.type === "container_status") {
             const update = msg.data;
-            setContainers((prev) =>
-              prev.map((c) =>
+            setContainers((prev) => {
+              const updated = prev.map((c) =>
                 c.id === update.container_id
                   ? { ...c, status: update.status, external_ip: update.external_ip || c.external_ip }
                   : c
-              )
-            );
+              );
+              cachedContainers = updated;
+              return updated;
+            });
           }
         } catch (err) {
           console.error("Failed to parse compute WebSocket message:", err);

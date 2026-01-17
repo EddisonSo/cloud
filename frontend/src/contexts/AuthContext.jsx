@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { buildApiBase } from "@/lib/api";
+import { clearAllCaches } from "@/lib/cache";
 
 const AuthContext = createContext();
 
@@ -64,6 +65,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setDisplayName(null);
     setIsAdmin(false);
+    clearAllCaches();
   };
 
   const value = {

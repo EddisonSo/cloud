@@ -1,16 +1,26 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { buildApiBase } from "@/lib/api";
+import { registerCacheClear } from "@/lib/cache";
+
+// Module-level cache that persists across component mounts
+let cachedSshKeys = null;
+let sshKeysLoaded = false;
+
+// Register cache clear function
+registerCacheClear(() => {
+  cachedSshKeys = null;
+  sshKeysLoaded = false;
+});
 
 export function useSshKeys() {
-  const [sshKeys, setSshKeys] = useState([]);
+  const [sshKeys, setSshKeys] = useState(cachedSshKeys || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const loadedRef = useRef(false);
 
   const loadSshKeys = useCallback(async (forceRefresh = false) => {
     // Skip if already loaded and not forcing refresh
-    if (loadedRef.current && !forceRefresh) {
-      return sshKeys;
+    if (sshKeysLoaded && !forceRefresh) {
+      return cachedSshKeys;
     }
     try {
       setLoading(true);
@@ -19,16 +29,18 @@ export function useSshKeys() {
       });
       if (!response.ok) return [];
       const payload = await response.json();
-      setSshKeys(payload.ssh_keys || []);
-      loadedRef.current = true;
-      return payload.ssh_keys || [];
+      const list = payload.ssh_keys || [];
+      setSshKeys(list);
+      cachedSshKeys = list;
+      sshKeysLoaded = true;
+      return list;
     } catch (err) {
       console.warn("Failed to load SSH keys:", err.message);
       return [];
     } finally {
       setLoading(false);
     }
-  }, [sshKeys]);
+  }, []);
 
   const addSshKey = useCallback(async (name, publicKey) => {
     const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
