@@ -1,6 +1,6 @@
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/common";
 import { Progress } from "@/components/ui/progress";
 import { TAB_COPY } from "@/lib/constants";
@@ -46,7 +46,10 @@ export function HealthPage() {
               Cluster Status
             </p>
             {loading ? (
-              <Skeleton className="h-8 w-24" />
+              <div className="flex items-center gap-2">
+                <StatusDot status="ok" />
+                <TextSkeleton text="Healthy" className="text-2xl font-semibold" />
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <StatusDot status={health.cluster_ok ? "ok" : "down"} />
@@ -63,7 +66,7 @@ export function HealthPage() {
               Nodes Online
             </p>
             {loading ? (
-              <Skeleton className="h-8 w-16" />
+              <TextSkeleton text="0 / 0" className="text-2xl font-semibold" />
             ) : (
               <span className="text-2xl font-semibold">
                 {healthyNodes} / {totalNodes}
@@ -77,7 +80,7 @@ export function HealthPage() {
               Total Memory
             </p>
             {loading ? (
-              <Skeleton className="h-8 w-20" />
+              <TextSkeleton text="0.00 GB" className="text-2xl font-semibold" />
             ) : (
               <span className="text-2xl font-semibold truncate block">
                 {formatBytes(totalMemory)}
@@ -91,7 +94,7 @@ export function HealthPage() {
               Last Updated
             </p>
             {loading ? (
-              <Skeleton className="h-7 w-24" />
+              <TextSkeleton text="00:00:00" className="text-lg font-medium text-muted-foreground" />
             ) : (
               <span className="text-lg font-medium text-muted-foreground truncate block">
                 {lastCheck ? lastCheck.toLocaleTimeString() : "—"}

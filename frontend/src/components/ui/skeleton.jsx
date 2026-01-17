@@ -12,4 +12,23 @@ function Skeleton({ className, ...props }) {
   );
 }
 
-export { Skeleton };
+function TextSkeleton({
+  text = "00",
+  className,
+  ...props
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-block select-none blur-[6px] opacity-60 animate-pulse",
+        className
+      )}
+      aria-hidden="true"
+      {...props}
+    >
+      {text}
+    </span>
+  );
+}
+
+export { Skeleton, TextSkeleton };

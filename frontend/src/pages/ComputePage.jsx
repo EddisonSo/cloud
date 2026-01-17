@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TextSkeleton } from "@/components/ui/skeleton";
 import {
   ContainerList,
   CreateContainerForm,
@@ -191,7 +191,7 @@ export function ComputePage({ view: routeView = "containers" }) {
                 Total Keys
               </p>
               {sshKeysLoading ? (
-                <Skeleton className="h-8 w-8" />
+                <TextSkeleton text="0" className="text-2xl font-semibold" />
               ) : (
                 <span className="text-2xl font-semibold">{sshKeys.length}</span>
               )}
@@ -203,7 +203,7 @@ export function ComputePage({ view: routeView = "containers" }) {
                 Containers
               </p>
               {containersLoading ? (
-                <Skeleton className="h-8 w-8" />
+                <TextSkeleton text="0" className="text-2xl font-semibold" />
               ) : (
                 <span className="text-2xl font-semibold">{containers.length}</span>
               )}
@@ -241,7 +241,7 @@ export function ComputePage({ view: routeView = "containers" }) {
               Total Containers
             </p>
             {containersLoading ? (
-              <Skeleton className="h-8 w-8" />
+              <TextSkeleton text="0" className="text-2xl font-semibold" />
             ) : (
               <span className="text-2xl font-semibold">{containers.length}</span>
             )}
@@ -253,7 +253,7 @@ export function ComputePage({ view: routeView = "containers" }) {
               Running
             </p>
             {containersLoading ? (
-              <Skeleton className="h-8 w-8" />
+              <TextSkeleton text="0" className="text-2xl font-semibold text-green-400" />
             ) : (
               <span className="text-2xl font-semibold text-green-400">{runningCount}</span>
             )}
@@ -265,7 +265,7 @@ export function ComputePage({ view: routeView = "containers" }) {
               SSH Keys
             </p>
             {sshKeysLoading ? (
-              <Skeleton className="h-8 w-8" />
+              <TextSkeleton text="0" className="text-2xl font-semibold" />
             ) : (
               <span className="text-2xl font-semibold">{sshKeys.length}</span>
             )}
