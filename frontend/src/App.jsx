@@ -1801,7 +1801,7 @@ function App() {
                     </button>
                   </div>
 
-                  {computeView === "containers" && (
+                  {computeView === "containers" && !accessContainer && (
                     <section className="panel">
                       <div className="panel-header">
                         <div>
@@ -1838,7 +1838,7 @@ function App() {
                             selector: row => row.id,
                             width: '90px',
                             cell: row => (
-                              <code className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</code>
+                              <code className="clickable-id" onClick={(e) => { e.stopPropagation(); copyToClipboard(row.id); }} title="Click to copy full ID">{row.id.slice(0, 8)}</code>
                             ),
                           },
                           {
@@ -1859,7 +1859,7 @@ function App() {
                             selector: row => row.external_ip,
                             width: '130px',
                             cell: row => row.external_ip ? (
-                              <code className="clickable" onClick={() => copyToClipboard(row.external_ip)} title="Click to copy">{row.external_ip}</code>
+                              <code className="clickable" onClick={(e) => { e.stopPropagation(); copyToClipboard(row.external_ip); }} title="Click to copy">{row.external_ip}</code>
                             ) : <span className="muted">Pending...</span>,
                           },
                           {
@@ -1876,40 +1876,14 @@ function App() {
                               ? `${row.storage_used_gb}/${row.storage_gb} GB`
                               : `${row.storage_gb} GB`,
                           },
-                          {
-                            name: 'Actions',
-                            minWidth: '220px',
-                            right: true,
-                            cell: row => (
-                              <div className="table-actions">
-                                {row.status === "running" && row.external_ip && (
-                                  <>
-                                    <button type="button" className="terminal-btn" onClick={() => openTerminal(row)}>Terminal</button>
-                                    <button type="button" className="ghost" onClick={() => openAccess(row)}>Access</button>
-                                  </>
-                                )}
-                                {row.status === "running" && (
-                                  <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "stopping")}>
-                                    {containerActions[row.id] === "stopping" ? "..." : "Stop"}
-                                  </button>
-                                )}
-                                {row.status === "stopped" && (
-                                  <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "starting")}>
-                                    {containerActions[row.id] === "starting" ? "..." : "Start"}
-                                  </button>
-                                )}
-                                <button type="button" className="danger" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "deleting")}>
-                                  {containerActions[row.id] === "deleting" ? "..." : "Delete"}
-                                </button>
-                              </div>
-                            ),
-                          },
                         ]}
                         data={containers}
                         theme="cloudshare"
                         customStyles={tableStyles}
                         noDataComponent={<p className="table-empty">{containersLoading ? "Loading containers..." : "No containers yet. Create one to get started."}</p>}
                         highlightOnHover
+                        pointerOnHover
+                        onRowClicked={(row) => openAccess(row)}
                         dense
                       />
                       {containers.length > 0 && containers.some((c) => c.external_ip) && (
@@ -1919,6 +1893,171 @@ function App() {
                           </p>
                         </div>
                       )}
+                    </section>
+                  )}
+
+                  {/* Container Detail Page */}
+                  {computeView === "containers" && accessContainer && (
+                    <section className="panel container-detail-page">
+                      <div className="panel-header">
+                        <div className="breadcrumb-header">
+                          <button type="button" className="back-btn" onClick={closeAccess}>
+                            <span className="back-arrow">&larr;</span> Containers
+                          </button>
+                          <h2>{accessContainer.name}</h2>
+                          <span className={`status-badge ${accessContainer.status}`}>{accessContainer.status}</span>
+                        </div>
+                        <div className="panel-actions">
+                          {accessContainer.status === "running" && accessContainer.external_ip && (
+                            <button type="button" className="terminal-btn" onClick={() => openTerminal(accessContainer)}>
+                              Terminal
+                            </button>
+                          )}
+                          {accessContainer.status === "running" && (
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={containerActions[accessContainer.id]}
+                              onClick={() => handleContainerAction(accessContainer.id, "stopping")}
+                            >
+                              {containerActions[accessContainer.id] === "stopping" ? "Stopping..." : "Stop"}
+                            </button>
+                          )}
+                          {accessContainer.status === "stopped" && (
+                            <button
+                              type="button"
+                              disabled={containerActions[accessContainer.id]}
+                              onClick={() => handleContainerAction(accessContainer.id, "starting")}
+                            >
+                              {containerActions[accessContainer.id] === "starting" ? "Starting..." : "Start"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={containerActions[accessContainer.id]}
+                            onClick={() => { handleContainerAction(accessContainer.id, "deleting"); closeAccess(); }}
+                          >
+                            {containerActions[accessContainer.id] === "deleting" ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Container Info */}
+                      <div className="detail-section">
+                        <h3>Overview</h3>
+                        <div className="detail-grid">
+                          <div className="detail-item">
+                            <span className="detail-label">Container ID</span>
+                            <code className="clickable-id" onClick={() => copyToClipboard(accessContainer.id)} title="Click to copy">{accessContainer.id}</code>
+                          </div>
+                          <div className="detail-item">
+                            <span className="detail-label">IP Address</span>
+                            {accessContainer.external_ip ? (
+                              <code className="clickable" onClick={() => copyToClipboard(accessContainer.external_ip)} title="Click to copy">{accessContainer.external_ip}</code>
+                            ) : <span className="muted">Pending...</span>}
+                          </div>
+                          <div className="detail-item">
+                            <span className="detail-label">Memory</span>
+                            <span>
+                              {accessContainer.memory_used_mb !== undefined
+                                ? `${accessContainer.memory_used_mb} / ${accessContainer.memory_mb} MB`
+                                : `${accessContainer.memory_mb} MB`}
+                            </span>
+                          </div>
+                          <div className="detail-item">
+                            <span className="detail-label">Disk</span>
+                            <span>
+                              {accessContainer.storage_used_gb !== undefined
+                                ? `${accessContainer.storage_used_gb} / ${accessContainer.storage_gb} GB`
+                                : `${accessContainer.storage_gb} GB`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SSH Access */}
+                      <div className="detail-section">
+                        <h3>SSH Access</h3>
+                        {accessLoading ? (
+                          <p className="loading">Loading...</p>
+                        ) : (
+                          <div className="protocol-row">
+                            <div className="protocol-info">
+                              <strong>Enable SSH</strong>
+                              <span className="protocol-desc">ssh {accessContainer.id}@cloud.eddisonso.com</span>
+                            </div>
+                            <label className="toggle-switch">
+                              <input
+                                type="checkbox"
+                                checked={sshEnabled}
+                                onChange={toggleSSH}
+                                disabled={savingSSH}
+                              />
+                              <span className="toggle-slider"></span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Ingress Rules */}
+                      <div className="detail-section">
+                        <h3>Ingress Rules</h3>
+                        <p className="section-desc">Route ingress ports (80, 443, 8000-8999) to target ports</p>
+                        {accessLoading ? (
+                          <p className="loading">Loading...</p>
+                        ) : (
+                          <>
+                            <form className="add-port-form" onSubmit={addIngressRule}>
+                              <input
+                                type="number"
+                                placeholder="Ingress"
+                                value={newPort}
+                                onChange={(e) => setNewPort(e.target.value)}
+                                disabled={addingRule}
+                                min="1"
+                                max="65535"
+                              />
+                              <span className="port-arrow">:</span>
+                              <input
+                                type="number"
+                                placeholder="Target"
+                                value={newTargetPort}
+                                onChange={(e) => setNewTargetPort(e.target.value)}
+                                disabled={addingRule}
+                                min="1"
+                                max="65535"
+                              />
+                              <button type="submit" disabled={addingRule || !newPort}>
+                                {addingRule ? "Adding..." : "Add"}
+                              </button>
+                            </form>
+                            <div className="ingress-rules-list">
+                              {ingressRules.length === 0 ? (
+                                <p className="empty">No ports open. Add a rule to allow external access.</p>
+                              ) : (
+                                ingressRules.map((rule) => (
+                                  <div className="ingress-rule-row" key={rule.id}>
+                                    <div className="rule-info">
+                                      <strong>{rule.port}:{rule.target_port || rule.port}</strong>
+                                      <span className="rule-label">
+                                        {rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : "TCP"}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="ghost danger-text"
+                                      onClick={() => removeIngressRule(rule.port)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </section>
                   )}
 
@@ -2528,106 +2667,6 @@ function App() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-      {accessContainer && (
-        <div
-          className="modal-overlay"
-          onClick={closeAccess}
-          role="presentation"
-        >
-          <div
-            className="modal modal-lg"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="access-title"
-          >
-            <h3 id="access-title">Access Control - {accessContainer.name}</h3>
-            <p className="modal-desc">
-              Control SSH and port access. Cloud Terminal always works via internal connection.
-            </p>
-            {accessLoading ? (
-              <p className="loading">Loading access settings...</p>
-            ) : (
-              <>
-                <div className="access-section">
-                  <h4>SSH Access</h4>
-                  <div className="protocol-row">
-                    <div className="protocol-info">
-                      <strong>Enable SSH</strong>
-                      <span className="protocol-desc">ssh {accessContainer.id}@cloud.eddisonso.com</span>
-                    </div>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={sshEnabled}
-                        onChange={toggleSSH}
-                        disabled={savingSSH}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                  </div>
-                </div>
-                <div className="access-section">
-                  <h4>Ingress Rules</h4>
-                  <p className="section-desc">Route ingress ports (80, 443, 8000-8999) to target ports</p>
-                  <form className="add-port-form" onSubmit={addIngressRule}>
-                    <input
-                      type="number"
-                      placeholder="Ingress"
-                      value={newPort}
-                      onChange={(e) => setNewPort(e.target.value)}
-                      disabled={addingRule}
-                      min="1"
-                      max="65535"
-                    />
-                    <span className="port-arrow">:</span>
-                    <input
-                      type="number"
-                      placeholder="Target"
-                      value={newTargetPort}
-                      onChange={(e) => setNewTargetPort(e.target.value)}
-                      disabled={addingRule}
-                      min="1"
-                      max="65535"
-                    />
-                    <button type="submit" disabled={addingRule || !newPort}>
-                      {addingRule ? "Adding..." : "Add"}
-                    </button>
-                  </form>
-                  <div className="ingress-rules-list">
-                    {ingressRules.length === 0 ? (
-                      <p className="empty">No ports open. Add a rule to allow external access.</p>
-                    ) : (
-                      ingressRules.map((rule) => (
-                        <div className="ingress-rule-row" key={rule.id}>
-                          <div className="rule-info">
-                            <strong>{rule.port}:{rule.target_port || rule.port}</strong>
-                            <span className="rule-label">
-                              {rule.port === 80 ? "HTTP" : rule.port === 443 ? "HTTPS" : "TCP"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            className="ghost danger-text"
-                            onClick={() => removeIngressRule(rule.port)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-            <div className="modal-actions">
-              <button type="button" onClick={closeAccess}>
-                Done
-              </button>
-            </div>
           </div>
         </div>
       )}

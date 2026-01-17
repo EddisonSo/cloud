@@ -1820,6 +1820,88 @@ button:not(:disabled):hover {
   cursor: not-allowed;
 }
 
+/* Container detail page */
+.container-detail-page .breadcrumb-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.container-detail-page .breadcrumb-header h2 {
+  margin: 0;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.back-btn:hover {
+  background: var(--card);
+  color: var(--ink);
+  border-color: rgba(15, 23, 42, 0.15);
+}
+
+.back-arrow {
+  font-size: 1.1em;
+}
+
+.detail-section {
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.detail-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.detail-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.detail-item code {
+  font-size: 0.9rem;
+}
+
+.detail-item span:not(.detail-label) {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
 /* Access control sections */
 .access-section {
   margin-bottom: 24px;
