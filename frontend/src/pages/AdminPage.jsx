@@ -204,17 +204,17 @@ export function AdminPage() {
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
               <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>ID</div>
+                <div className="text-center">ID</div>
                 <div className="text-center">Display Name</div>
                 <div className="text-center">Username</div>
-                <div className="text-right">Actions</div>
+                <div className="text-center">Actions</div>
               </div>
               {users.map((u) => (
                 <div
                   key={u.id}
                   className="flex flex-col sm:grid sm:grid-cols-4 gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
-                  <div className="flex justify-between sm:block">
+                  <div className="flex justify-between sm:justify-center">
                     <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
                     <CopyableText text={String(u.id)} mono />
                   </div>
@@ -226,7 +226,7 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground sm:hidden">Username:</span>
                     <span className="text-muted-foreground truncate">{u.username}</span>
                   </div>
-                  <div className="flex justify-end">
+                  <div className="flex justify-center">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -257,18 +257,18 @@ export function AdminPage() {
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
               <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>ID</div>
+                <div className="text-center">ID</div>
                 <div className="text-center">Name</div>
                 <div className="text-center">Owner</div>
                 <div className="text-center">Status</div>
-                <div className="text-right">Hostname</div>
+                <div className="text-center">Hostname</div>
               </div>
               {containers.map((c) => (
                 <div
                   key={c.id}
                   className="flex flex-col lg:grid lg:grid-cols-5 gap-2 lg:gap-4 px-4 py-3 bg-secondary rounded-md lg:items-center"
                 >
-                  <div className="flex justify-between lg:block">
+                  <div className="flex justify-between lg:justify-center">
                     <span className="text-xs text-muted-foreground lg:hidden">ID:</span>
                     <CopyableText text={c.id.slice(0, 8)} mono />
                   </div>
@@ -284,7 +284,7 @@ export function AdminPage() {
                     <span className="text-xs text-muted-foreground lg:hidden">Status:</span>
                     <StatusBadge status={c.status} />
                   </div>
-                  <div className="flex justify-between lg:block lg:text-right min-w-0">
+                  <div className="flex justify-between lg:block lg:text-center min-w-0">
                     <span className="text-xs text-muted-foreground lg:hidden">Hostname:</span>
                     <span className="text-sm text-muted-foreground font-mono truncate">
                       {c.hostname || "—"}
@@ -311,17 +311,17 @@ export function AdminPage() {
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
               <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Name</div>
+                <div className="text-center">Name</div>
                 <div className="text-center">Files</div>
                 <div className="text-center">Visibility</div>
-                <div className="text-right">Owner ID</div>
+                <div className="text-center">Owner ID</div>
               </div>
               {namespaces.map((ns) => (
                 <div
                   key={ns.name}
                   className="flex flex-col sm:grid sm:grid-cols-4 gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
-                  <div className="flex justify-between sm:block min-w-0">
+                  <div className="flex justify-between sm:block sm:text-center min-w-0">
                     <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
                     <span className="font-medium truncate">{ns.name}</span>
                   </div>
@@ -345,7 +345,7 @@ export function AdminPage() {
                       )}
                     </span>
                   </div>
-                  <div className="flex justify-between sm:block sm:text-right min-w-0">
+                  <div className="flex justify-between sm:block sm:text-center min-w-0">
                     <span className="text-xs text-muted-foreground sm:hidden">Owner:</span>
                     <span className="text-sm text-muted-foreground">
                       {ns.owner_id != null ? ns.owner_id : "System"}

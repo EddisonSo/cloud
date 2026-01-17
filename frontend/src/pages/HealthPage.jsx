@@ -131,11 +131,11 @@ export function HealthPage() {
           {loading ? (
             <div className="space-y-2">
               <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Node</div>
+                <div className="text-center">Node</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">CPU</div>
                 <div className="text-center">Memory</div>
-                <div className="text-right">Disk</div>
+                <div className="text-center">Disk</div>
               </div>
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center">
@@ -157,11 +157,11 @@ export function HealthPage() {
             <div className="space-y-2">
               {/* Header */}
               <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Node</div>
+                <div className="text-center">Node</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">CPU</div>
                 <div className="text-center">Memory</div>
-                <div className="text-right">Disk</div>
+                <div className="text-center">Disk</div>
               </div>
               {/* Rows */}
               {health.nodes.map((node, idx) => {
@@ -172,7 +172,7 @@ export function HealthPage() {
                     key={node.name || idx}
                     className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
                   >
-                    <div className="font-medium truncate" title={node.name}>
+                    <div className="font-medium truncate text-center" title={node.name}>
                       {node.name}
                     </div>
                     <div className="flex items-center justify-center gap-2">
@@ -191,7 +191,7 @@ export function HealthPage() {
                         {(node.memory_percent || 0).toFixed(1)}%
                       </span>
                     </div>
-                    <div className="text-sm text-muted-foreground text-right">
+                    <div className="text-sm text-muted-foreground text-center">
                       {formatBytes(node.disk_capacity || 0)}
                     </div>
                   </div>

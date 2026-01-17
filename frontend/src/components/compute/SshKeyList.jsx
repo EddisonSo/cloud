@@ -94,9 +94,9 @@ export function SshKeyList({
         <div className="space-y-2">
           {/* Header */}
           <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <div className="w-32">Name</div>
+            <div className="w-32 text-center">Name</div>
             <div className="flex-1 min-w-0 text-center">Public Key</div>
-            <div className="w-20 text-right">Actions</div>
+            <div className="w-20 text-center">Actions</div>
           </div>
           {/* Rows */}
           {sshKeys.map((key) => (
@@ -104,7 +104,7 @@ export function SshKeyList({
               key={key.id}
               className="flex items-center gap-4 px-4 py-3 bg-secondary rounded-md"
             >
-              <div className="w-32">
+              <div className="w-32 text-center">
                 <span className="font-medium truncate block">{key.name}</span>
               </div>
               <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
@@ -121,7 +121,7 @@ export function SshKeyList({
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
               </div>
-              <div className="w-20 flex justify-end">
+              <div className="w-20 flex justify-center">
                 <Button
                   variant="ghost"
                   size="icon"

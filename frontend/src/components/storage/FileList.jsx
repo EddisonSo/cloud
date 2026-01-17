@@ -32,11 +32,11 @@ export function FileList({
     <div className="space-y-2">
       {/* Header */}
       <div className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <div>Name</div>
+        <div className="text-center">Name</div>
         <div className="text-center">Link</div>
         <div className="text-center">Size</div>
         <div className="text-center">Modified</div>
-        <div className="text-right">Actions</div>
+        <div className="text-center">Actions</div>
       </div>
       {/* Rows */}
       {files.map((file) => {
@@ -49,7 +49,7 @@ export function FileList({
             key={fileKey}
             className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
           >
-            <div className="min-w-0">
+            <div className="min-w-0 text-center">
               <span className="font-medium truncate block">{file.name}</span>
             </div>
             <div className="flex justify-center min-w-0">
@@ -57,7 +57,7 @@ export function FileList({
             </div>
             <div className="text-sm text-muted-foreground text-center">{formatBytes(file.size)}</div>
             <div className="text-sm text-muted-foreground text-center">{formatTimestamp(file.modified)}</div>
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-center">
               <Button
                 variant="ghost"
                 size="sm"
