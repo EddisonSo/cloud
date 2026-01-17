@@ -836,9 +836,10 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	namespace := r.PathValue("namespace")
 	file := r.PathValue("file")
 
+	// If no file specified, serve the SPA for frontend routing
 	if namespace == "" || file == "" {
-		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
-			"The requested URL is incomplete. Please provide both a namespace and filename.")
+		indexPath := filepath.Join(s.staticDir, "index.html")
+		http.ServeFile(w, r, indexPath)
 		return
 	}
 
