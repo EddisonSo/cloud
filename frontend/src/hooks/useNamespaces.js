@@ -12,7 +12,9 @@ export function useNamespaces() {
   const loadNamespaces = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${buildApiBase()}/storage/namespaces`);
+      const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
+        credentials: "include",
+      });
       if (!response.ok) throw new Error("Failed to load namespaces");
       const payload = await response.json();
       const sorted = payload
