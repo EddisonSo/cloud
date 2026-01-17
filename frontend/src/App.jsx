@@ -1834,20 +1834,22 @@ function App() {
                       <DataTable
                         columns={[
                           {
+                            name: 'ID',
+                            selector: row => row.id,
+                            width: '90px',
+                            cell: row => (
+                              <code className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</code>
+                            ),
+                          },
+                          {
                             name: 'Name',
                             selector: row => row.name,
-                            width: '160px',
-                            cell: row => (
-                              <div>
-                                <strong>{row.name}</strong>
-                                <div className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</div>
-                              </div>
-                            ),
+                            width: '120px',
                           },
                           {
                             name: 'Status',
                             selector: row => row.status,
-                            width: '110px',
+                            width: '100px',
                             cell: row => (
                               <span className={`status-badge ${row.status}`}>{row.status}</span>
                             ),
@@ -1855,15 +1857,24 @@ function App() {
                           {
                             name: 'IP Address',
                             selector: row => row.external_ip,
-                            width: '140px',
+                            width: '130px',
                             cell: row => row.external_ip ? (
                               <code className="clickable" onClick={() => copyToClipboard(row.external_ip)} title="Click to copy">{row.external_ip}</code>
                             ) : <span className="muted">Pending...</span>,
                           },
                           {
-                            name: 'Resources',
-                            width: '130px',
-                            cell: row => `${row.memory_mb} MB / ${row.storage_gb} GB`,
+                            name: 'Memory',
+                            width: '100px',
+                            cell: row => row.memory_used_mb !== undefined
+                              ? `${row.memory_used_mb}/${row.memory_mb} MB`
+                              : `${row.memory_mb} MB`,
+                          },
+                          {
+                            name: 'Disk',
+                            width: '100px',
+                            cell: row => row.storage_used_gb !== undefined
+                              ? `${row.storage_used_gb}/${row.storage_gb} GB`
+                              : `${row.storage_gb} GB`,
                           },
                           {
                             name: 'Actions',
@@ -2236,22 +2247,25 @@ function App() {
                 </div>
                 <DataTable
                   columns={[
-                    { name: 'User', selector: row => row.user_id, width: '70px' },
-                    { name: 'Name', selector: row => row.name, width: '160px', cell: row => (
-                      <div>
-                        <strong>{row.name}</strong>
-                        <div className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</div>
-                      </div>
+                    { name: 'User', selector: row => row.user_id, width: '60px' },
+                    { name: 'ID', selector: row => row.id, width: '90px', cell: row => (
+                      <code className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</code>
                     )},
-                    { name: 'Status', selector: row => row.status, width: '110px', cell: row => (
+                    { name: 'Name', selector: row => row.name, width: '120px' },
+                    { name: 'Status', selector: row => row.status, width: '100px', cell: row => (
                       <span className={`status-badge ${row.status}`}>{row.status}</span>
                     )},
-                    { name: 'IP Address', selector: row => row.external_ip, width: '140px', cell: row => (
+                    { name: 'IP Address', selector: row => row.external_ip, width: '130px', cell: row => (
                       row.external_ip ? (
                         <code className="clickable" onClick={() => copyToClipboard(row.external_ip)} title="Click to copy">{row.external_ip}</code>
                       ) : <span className="muted">-</span>
                     )},
-                    { name: 'Resources', width: '140px', cell: row => `${row.memory_mb} MB / ${row.storage_gb} GB` },
+                    { name: 'Memory', width: '100px', cell: row => row.memory_used_mb !== undefined
+                      ? `${row.memory_used_mb}/${row.memory_mb} MB`
+                      : `${row.memory_mb} MB` },
+                    { name: 'Disk', width: '100px', cell: row => row.storage_used_gb !== undefined
+                      ? `${row.storage_used_gb}/${row.storage_gb} GB`
+                      : `${row.storage_gb} GB` },
                   ]}
                   data={adminContainers}
                   theme="cloudshare"

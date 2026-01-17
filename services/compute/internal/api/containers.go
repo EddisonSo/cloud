@@ -28,16 +28,18 @@ type containerRequest struct {
 }
 
 type containerResponse struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Status       string  `json:"status"`
-	ExternalIP   *string `json:"external_ip"`
-	SSHCommand   *string `json:"ssh_command,omitempty"`
-	MemoryMB     int     `json:"memory_mb"`
-	StorageGB    int     `json:"storage_gb"`
-	CreatedAt    string  `json:"created_at"`
-	SSHEnabled   bool    `json:"ssh_enabled"`
-	HTTPSEnabled bool    `json:"https_enabled"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Status        string   `json:"status"`
+	ExternalIP    *string  `json:"external_ip"`
+	SSHCommand    *string  `json:"ssh_command,omitempty"`
+	MemoryMB      int      `json:"memory_mb"`
+	MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
+	StorageGB     int      `json:"storage_gb"`
+	StorageUsedGB *float64 `json:"storage_used_gb,omitempty"`
+	CreatedAt     string   `json:"created_at"`
+	SSHEnabled    bool     `json:"ssh_enabled"`
+	HTTPSEnabled  bool     `json:"https_enabled"`
 }
 
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
@@ -54,9 +56,21 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
 	resp := make([]containerResponse, 0, len(containers))
 	for _, c := range containers {
-		resp = append(resp, containerToResponse(c))
+		cr := containerToResponse(c)
+		// Fetch usage for running containers
+		if c.Status == "running" {
+			if usage, err := h.k8s.GetResourceUsage(ctx, c.Namespace); err == nil {
+				cr.MemoryUsedMB = &usage.MemoryUsedMB
+				rounded := float64(int(usage.StorageUsedGB*10)) / 10
+				cr.StorageUsedGB = &rounded
+			}
+		}
+		resp = append(resp, cr)
 	}
 
 	writeJSON(w, map[string]any{"containers": resp})
@@ -333,7 +347,17 @@ func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, containerToResponse(container))
+	resp := containerToResponse(container)
+	// Fetch usage for running containers
+	if container.Status == "running" {
+		if usage, err := h.k8s.GetResourceUsage(ctx, container.Namespace); err == nil {
+			resp.MemoryUsedMB = &usage.MemoryUsedMB
+			rounded := float64(int(usage.StorageUsedGB*10)) / 10
+			resp.StorageUsedGB = &rounded
+		}
+	}
+
+	writeJSON(w, resp)
 }
 
 func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {

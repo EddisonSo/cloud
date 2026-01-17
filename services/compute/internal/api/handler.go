@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
@@ -96,17 +98,22 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
 	type containerResponse struct {
-		ID           string `json:"id"`
-		UserID       int64  `json:"user_id"`
-		Name         string `json:"name"`
-		Status       string `json:"status"`
-		ExternalIP   string `json:"external_ip,omitempty"`
-		MemoryMB     int    `json:"memory_mb"`
-		StorageGB    int    `json:"storage_gb"`
-		CreatedAt    int64  `json:"created_at"`
-		SSHEnabled   bool   `json:"ssh_enabled"`
-		HTTPSEnabled bool   `json:"https_enabled"`
+		ID            string   `json:"id"`
+		UserID        int64    `json:"user_id"`
+		Name          string   `json:"name"`
+		Status        string   `json:"status"`
+		ExternalIP    string   `json:"external_ip,omitempty"`
+		MemoryMB      int      `json:"memory_mb"`
+		MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
+		StorageGB     int      `json:"storage_gb"`
+		StorageUsedGB *float64 `json:"storage_used_gb,omitempty"`
+		CreatedAt     int64    `json:"created_at"`
+		SSHEnabled    bool     `json:"ssh_enabled"`
+		HTTPSEnabled  bool     `json:"https_enabled"`
 	}
 
 	resp := make([]containerResponse, 0, len(containers))
@@ -115,7 +122,7 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 		if c.ExternalIP.Valid {
 			ip = c.ExternalIP.String
 		}
-		resp = append(resp, containerResponse{
+		cr := containerResponse{
 			ID:           c.ID,
 			UserID:       c.UserID,
 			Name:         c.Name,
@@ -126,7 +133,16 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:    c.CreatedAt.Unix(),
 			SSHEnabled:   c.SSHEnabled,
 			HTTPSEnabled: c.HTTPSEnabled,
-		})
+		}
+		// Fetch usage for running containers
+		if c.Status == "running" {
+			if usage, err := h.k8s.GetResourceUsage(ctx, c.Namespace); err == nil {
+				cr.MemoryUsedMB = &usage.MemoryUsedMB
+				rounded := float64(int(usage.StorageUsedGB*10)) / 10
+				cr.StorageUsedGB = &rounded
+			}
+		}
+		resp = append(resp, cr)
 	}
 
 	writeJSON(w, resp)

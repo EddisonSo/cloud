@@ -448,3 +448,107 @@ func (c *Client) InjectTempKey(ctx context.Context, namespace, pubKey, keyID str
 
 	return nil
 }
+
+// ResourceUsage holds memory and disk usage for a container
+type ResourceUsage struct {
+	MemoryUsedMB  int64
+	StorageUsedGB float64
+}
+
+// GetResourceUsage gets memory and disk usage for a container pod
+func (c *Client) GetResourceUsage(ctx context.Context, namespace string) (*ResourceUsage, error) {
+	usage := &ResourceUsage{}
+
+	// Get memory usage from pod metrics (requires metrics-server)
+	// Use raw REST client to query metrics API
+	result := c.clientset.CoreV1().RESTClient().Get().
+		AbsPath("/apis/metrics.k8s.io/v1beta1").
+		Namespace(namespace).
+		Resource("pods").
+		Name("container").
+		Do(ctx)
+
+	if result.Error() == nil {
+		raw, err := result.Raw()
+		if err == nil {
+			// Parse memory from response - format: {"containers":[{"usage":{"memory":"123456Ki"}}]}
+			memStr := extractJSONField(string(raw), "memory")
+			if memStr != "" {
+				usage.MemoryUsedMB = parseMemoryToMB(memStr)
+			}
+		}
+	}
+
+	// Get disk usage by exec'ing df command
+	cmd := []string{"/bin/sh", "-c", "df -B1 /home/dev 2>/dev/null | tail -1 | awk '{print $3}'"}
+	req := c.clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name("container").
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: "main",
+			Command:   cmd,
+			Stdin:     false,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       false,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(c.config, "POST", req.URL())
+	if err == nil {
+		var stdout, stderr bytes.Buffer
+		if err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+			Stdout: &stdout,
+			Stderr: &stderr,
+		}); err == nil {
+			// Parse bytes used
+			var bytesUsed int64
+			fmt.Sscanf(strings.TrimSpace(stdout.String()), "%d", &bytesUsed)
+			usage.StorageUsedGB = float64(bytesUsed) / (1024 * 1024 * 1024)
+		}
+	}
+
+	return usage, nil
+}
+
+// extractJSONField is a simple helper to extract a field value from JSON
+func extractJSONField(json, field string) string {
+	key := fmt.Sprintf(`"%s":"`, field)
+	idx := strings.Index(json, key)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(key)
+	end := strings.Index(json[start:], `"`)
+	if end == -1 {
+		return ""
+	}
+	return json[start : start+end]
+}
+
+// parseMemoryToMB converts K8s memory string (e.g., "123456Ki") to MB
+func parseMemoryToMB(mem string) int64 {
+	mem = strings.TrimSpace(mem)
+	var value int64
+	var unit string
+	fmt.Sscanf(mem, "%d%s", &value, &unit)
+
+	switch strings.ToLower(unit) {
+	case "ki":
+		return value / 1024
+	case "mi":
+		return value
+	case "gi":
+		return value * 1024
+	case "k":
+		return value / 1000
+	case "m":
+		return value
+	case "g":
+		return value * 1000
+	default:
+		// Assume bytes
+		return value / (1024 * 1024)
+	}
+}
