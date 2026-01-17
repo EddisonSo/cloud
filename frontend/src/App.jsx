@@ -84,6 +84,18 @@ function createTransferId() {
   return `transfer-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function copyToClipboard(text, showToast = true) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (showToast) {
+      const toast = document.createElement('div');
+      toast.className = 'copy-toast';
+      toast.textContent = 'Copied!';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1500);
+    }
+  });
+}
+
 function waitForSocket(socket, timeoutMs = 1000) {
   if (socket.readyState === WebSocket.OPEN) {
     return Promise.resolve();
@@ -1819,101 +1831,76 @@ function App() {
                       {sshKeys.length === 0 && (
                         <p className="status warn">Add an SSH key before creating containers.</p>
                       )}
-                      <div className="container-list">
-                        {containersLoading && containers.length === 0 && (
-                          <p className="empty">Loading containers...</p>
-                        )}
-                        {!containersLoading && containers.length === 0 && (
-                          <p className="empty">No containers yet. Create one to get started.</p>
-                        )}
-                        {containers.length > 0 && (
-                          <div className="container-head">
-                            <span>Name</span>
-                            <span>Status</span>
-                            <span>IP Address</span>
-                            <span>Resources</span>
-                            <span>Actions</span>
-                          </div>
-                        )}
-                        {containers.map((container) => (
-                          <div className="container-row" key={container.id}>
-                            <div className="container-col name">
-                              <strong>{container.name}</strong>
-                              <span className="container-id">{container.id.slice(0, 8)}</span>
-                            </div>
-                            <div className="container-col status">
-                              <span className={`container-status ${container.status}`}>
-                                {container.status}
-                              </span>
-                            </div>
-                            <div className="container-col ip">
-                              {container.external_ip ? (
-                                <code>{container.external_ip}</code>
-                              ) : (
-                                <span className="muted">Pending...</span>
-                              )}
-                            </div>
-                            <div className="container-col resources">
-                              <span>{container.memory_mb} MB</span>
-                              <span>{container.storage_gb} GB</span>
-                            </div>
-                            <div className="container-col actions">
-                              {container.status === "running" && container.external_ip && (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="terminal-btn"
-                                    onClick={() => openTerminal(container)}
-                                  >
-                                    Terminal
+                      <DataTable
+                        columns={[
+                          {
+                            name: 'Name',
+                            selector: row => row.name,
+                            width: '160px',
+                            cell: row => (
+                              <div>
+                                <strong>{row.name}</strong>
+                                <div className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</div>
+                              </div>
+                            ),
+                          },
+                          {
+                            name: 'Status',
+                            selector: row => row.status,
+                            width: '110px',
+                            cell: row => (
+                              <span className={`status-badge ${row.status}`}>{row.status}</span>
+                            ),
+                          },
+                          {
+                            name: 'IP Address',
+                            selector: row => row.external_ip,
+                            width: '140px',
+                            cell: row => row.external_ip ? (
+                              <code className="clickable" onClick={() => copyToClipboard(row.external_ip)} title="Click to copy">{row.external_ip}</code>
+                            ) : <span className="muted">Pending...</span>,
+                          },
+                          {
+                            name: 'Resources',
+                            width: '130px',
+                            cell: row => `${row.memory_mb} MB / ${row.storage_gb} GB`,
+                          },
+                          {
+                            name: 'Actions',
+                            width: '280px',
+                            right: true,
+                            cell: row => (
+                              <div className="table-actions">
+                                {row.status === "running" && row.external_ip && (
+                                  <>
+                                    <button type="button" className="terminal-btn" onClick={() => openTerminal(row)}>Terminal</button>
+                                    <button type="button" className="ghost" onClick={() => openAccess(row)}>Access</button>
+                                  </>
+                                )}
+                                {row.status === "running" && (
+                                  <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "stopping")}>
+                                    {containerActions[row.id] === "stopping" ? "Stopping..." : "Stop"}
                                   </button>
-                                  <button
-                                    type="button"
-                                    className="ghost"
-                                    onClick={() => openAccess(container)}
-                                  >
-                                    Access
+                                )}
+                                {row.status === "stopped" && (
+                                  <button type="button" className="ghost" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "starting")}>
+                                    {containerActions[row.id] === "starting" ? "Starting..." : "Start"}
                                   </button>
-                                </>
-                              )}
-                              {container.status === "running" && (
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={containerActions[container.id]}
-                                  onClick={() => handleContainerAction(container.id, "stopping")}
-                                >
-                                  {containerActions[container.id] === "stopping"
-                                    ? "Stopping..."
-                                    : "Stop"}
+                                )}
+                                <button type="button" className="danger" disabled={containerActions[row.id]} onClick={() => handleContainerAction(row.id, "deleting")}>
+                                  {containerActions[row.id] === "deleting" ? "Deleting..." : "Delete"}
                                 </button>
-                              )}
-                              {container.status === "stopped" && (
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={containerActions[container.id]}
-                                  onClick={() => handleContainerAction(container.id, "starting")}
-                                >
-                                  {containerActions[container.id] === "starting"
-                                    ? "Starting..."
-                                    : "Start"}
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                className="danger"
-                                disabled={containerActions[container.id]}
-                                onClick={() => handleContainerAction(container.id, "deleting")}
-                              >
-                                {containerActions[container.id] === "deleting"
-                                  ? "Deleting..."
-                                  : "Delete"}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                              </div>
+                            ),
+                          },
+                        ]}
+                        data={containers}
+                        theme="cloudshare"
+                        customStyles={tableStyles}
+                        noDataComponent={<p className="table-empty">{containersLoading ? "Loading containers..." : "No containers yet. Create one to get started."}</p>}
+                        highlightOnHover
+                        dense
+                      />
                       {containers.length > 0 && containers.some((c) => c.external_ip) && (
                         <div className="ssh-hint">
                           <p>
@@ -1972,29 +1959,43 @@ function App() {
                           </button>
                         </form>
                       </div>
-                      <div className="ssh-keys-list">
-                        {sshKeysLoading && sshKeys.length === 0 && (
-                          <p className="empty">Loading SSH keys...</p>
-                        )}
-                        {!sshKeysLoading && sshKeys.length === 0 && (
-                          <p className="empty">No SSH keys yet. Add one to enable container access.</p>
-                        )}
-                        {sshKeys.map((key) => (
-                          <div className="ssh-key-row" key={key.id}>
-                            <div className="ssh-key-info">
-                              <strong>{key.name}</strong>
-                              <code className="public-key">{key.public_key}</code>
-                            </div>
-                            <button
-                              type="button"
-                              className="danger"
-                              onClick={() => handleDeleteSshKey(key.id)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      <DataTable
+                        columns={[
+                          {
+                            name: 'ID',
+                            selector: row => row.id,
+                            width: '60px',
+                          },
+                          {
+                            name: 'Name',
+                            selector: row => row.name,
+                            width: '150px',
+                          },
+                          {
+                            name: 'Public Key',
+                            selector: row => row.public_key,
+                            cell: row => (
+                              <code className="clickable truncate" onClick={() => copyToClipboard(row.public_key)} title="Click to copy">
+                                {row.public_key}
+                              </code>
+                            ),
+                          },
+                          {
+                            name: 'Actions',
+                            width: '100px',
+                            right: true,
+                            cell: row => (
+                              <button type="button" className="ghost danger-text" onClick={() => handleDeleteSshKey(row.id)}>Delete</button>
+                            ),
+                          },
+                        ]}
+                        data={sshKeys}
+                        theme="cloudshare"
+                        customStyles={tableStyles}
+                        noDataComponent={<p className="table-empty">{sshKeysLoading ? "Loading SSH keys..." : "No SSH keys yet. Add one to enable container access."}</p>}
+                        highlightOnHover
+                        dense
+                      />
                     </section>
                   )}
 
@@ -2236,17 +2237,19 @@ function App() {
                 <DataTable
                   columns={[
                     { name: 'User', selector: row => row.user_id, width: '70px' },
-                    { name: 'Name', selector: row => row.name, cell: row => (
+                    { name: 'Name', selector: row => row.name, width: '160px', cell: row => (
                       <div>
                         <strong>{row.name}</strong>
-                        <div style={{ fontSize: '0.75rem', color: '#5b6677', fontFamily: 'monospace' }}>{row.id.slice(0, 8)}</div>
+                        <div className="clickable-id" onClick={() => copyToClipboard(row.id)} title="Click to copy full ID">{row.id.slice(0, 8)}</div>
                       </div>
                     )},
                     { name: 'Status', selector: row => row.status, width: '110px', cell: row => (
                       <span className={`status-badge ${row.status}`}>{row.status}</span>
                     )},
                     { name: 'IP Address', selector: row => row.external_ip, width: '140px', cell: row => (
-                      row.external_ip ? <code>{row.external_ip}</code> : <span className="muted">-</span>
+                      row.external_ip ? (
+                        <code className="clickable" onClick={() => copyToClipboard(row.external_ip)} title="Click to copy">{row.external_ip}</code>
+                      ) : <span className="muted">-</span>
                     )},
                     { name: 'Resources', width: '140px', cell: row => `${row.memory_mb} MB / ${row.storage_gb} GB` },
                   ]}

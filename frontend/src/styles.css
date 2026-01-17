@@ -2134,7 +2134,7 @@ button:not(:disabled):hover {
   font-size: 0.8rem;
 }
 
-.data-table .status-badge {
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2145,19 +2145,33 @@ button:not(:disabled):hover {
   text-transform: capitalize;
 }
 
-.data-table .status-badge.running {
+.status-badge.running {
   background: rgba(34, 197, 94, 0.1);
   color: #16a34a;
 }
 
-.data-table .status-badge.stopped {
+.status-badge.stopped {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
 }
 
-.data-table .status-badge.pending {
+.status-badge.pending,
+.status-badge.initializing {
   background: rgba(251, 191, 36, 0.1);
   color: #d97706;
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.table-actions button {
+  padding: 4px 10px;
+  font-size: 0.8rem;
 }
 
 .table-empty {
@@ -2165,6 +2179,63 @@ button:not(:disabled):hover {
   padding: 32px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+/* Clickable elements */
+.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+}
+
+.clickable:hover {
+  background-color: rgba(26, 115, 232, 0.1);
+}
+
+.clickable-id {
+  font-size: 0.75rem;
+  color: #5b6677;
+  font-family: monospace;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.clickable-id:hover {
+  color: var(--primary);
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+  display: block;
+  font-size: 0.75rem;
+}
+
+/* Copy toast */
+.copy-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0f172a;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  z-index: 9999;
+  animation: toast-fade 1.5s ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes toast-fade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
 
 /* Responsive table */
