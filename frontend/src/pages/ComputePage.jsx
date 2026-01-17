@@ -74,6 +74,13 @@ export function ComputePage({ view: routeView = "containers" }) {
     }
   }, [containerId, containers]);
 
+  // Close terminal when route changes
+  useEffect(() => {
+    if (showTerminal) {
+      handleCloseTerminal();
+    }
+  }, [routeView]);
+
   const handleCreateContainer = async (data) => {
     setCreating(true);
     try {
