@@ -3,8 +3,9 @@ import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { TextSkeleton } from "@/components/ui/skeleton";
-import { StatusBadge, CopyableText } from "@/components/common";
+import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
 import { buildApiBase } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +19,7 @@ export function AdminPage() {
   const [namespaces, setNamespaces] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newUser, setNewUser] = useState({ displayName: "", username: "", password: "" });
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -88,6 +90,7 @@ export function AdminPage() {
         throw new Error(msg || "Failed to create user");
       }
       setNewUser({ displayName: "", username: "", password: "" });
+      setShowCreateUserModal(false);
       await loadData();
     } catch (err) {
       setError(err.message);
@@ -166,33 +169,14 @@ export function AdminPage() {
 
       {/* Users Section */}
       <Card className="mb-6">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Users</CardTitle>
+          <Button variant="outline" onClick={() => setShowCreateUserModal(true)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Add User
+          </Button>
         </CardHeader>
         <CardContent>
-          {/* Create User Form */}
-          <form onSubmit={handleCreateUser} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            <Input
-              placeholder="Display Name"
-              value={newUser.displayName}
-              onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
-            />
-            <Input
-              placeholder="Username (login)"
-              value={newUser.username}
-              onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={newUser.password}
-              onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
-            />
-            <Button type="submit" disabled={creating} className="w-full sm:w-auto">
-              <UserPlus className="w-4 h-4 mr-1" />
-              Add User
-            </Button>
-          </form>
           {error && <p className="text-destructive text-sm mb-4">{error}</p>}
 
           {/* Users List */}
@@ -357,6 +341,59 @@ export function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create User Modal */}
+      <Modal
+        open={showCreateUserModal}
+        onClose={() => {
+          setShowCreateUserModal(false);
+          setNewUser({ displayName: "", username: "", password: "" });
+          setError("");
+        }}
+        title="Add User"
+        description="Create a new user account."
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="displayName">Display Name</Label>
+            <Input
+              id="displayName"
+              placeholder="e.g. John Doe"
+              value={newUser.displayName}
+              onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              placeholder="e.g. johndoe"
+              value={newUser.username}
+              onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Password"
+              value={newUser.password}
+              onChange={(e) => setNewUser((p) => ({ ...p, password: e.target.value }))}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setShowCreateUserModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={creating || !newUser.username.trim() || !newUser.password}>
+              {creating ? "Creating..." : "Create User"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

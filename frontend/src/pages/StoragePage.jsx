@@ -48,6 +48,10 @@ export function StoragePage() {
   // Sync URL param with active namespace
   const showNamespaceView = !!namespaceParam;
 
+  // Check if namespace from URL exists in loaded namespaces
+  const namespaceNotFound = showNamespaceView && !namespacesLoading && namespaces.length > 0 &&
+    !namespaces.some((ns) => ns.name === namespaceParam);
+
   useEffect(() => {
     if (namespaceParam) {
       setActiveNamespace(namespaceParam);
@@ -64,6 +68,8 @@ export function StoragePage() {
   const [deletingNs, setDeletingNs] = useState(false);
   const [togglingNs, setTogglingNs] = useState(false);
   const [namespaceError, setNamespaceError] = useState("");
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [overwriteFileName, setOverwriteFileName] = useState("");
 
   useEffect(() => {
     loadNamespaces();
@@ -131,12 +137,22 @@ export function StoragePage() {
 
   const currentNamespace = namespaces.find((ns) => ns.name === activeNamespace);
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    await uploadFile(activeNamespace, () => {
+  const handleUpload = async (e, { overwrite = false } = {}) => {
+    e?.preventDefault?.();
+    const result = await uploadFile(activeNamespace, () => {
       loadFiles(activeNamespace);
       loadNamespaces();
-    });
+    }, { overwrite });
+
+    if (result?.fileExists) {
+      setOverwriteFileName(result.fileName);
+      setShowOverwriteConfirm(true);
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowOverwriteConfirm(false);
+    await handleUpload(null, { overwrite: true });
   };
 
   const handleDelete = async (file) => {
@@ -203,61 +219,72 @@ export function StoragePage() {
             Back to namespaces
           </Button>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Files */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle>{activeNamespace}</CardTitle>
-                    {currentNamespace?.hidden && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        Hidden
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {files.length} {files.length === 1 ? "file" : "files"}
-                  </p>
-                </div>
-                {user && (
-                  <Button variant="ghost" size="icon" onClick={() => setShowSettingsModal(true)}>
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent>
-                <FileList
-                  files={files}
-                  namespace={activeNamespace}
-                  deleting={deleting}
-                  onDownload={(file) => downloadFile(file, user)}
-                  onDelete={handleDelete}
-                  loading={filesLoading}
-                />
+          {/* Namespace Not Found */}
+          {namespaceNotFound ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">
+                  Namespace <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{namespaceParam}</code> does not exist.
+                </p>
               </CardContent>
             </Card>
-
-            {/* Upload */}
-            {user && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upload File</CardTitle>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Files */}
+              <Card className="lg:col-span-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle>{activeNamespace}</CardTitle>
+                      {currentNamespace?.hidden && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {files.length} {files.length === 1 ? "file" : "files"}
+                    </p>
+                  </div>
+                  {user && (
+                    <Button variant="ghost" size="icon" onClick={() => setShowSettingsModal(true)}>
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
-                  <FileUploader
-                    fileInputRef={fileInputRef}
-                    selectedFileName={selectedFileName}
-                    setSelectedFileName={setSelectedFileName}
-                    uploading={uploading}
-                    uploadProgress={uploadProgress}
-                    onUpload={handleUpload}
+                  <FileList
+                    files={files}
+                    namespace={activeNamespace}
+                    deleting={deleting}
+                    onDownload={(file) => downloadFile(file, user)}
+                    onDelete={handleDelete}
+                    loading={filesLoading}
                   />
-                  {status && <p className="text-sm text-muted-foreground mt-4">{status}</p>}
                 </CardContent>
               </Card>
-            )}
-          </div>
+
+              {/* Upload */}
+              {user && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Upload File</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FileUploader
+                      fileInputRef={fileInputRef}
+                      selectedFileName={selectedFileName}
+                      setSelectedFileName={setSelectedFileName}
+                      uploading={uploading}
+                      uploadProgress={uploadProgress}
+                      onUpload={handleUpload}
+                    />
+                    {status && <p className="text-sm text-muted-foreground mt-4">{status}</p>}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -394,6 +421,28 @@ export function StoragePage() {
             </Button>
             <Button variant="destructive" onClick={handleDeleteNamespace} disabled={deletingNs}>
               {deletingNs ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Overwrite File Confirmation Modal */}
+      <Modal
+        open={showOverwriteConfirm}
+        onClose={() => setShowOverwriteConfirm(false)}
+        title="File Already Exists"
+        description={<>A file named <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{overwriteFileName}</code> already exists.</>}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Do you want to replace the existing file? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowOverwriteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmOverwrite}>
+              Replace
             </Button>
           </div>
         </div>

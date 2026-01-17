@@ -142,9 +142,13 @@ export function ContainerDetail({
                 disabled={access.savingSSH || !isRunning}
               />
             </div>
-            {access.sshEnabled && container.ssh_command && (
+            {access.sshEnabled && (
               <div className="mt-3 pt-3 border-t border-border">
-                <CopyableText text={container.ssh_command} mono className="text-sm" />
+                <CopyableText
+                  text={`ssh ${container.id}@compute.cloud.eddisonso.com`}
+                  mono
+                  className="text-sm"
+                />
               </div>
             )}
           </div>

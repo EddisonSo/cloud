@@ -688,7 +688,19 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check that namespace exists before allowing upload
+	exists, err := s.namespaceExists(namespace)
+	if err != nil {
+		fail("failed to verify namespace", http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		fail("namespace does not exist", http.StatusNotFound)
+		return
+	}
+
 	fullPath := name
+	overwrite := r.URL.Query().Get("overwrite") == "true"
 	ctx, cancel := context.WithTimeout(r.Context(), s.uploadTTL)
 	defer cancel()
 	defer func() {
@@ -703,12 +715,26 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if err := s.ensureEmptyFile(ctx, namespace, fullPath); err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			fail(err.Error(), http.StatusConflict)
-		} else {
-			fail(fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
+	// Check if file exists
+	existingFile, err := s.client.GetFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace))
+	fileExists := err == nil && existingFile != nil
+
+	if fileExists {
+		if !overwrite {
+			fail(fmt.Sprintf("file already exists: %s", fullPath), http.StatusConflict)
+			return
 		}
+		// Delete existing file before overwriting
+		if err := s.client.DeleteFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err != nil {
+			fail(fmt.Sprintf("failed to delete existing file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("upload overwrite namespace=%s name=%s transfer=%s", namespace, name, transferID)
+	}
+
+	// Create new file
+	if _, err := s.client.CreateFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err != nil {
+		fail(fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
 		return
 	}
 

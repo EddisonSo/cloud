@@ -62,11 +62,11 @@ export function useFiles() {
     }
   }, []);
 
-  const uploadFile = useCallback(async (namespace, onComplete) => {
+  const uploadFile = useCallback(async (namespace, onComplete, { overwrite = false } = {}) => {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
       setStatus("Choose a file to upload.");
-      return;
+      return { success: false };
     }
 
     const formData = new FormData();
@@ -98,17 +98,22 @@ export function useFiles() {
       };
 
       await waitForSocket(socket, 2000).catch(() => {});
-      const response = await fetch(
-        `${buildApiBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}`,
-        {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-          headers: { "X-File-Size": file.size.toString() },
-        }
-      );
+      const url = `${buildApiBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: { "X-File-Size": file.size.toString() },
+      });
       if (!response.ok) {
         const message = await response.text();
+        // Return special flag for file exists conflict
+        if (response.status === 409) {
+          setStatus("");
+          setUploading(false);
+          socket.close();
+          return { success: false, fileExists: true, fileName: file.name };
+        }
         throw new Error(message || "Upload failed");
       }
       await response.json();
@@ -117,8 +122,10 @@ export function useFiles() {
       setSelectedFileName("No file selected");
       await loadFiles(namespace, true);
       onComplete?.();
+      return { success: true };
     } catch (err) {
       setStatus(err.message);
+      return { success: false };
     } finally {
       setUploading(false);
       socket.close();
