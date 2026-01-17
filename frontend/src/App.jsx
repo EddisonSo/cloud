@@ -1306,6 +1306,13 @@ function App() {
                 if (item.id === "storage") {
                   closeNamespace();
                 }
+                if (item.id === "compute") {
+                  closeTerminal();
+                  setComputeView("containers");
+                }
+                if (activeTab === "compute" && item.id !== "compute") {
+                  closeTerminal();
+                }
               }}
             >
               {item.label}
