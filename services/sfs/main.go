@@ -1558,9 +1558,9 @@ func (s *server) staticHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/storage/") {
-			serveErrorPage(w, http.StatusNotFound, "Not Found",
-				"The requested resource was not found. Please check the URL and try again.")
+		if r.URL.Path == "/storage" || strings.HasPrefix(r.URL.Path, "/storage/") {
+			serveErrorPage(w, http.StatusBadRequest, "Invalid Request",
+				"Please specify a namespace and file. Example: /storage/default/myfile.txt")
 			return
 		}
 		// Check if file exists on disk
