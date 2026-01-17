@@ -837,25 +837,29 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 
 	if namespace == "" || file == "" {
-		http.Error(w, "namespace and file required", http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The requested URL is incomplete. Please provide both a namespace and filename.")
 		return
 	}
 
 	// URL-decode the file path to handle special characters
 	file, err := url.PathUnescape(file)
 	if err != nil {
-		http.Error(w, "invalid file path", http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The file path contains invalid characters.")
 		return
 	}
 
 	namespace, err = sanitizeNamespace(namespace)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The namespace name is invalid. Namespaces can only contain letters, numbers, hyphens, underscores, and dots.")
 		return
 	}
 
 	if !s.canAccessNamespace(r, namespace) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		serveErrorPage(w, http.StatusUnauthorized, "Unauthorized",
+			"You don't have permission to access this namespace. Please log in if this is a private namespace.")
 		return
 	}
 
@@ -871,7 +875,8 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentType)
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
-		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
+		serveErrorPage(w, http.StatusNotFound, "File Not Found",
+			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
 		return
 	}
 }
@@ -882,25 +887,29 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 
 	if namespace == "" || file == "" {
-		http.Error(w, "namespace and file required", http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The requested URL is incomplete. Please provide both a namespace and filename.")
 		return
 	}
 
 	// URL-decode the file path to handle special characters
 	file, err := url.PathUnescape(file)
 	if err != nil {
-		http.Error(w, "invalid file path", http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The file path contains invalid characters.")
 		return
 	}
 
 	namespace, err = sanitizeNamespace(namespace)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serveErrorPage(w, http.StatusBadRequest, "Bad Request",
+			"The namespace name is invalid. Namespaces can only contain letters, numbers, hyphens, underscores, and dots.")
 		return
 	}
 
 	if !s.canAccessNamespace(r, namespace) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		serveErrorPage(w, http.StatusUnauthorized, "Unauthorized",
+			"You don't have permission to access this namespace. Please log in if this is a private namespace.")
 		return
 	}
 
@@ -916,7 +925,8 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
-		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
+		serveErrorPage(w, http.StatusNotFound, "File Not Found",
+			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
 		return
 	}
 }
@@ -1544,8 +1554,13 @@ func (s *server) staticHandler() http.Handler {
 	indexPath := filepath.Join(s.staticDir, "index.html")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// API routes should 404 if not handled by other handlers
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/storage/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
 			http.NotFound(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/storage/") {
+			serveErrorPage(w, http.StatusNotFound, "Not Found",
+				"The requested resource was not found. Please check the URL and try again.")
 			return
 		}
 		// Check if file exists on disk
@@ -1595,6 +1610,77 @@ func sanitizeNamespace(raw string) (string, error) {
 		}
 	}
 	return trimmed, nil
+}
+
+// serveErrorPage renders a styled HTML error page
+func serveErrorPage(w http.ResponseWriter, statusCode int, title, message string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(statusCode)
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>%d %s - Edd Cloud</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+        .status-code {
+            font-size: 6rem;
+            font-weight: 700;
+            color: #58a6ff;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #e6edf3;
+        }
+        .message {
+            color: #8b949e;
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+        .home-link {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: #21262d;
+            color: #58a6ff;
+            text-decoration: none;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            transition: background 0.2s;
+        }
+        .home-link:hover {
+            background: #30363d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-code">%d</div>
+        <h1 class="title">%s</h1>
+        <p class="message">%s</p>
+        <a href="/" class="home-link">Go to Homepage</a>
+    </div>
+</body>
+</html>`, statusCode, title, statusCode, title, message)
+	w.Write([]byte(html))
 }
 
 // Admin handlers
