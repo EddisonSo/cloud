@@ -142,10 +142,10 @@ export function StoragePage() {
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Total Files
             </p>
             {namespacesLoading ? (
@@ -155,9 +155,9 @@ export function StoragePage() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Namespaces
             </p>
             {namespacesLoading ? (
@@ -167,13 +167,13 @@ export function StoragePage() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Active
             </p>
-            <span className="text-2xl font-semibold">{activeNamespace || "—"}</span>
-            <span className="text-xs text-muted-foreground block mt-1">current namespace</span>
+            <span className="text-2xl font-semibold truncate block">{activeNamespace || "—"}</span>
+            <span className="text-xs text-muted-foreground block mt-1 truncate">current namespace</span>
           </CardContent>
         </Card>
       </div>

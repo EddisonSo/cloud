@@ -39,10 +39,10 @@ export function HealthPage() {
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Cluster Status
             </p>
             {loading ? (
@@ -50,16 +50,16 @@ export function HealthPage() {
             ) : (
               <div className="flex items-center gap-2">
                 <StatusDot status={health.cluster_ok ? "ok" : "down"} />
-                <span className="text-2xl font-semibold">
+                <span className="text-2xl font-semibold truncate">
                   {health.cluster_ok ? "Healthy" : "Degraded"}
                 </span>
               </div>
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Nodes Online
             </p>
             {loading ? (
@@ -71,29 +71,29 @@ export function HealthPage() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Total Memory
             </p>
             {loading ? (
               <Skeleton className="h-8 w-20" />
             ) : (
-              <span className="text-2xl font-semibold">
+              <span className="text-2xl font-semibold truncate block">
                 {formatBytes(totalMemory)}
               </span>
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Last Updated
             </p>
             {loading ? (
               <Skeleton className="h-7 w-24" />
             ) : (
-              <span className="text-lg font-medium text-muted-foreground">
+              <span className="text-lg font-medium text-muted-foreground truncate block">
                 {lastCheck ? lastCheck.toLocaleTimeString() : "—"}
               </span>
             )}

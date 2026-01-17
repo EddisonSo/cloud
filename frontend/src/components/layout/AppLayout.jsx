@@ -8,9 +8,9 @@ export function AppLayout() {
   const { health } = useHealth(user, true);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-hidden">
       <Sidebar healthOk={health.cluster_ok} />
-      <main className="ml-[220px] p-6 min-h-screen">
+      <main className="ml-[220px] p-6 min-h-screen overflow-x-hidden">
         <Outlet />
       </main>
     </div>
