@@ -28,7 +28,7 @@ export function ContainerList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="grid grid-cols-[2fr_1fr_2fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[1.5fr_1fr_2.5fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div className="text-center">Container</div>
         <div className="text-center">Status</div>
         <div className="text-center">Hostname</div>
@@ -43,7 +43,7 @@ export function ContainerList({
         return (
           <div
             key={container.id}
-            className="grid grid-cols-[2fr_1fr_2fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
+            className="grid grid-cols-[1.5fr_1fr_2.5fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
             onClick={() => onSelect?.(container)}
           >
             <div className="min-w-0 text-center">
