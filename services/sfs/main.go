@@ -1644,18 +1644,20 @@ func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type adminNamespace struct {
-		Name      string `json:"name"`
-		Hidden    bool   `json:"hidden"`
-		FileCount int    `json:"file_count"`
+		Name    string `json:"name"`
+		Count   int    `json:"count"`
+		Hidden  bool   `json:"hidden"`
+		OwnerID *int   `json:"owner_id"`
 	}
 
 	result := make([]adminNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
 		count, _ := s.countNamespaceFiles(ctx, ns.Name)
 		result = append(result, adminNamespace{
-			Name:      ns.Name,
-			Hidden:    ns.Hidden,
-			FileCount: count,
+			Name:    ns.Name,
+			Count:   count,
+			Hidden:  ns.Hidden,
+			OwnerID: ns.OwnerID,
 		})
 	}
 
