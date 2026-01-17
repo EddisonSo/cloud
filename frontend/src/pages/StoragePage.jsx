@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/common";
 import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
@@ -146,48 +146,9 @@ export function StoragePage() {
     });
   };
 
-  const totalFiles = namespaces.reduce((sum, ns) => sum + (ns.count || 0), 0);
-
   return (
     <div>
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Files
-            </p>
-            {namespacesLoading ? (
-              <TextSkeleton text="00" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{totalFiles}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Namespaces
-            </p>
-            {namespacesLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{namespaces.length}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Active
-            </p>
-            <span className="text-2xl font-semibold truncate block">{activeNamespace || "—"}</span>
-            <span className="text-xs text-muted-foreground block mt-1 truncate">current namespace</span>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Namespace List View */}
       {!showNamespaceView && (
