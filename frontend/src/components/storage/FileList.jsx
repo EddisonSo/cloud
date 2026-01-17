@@ -25,7 +25,7 @@ export function FileList({
 
   const buildFileUrl = (fileName) => {
     const ns = namespace || "default";
-    return `cloud.eddisonso.com/storage/${encodeURIComponent(ns)}/${encodeURIComponent(fileName)}`;
+    return `cloud-api.eddisonso.com/storage/${encodeURIComponent(ns)}/${encodeURIComponent(fileName)}`;
   };
 
   return (
