@@ -23,6 +23,7 @@ export function AdminPage() {
   const loadData = async () => {
     if (!isAdmin) return;
     setLoading(true);
+    setError("");
     try {
       const [containersRes, usersRes] = await Promise.all([
         fetch(`${buildApiBase()}/compute/admin/containers`, { credentials: "include" }),
@@ -35,9 +36,12 @@ export function AdminPage() {
       if (usersRes.ok) {
         const data = await usersRes.json();
         setUsers(data || []);
+      } else {
+        const errText = await usersRes.text();
+        setError(`Failed to load users: ${errText}`);
       }
     } catch (err) {
-      console.warn("Failed to load admin data:", err.message);
+      setError(`Failed to load admin data: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -107,26 +111,26 @@ export function AdminPage() {
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Total Users
             </p>
             <span className="text-2xl font-semibold">{users.length}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Total Containers
             </p>
             <span className="text-2xl font-semibold">{containers.length}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
               Running
             </p>
             <span className="text-2xl font-semibold text-green-400">
@@ -171,34 +175,40 @@ export function AdminPage() {
           {error && <p className="text-destructive text-sm mb-4">{error}</p>}
 
           {/* Users List */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <div>ID</div>
-              <div>Display Name</div>
-              <div>Username</div>
-              <div>Actions</div>
-            </div>
-            {users.map((u) => (
-              <div
-                key={u.id}
-                className="grid grid-cols-4 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
-              >
-                <CopyableText text={u.id} mono />
-                <span className="font-medium">{u.display_name || u.username}</span>
-                <span className="text-muted-foreground">{u.username}</span>
-                <div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDeleteUser(u.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+          {loading ? (
+            <p className="text-muted-foreground py-4">Loading users...</p>
+          ) : users.length === 0 ? (
+            <p className="text-muted-foreground py-4">No users found</p>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>ID</div>
+                <div>Display Name</div>
+                <div>Username</div>
+                <div>Actions</div>
               </div>
-            ))}
-          </div>
+              {users.map((u) => (
+                <div
+                  key={u.id}
+                  className="grid grid-cols-4 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                >
+                  <CopyableText text={String(u.id)} mono />
+                  <span className="font-medium">{u.display_name || u.username}</span>
+                  <span className="text-muted-foreground">{u.username}</span>
+                  <div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleDeleteUser(u.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
