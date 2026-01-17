@@ -47,26 +47,54 @@ export function Sidebar({ healthOk = true }) {
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname.startsWith(item.path);
+          const hasSubItems = item.subItems && item.subItems.length > 0;
 
           return (
-            <NavLink
-              key={item.id}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors relative",
-                "text-muted-foreground hover:bg-accent hover:text-foreground",
-                isActive && "bg-primary/10 text-primary"
+            <div key={item.id}>
+              <NavLink
+                to={hasSubItems ? item.subItems[0].path : item.path}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors relative",
+                  "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  isActive && "bg-primary/10 text-primary"
+                )}
+              >
+                {isActive && !hasSubItems && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-sm" />
+                )}
+                <Icon className="w-4 h-4 opacity-80" />
+                {item.label}
+                {item.id === "health" && (
+                  <StatusDot status={healthOk ? "ok" : "down"} className="ml-auto" />
+                )}
+              </NavLink>
+              {/* Sub-items */}
+              {hasSubItems && isActive && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {item.subItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isSubActive = location.pathname === subItem.path;
+                    return (
+                      <NavLink
+                        key={subItem.id}
+                        to={subItem.path}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors relative",
+                          "text-muted-foreground hover:bg-accent hover:text-foreground",
+                          isSubActive && "bg-primary/10 text-primary"
+                        )}
+                      >
+                        {isSubActive && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-primary rounded-r-sm" />
+                        )}
+                        <SubIcon className="w-3.5 h-3.5 opacity-80" />
+                        {subItem.label}
+                      </NavLink>
+                    );
+                  })}
+                </div>
               )}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-sm" />
-              )}
-              <Icon className="w-4 h-4 opacity-80" />
-              {item.label}
-              {item.id === "health" && (
-                <StatusDot status={healthOk ? "ok" : "down"} className="ml-auto" />
-              )}
-            </NavLink>
+            </div>
           );
         })}
       </nav>

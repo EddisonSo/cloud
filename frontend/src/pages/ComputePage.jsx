@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ContainerList,
   CreateContainerForm,
@@ -13,9 +14,9 @@ import {
 import { TAB_COPY } from "@/lib/constants";
 import { useContainers, useSshKeys, useContainerAccess, useTerminal } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, Server, Key } from "lucide-react";
+import { Plus } from "lucide-react";
 
-export function ComputePage() {
+export function ComputePage({ view: routeView = "containers" }) {
   const copy = TAB_COPY.compute;
   const { containerId } = useParams();
   const navigate = useNavigate();
@@ -23,7 +24,6 @@ export function ComputePage() {
 
   const {
     containers,
-    setContainers,
     loading: containersLoading,
     error: containersError,
     setError: setContainersError,
@@ -52,10 +52,9 @@ export function ComputePage() {
     closeTerminal,
   } = useTerminal();
 
-  const [view, setView] = useState("containers"); // containers, ssh-keys, detail, terminal
-  const [showCreate, setShowCreate] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -71,7 +70,6 @@ export function ComputePage() {
       if (container) {
         setSelectedContainer(container);
         access.openAccess(container);
-        setView("detail");
       }
     }
   }, [containerId, containers]);
@@ -80,7 +78,7 @@ export function ComputePage() {
     setCreating(true);
     try {
       await createContainer(data);
-      setShowCreate(false);
+      navigate("/compute/containers");
     } catch (err) {
       setContainersError(err.message);
     } finally {
@@ -99,25 +97,23 @@ export function ComputePage() {
   const handleSelectContainer = (container) => {
     setSelectedContainer(container);
     access.openAccess(container);
-    setView("detail");
-    navigate(`/compute/${container.id}`);
+    navigate(`/compute/containers/${container.id}`);
   };
 
   const handleBackToList = () => {
     setSelectedContainer(null);
     access.closeAccess();
-    setView("containers");
-    navigate("/compute");
+    navigate("/compute/containers");
   };
 
   const handleOpenTerminal = (container) => {
     openTerminal(container);
-    setView("terminal");
+    setShowTerminal(true);
   };
 
   const handleCloseTerminal = () => {
     closeTerminal();
-    setView("detail");
+    setShowTerminal(false);
   };
 
   const runningCount = containers.filter((c) => c.status === "running").length;
@@ -131,8 +127,8 @@ export function ComputePage() {
     );
   }
 
-  // Terminal View
-  if (view === "terminal" && terminalContainer) {
+  // Terminal View (overlay on detail)
+  if (showTerminal && terminalContainer) {
     return (
       <div>
         <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
@@ -148,7 +144,7 @@ export function ComputePage() {
   }
 
   // Container Detail View
-  if (view === "detail" && selectedContainer) {
+  if (routeView === "detail" && selectedContainer) {
     return (
       <div>
         <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
@@ -166,100 +162,55 @@ export function ComputePage() {
     );
   }
 
-  return (
-    <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Containers
-            </p>
-            <span className="text-2xl font-semibold">{containers.length}</span>
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Running
-            </p>
-            <span className="text-2xl font-semibold text-green-400">{runningCount}</span>
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              SSH Keys
-            </p>
-            <span className="text-2xl font-semibold">{sshKeys.length}</span>
-          </CardContent>
-        </Card>
+  // Create Container View
+  if (routeView === "create") {
+    return (
+      <div>
+        <Header eyebrow={copy.eyebrow} title="Create Container" description="Configure your new stateful container." />
+        <CreateContainerForm
+          sshKeys={sshKeys}
+          onCreate={handleCreateContainer}
+          onCancel={() => navigate("/compute/containers")}
+          creating={creating}
+        />
       </div>
+    );
+  }
 
-      {/* View Toggle */}
-      <div className="flex gap-2 mb-4">
-        <Button
-          variant={view === "containers" ? "default" : "outline"}
-          onClick={() => setView("containers")}
-        >
-          <Server className="w-4 h-4 mr-2" />
-          Containers
-        </Button>
-        <Button
-          variant={view === "ssh-keys" ? "default" : "outline"}
-          onClick={() => setView("ssh-keys")}
-        >
-          <Key className="w-4 h-4 mr-2" />
-          SSH Keys
-        </Button>
-      </div>
+  // SSH Keys View
+  if (routeView === "ssh-keys") {
+    return (
+      <div>
+        <Header eyebrow={copy.eyebrow} title="SSH Keys" description="Manage SSH keys for container access." />
 
-      {containersError && (
-        <p className="text-destructive text-sm mb-4">{containersError}</p>
-      )}
-
-      {/* Containers View */}
-      {view === "containers" && (
-        <>
-          {showCreate ? (
-            <CreateContainerForm
-              sshKeys={sshKeys}
-              onCreate={handleCreateContainer}
-              onCancel={() => setShowCreate(false)}
-              creating={creating}
-            />
-          ) : (
-            <Button variant="outline" className="mb-4" onClick={() => setShowCreate(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Container
-            </Button>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Containers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ContainerList
-                containers={containers}
-                actions={actions}
-                onStart={(id) => handleContainerAction(id, "starting")}
-                onStop={(id) => handleContainerAction(id, "stopping")}
-                onDelete={(id) => handleContainerAction(id, "deleting")}
-                onAccess={handleSelectContainer}
-                onTerminal={handleOpenTerminal}
-                onSelect={handleSelectContainer}
-                loading={containersLoading}
-              />
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <Card className="min-w-0">
+            <CardContent className="pt-6">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
+                Total Keys
+              </p>
+              {sshKeysLoading ? (
+                <Skeleton className="h-8 w-8" />
+              ) : (
+                <span className="text-2xl font-semibold">{sshKeys.length}</span>
+              )}
             </CardContent>
           </Card>
-        </>
-      )}
+          <Card className="min-w-0">
+            <CardContent className="pt-6">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
+                Containers
+              </p>
+              {containersLoading ? (
+                <Skeleton className="h-8 w-8" />
+              ) : (
+                <span className="text-2xl font-semibold">{containers.length}</span>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* SSH Keys View */}
-      {view === "ssh-keys" && (
         <Card>
           <CardHeader>
             <CardTitle>SSH Keys</CardTitle>
@@ -273,7 +224,82 @@ export function ComputePage() {
             />
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Containers View (default)
+  return (
+    <div>
+      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <Card className="min-w-0">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
+              Total Containers
+            </p>
+            {containersLoading ? (
+              <Skeleton className="h-8 w-8" />
+            ) : (
+              <span className="text-2xl font-semibold">{containers.length}</span>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
+              Running
+            </p>
+            {containersLoading ? (
+              <Skeleton className="h-8 w-8" />
+            ) : (
+              <span className="text-2xl font-semibold text-green-400">{runningCount}</span>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
+              SSH Keys
+            </p>
+            {sshKeysLoading ? (
+              <Skeleton className="h-8 w-8" />
+            ) : (
+              <span className="text-2xl font-semibold">{sshKeys.length}</span>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {containersError && (
+        <p className="text-destructive text-sm mb-4">{containersError}</p>
       )}
+
+      <Button variant="outline" className="mb-4" onClick={() => navigate("/compute/containers/new")}>
+        <Plus className="w-4 h-4 mr-2" />
+        Create Container
+      </Button>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Containers</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContainerList
+            containers={containers}
+            actions={actions}
+            onStart={(id) => handleContainerAction(id, "starting")}
+            onStop={(id) => handleContainerAction(id, "stopping")}
+            onDelete={(id) => handleContainerAction(id, "deleting")}
+            onAccess={handleSelectContainer}
+            onTerminal={handleOpenTerminal}
+            onSelect={handleSelectContainer}
+            loading={containersLoading}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

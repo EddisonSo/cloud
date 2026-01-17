@@ -21,8 +21,11 @@ function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/storage" replace />} />
               <Route path="/storage" element={<StoragePage />} />
-              <Route path="/compute" element={<ComputePage />} />
-              <Route path="/compute/:containerId" element={<ComputePage />} />
+              <Route path="/compute" element={<Navigate to="/compute/containers" replace />} />
+              <Route path="/compute/containers" element={<ComputePage view="containers" />} />
+              <Route path="/compute/containers/new" element={<ComputePage view="create" />} />
+              <Route path="/compute/containers/:containerId" element={<ComputePage view="detail" />} />
+              <Route path="/compute/ssh-keys" element={<ComputePage view="ssh-keys" />} />
               <Route path="/message-queue" element={<MessageQueuePage />} />
               <Route path="/datastore" element={<DatastorePage />} />
               <Route path="/health" element={<HealthPage />} />

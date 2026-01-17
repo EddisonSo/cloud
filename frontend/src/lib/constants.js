@@ -5,12 +5,23 @@ import {
   Database,
   Activity,
   ScrollText,
-  Settings
+  Settings,
+  Box,
+  Key
 } from "lucide-react";
 
 export const NAV_ITEMS = [
   { id: "storage", label: "Storage", icon: HardDrive, path: "/storage" },
-  { id: "compute", label: "Compute", icon: Server, path: "/compute" },
+  {
+    id: "compute",
+    label: "Compute",
+    icon: Server,
+    path: "/compute",
+    subItems: [
+      { id: "containers", label: "Containers", icon: Box, path: "/compute/containers" },
+      { id: "ssh-keys", label: "SSH Keys", icon: Key, path: "/compute/ssh-keys" },
+    ],
+  },
   { id: "message-queue", label: "Message Queue", icon: MessageSquare, path: "/message-queue" },
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
