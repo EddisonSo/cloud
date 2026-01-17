@@ -32,7 +32,7 @@ export function ContainerList({
         <div className="flex-1 min-w-0">Container</div>
         <div className="w-20">Status</div>
         <div className="flex-1 min-w-0">Hostname</div>
-        <div className="w-32 text-right">Actions</div>
+        <div className="w-32 text-center">Actions</div>
       </div>
       {/* Rows */}
       {containers.map((container) => {
@@ -60,7 +60,7 @@ export function ContainerList({
                 <span className="text-sm text-muted-foreground">—</span>
               )}
             </div>
-            <div className="w-32 flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+            <div className="w-32 flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
               {isRunning && (
                 <>
                   <Button
