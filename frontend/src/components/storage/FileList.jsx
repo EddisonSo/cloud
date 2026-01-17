@@ -1,11 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { formatBytes, formatTimestamp, progressPercent } from "@/lib/formatters";
+import { formatBytes, formatTimestamp } from "@/lib/formatters";
 import { Download, Trash2 } from "lucide-react";
 
 export function FileList({
   files,
-  downloadProgress,
   deleting,
   onDownload,
   onDelete,
@@ -35,7 +33,6 @@ export function FileList({
       {/* Rows */}
       {files.map((file) => {
         const fileKey = `${file.namespace || "default"}:${file.name}`;
-        const progress = downloadProgress[fileKey];
         const isDeleting = deleting[fileKey];
 
         return (
@@ -45,14 +42,6 @@ export function FileList({
           >
             <div className="min-w-0">
               <span className="font-medium truncate block">{file.name}</span>
-              {progress?.active && (
-                <div className="mt-2">
-                  <Progress value={progressPercent(progress.bytes, progress.total)} className="h-1" />
-                  <span className="text-xs text-muted-foreground mt-1">
-                    {formatBytes(progress.bytes)} / {formatBytes(progress.total)}
-                  </span>
-                </div>
-              )}
             </div>
             <div className="text-sm text-muted-foreground">{formatBytes(file.size)}</div>
             <div className="text-sm text-muted-foreground">{formatTimestamp(file.modified)}</div>

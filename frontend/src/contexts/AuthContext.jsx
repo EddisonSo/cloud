@@ -5,6 +5,7 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [displayName, setDisplayName] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -15,14 +16,17 @@ export function AuthProvider({ children }) {
       });
       if (!response.ok) {
         setUser(null);
+        setDisplayName(null);
         setIsAdmin(false);
         return;
       }
       const payload = await response.json();
       setUser(payload.username);
+      setDisplayName(payload.display_name || payload.username);
       setIsAdmin(payload.is_admin || false);
     } catch (err) {
       setUser(null);
+      setDisplayName(null);
       setIsAdmin(false);
     } finally {
       setLoading(false);
@@ -58,11 +62,13 @@ export function AuthProvider({ children }) {
       console.warn("Logout error:", err);
     }
     setUser(null);
+    setDisplayName(null);
     setIsAdmin(false);
   };
 
   const value = {
     user,
+    displayName,
     isAdmin,
     loading,
     login,

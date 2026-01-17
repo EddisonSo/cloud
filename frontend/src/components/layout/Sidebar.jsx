@@ -11,7 +11,7 @@ import { StatusDot } from "@/components/common";
 
 export function Sidebar({ healthOk = true }) {
   const location = useLocation();
-  const { user, isAdmin, login, logout } = useAuth();
+  const { user, displayName, isAdmin, login, logout } = useAuth();
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
@@ -82,10 +82,10 @@ export function Sidebar({ healthOk = true }) {
           <>
             <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold">
-                {user.charAt(0).toUpperCase()}
+                {(displayName || user).charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{user}</div>
+                <div className="text-sm font-medium truncate">{displayName || user}</div>
               </div>
             </div>
             <Button

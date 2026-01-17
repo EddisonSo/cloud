@@ -182,7 +182,8 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		`CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
 			username TEXT NOT NULL UNIQUE,
-			password_hash TEXT NOT NULL
+			password_hash TEXT NOT NULL,
+			display_name TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id SERIAL PRIMARY KEY,
@@ -202,6 +203,9 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		}
 	}
 
+	// Migration: add display_name column if it doesn't exist
+	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`)
+
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
 		return err
@@ -212,9 +216,10 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			return err
 		}
 		if _, err := db.Exec(
-			`INSERT INTO users (username, password_hash) VALUES ($1, $2)`,
+			`INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)`,
 			username,
 			string(hash),
+			username, // Default display_name to username
 		); err != nil {
 			return err
 		}
@@ -848,8 +853,9 @@ type loginRequest struct {
 }
 
 type sessionResponse struct {
-	Username string `json:"username"`
-	IsAdmin  bool   `json:"is_admin"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	IsAdmin     bool   `json:"is_admin"`
 }
 
 var adminUsername = os.Getenv("ADMIN_USERNAME")
@@ -877,11 +883,12 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		userID int64
-		hash   string
+		userID      int64
+		hash        string
+		displayName string
 	)
-	err := s.db.QueryRow(`SELECT id, password_hash FROM users WHERE username = $1`, payload.Username).
-		Scan(&userID, &hash)
+	err := s.db.QueryRow(`SELECT id, password_hash, COALESCE(display_name, username) FROM users WHERE username = $1`, payload.Username).
+		Scan(&userID, &hash, &displayName)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -889,6 +896,10 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(payload.Password)); err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
+	}
+	// Fall back to username if display_name is empty
+	if displayName == "" {
+		displayName = payload.Username
 	}
 
 	token, err := generateToken(32)
@@ -916,16 +927,16 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   r.TLS != nil,
 	})
-	writeJSON(w, sessionResponse{Username: payload.Username, IsAdmin: isAdmin(payload.Username)})
+	writeJSON(w, sessionResponse{Username: payload.Username, DisplayName: displayName, IsAdmin: isAdmin(payload.Username)})
 }
 
 func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
-	username, ok := s.currentUser(r)
+	username, displayName, ok := s.currentUserWithDisplay(r)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	writeJSON(w, sessionResponse{Username: username, IsAdmin: isAdmin(username)})
+	writeJSON(w, sessionResponse{Username: username, DisplayName: displayName, IsAdmin: isAdmin(username)})
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -979,6 +990,38 @@ func (s *server) currentUser(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return username, true
+}
+
+func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {
+	token := s.sessionToken(r)
+	if token == "" {
+		return "", "", false
+	}
+
+	var (
+		username    string
+		displayName string
+		expiresAt   int64
+	)
+	err := s.db.QueryRow(
+		`SELECT users.username, COALESCE(users.display_name, users.username), sessions.expires_at
+		 FROM sessions
+		 JOIN users ON sessions.user_id = users.id
+		 WHERE sessions.token = $1`,
+		token,
+	).Scan(&username, &displayName, &expiresAt)
+	if err != nil {
+		return "", "", false
+	}
+	if time.Now().Unix() > expiresAt {
+		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
+		return "", "", false
+	}
+	// Fall back to username if display_name is empty
+	if displayName == "" {
+		displayName = username
+	}
+	return username, displayName, true
 }
 
 func (s *server) sessionToken(r *http.Request) string {
@@ -1483,12 +1526,13 @@ func (s *server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 type adminUser struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
 }
 
 func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(`SELECT id, username FROM users ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id, username, COALESCE(display_name, username) FROM users ORDER BY id`)
 	if err != nil {
 		http.Error(w, "failed to list users", http.StatusInternalServerError)
 		return
@@ -1498,9 +1542,12 @@ func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
 	users := make([]adminUser, 0)
 	for rows.Next() {
 		var u adminUser
-		if err := rows.Scan(&u.ID, &u.Username); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName); err != nil {
 			http.Error(w, "failed to scan user", http.StatusInternalServerError)
 			return
+		}
+		if u.DisplayName == "" {
+			u.DisplayName = u.Username
 		}
 		users = append(users, u)
 	}
@@ -1509,8 +1556,9 @@ func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
 }
 
 type createUserRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name"`
 }
 
 func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) {
@@ -1521,9 +1569,14 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	payload.Username = strings.TrimSpace(payload.Username)
+	payload.DisplayName = strings.TrimSpace(payload.DisplayName)
 	if payload.Username == "" || payload.Password == "" {
 		http.Error(w, "username and password required", http.StatusBadRequest)
 		return
+	}
+	// Default display_name to username if not provided
+	if payload.DisplayName == "" {
+		payload.DisplayName = payload.Username
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
@@ -1534,9 +1587,10 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 
 	var id int64
 	err = s.db.QueryRow(
-		`INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id`,
+		`INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id`,
 		payload.Username,
 		string(hash),
+		payload.DisplayName,
 	).Scan(&id)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "UNIQUE") {
@@ -1547,7 +1601,7 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, adminUser{ID: id, Username: payload.Username})
+	writeJSON(w, adminUser{ID: id, Username: payload.Username, DisplayName: payload.DisplayName})
 }
 
 func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) {

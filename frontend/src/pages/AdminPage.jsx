@@ -16,7 +16,7 @@ export function AdminPage() {
   const [containers, setContainers] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [newUser, setNewUser] = useState({ username: "", password: "" });
+  const [newUser, setNewUser] = useState({ displayName: "", username: "", password: "" });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -58,6 +58,7 @@ export function AdminPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          display_name: newUser.displayName.trim(),
           username: newUser.username.trim(),
           password: newUser.password,
         }),
@@ -66,7 +67,7 @@ export function AdminPage() {
         const msg = await response.text();
         throw new Error(msg || "Failed to create user");
       }
-      setNewUser({ username: "", password: "" });
+      setNewUser({ displayName: "", username: "", password: "" });
       await loadData();
     } catch (err) {
       setError(err.message);
@@ -144,7 +145,13 @@ export function AdminPage() {
           {/* Create User Form */}
           <form onSubmit={handleCreateUser} className="flex gap-3 mb-4">
             <Input
-              placeholder="Username"
+              placeholder="Display Name"
+              value={newUser.displayName}
+              onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
+              className="flex-1"
+            />
+            <Input
+              placeholder="Username (login)"
               value={newUser.username}
               onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
               className="flex-1"
@@ -165,18 +172,20 @@ export function AdminPage() {
 
           {/* Users List */}
           <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="grid grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <div>ID</div>
+              <div>Display Name</div>
               <div>Username</div>
               <div>Actions</div>
             </div>
             {users.map((u) => (
               <div
                 key={u.id}
-                className="grid grid-cols-3 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                className="grid grid-cols-4 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
               >
                 <CopyableText text={u.id} mono />
-                <span className="font-medium">{u.username}</span>
+                <span className="font-medium">{u.display_name || u.username}</span>
+                <span className="text-muted-foreground">{u.username}</span>
                 <div>
                   <Button
                     variant="ghost"

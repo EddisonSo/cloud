@@ -28,8 +28,7 @@ export function StoragePage() {
     loading: filesLoading,
     uploading,
     uploadProgress,
-    downloadProgress,
-    deleting,
+        deleting,
     status,
     setStatus,
     fileInputRef,
@@ -203,8 +202,7 @@ export function StoragePage() {
               <CardContent>
                 <FileList
                   files={files}
-                  downloadProgress={downloadProgress}
-                  deleting={deleting}
+                                    deleting={deleting}
                   onDownload={(file) => downloadFile(file, user)}
                   onDelete={handleDelete}
                   loading={filesLoading}
