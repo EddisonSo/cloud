@@ -14,6 +14,23 @@ import (
 	"eddisonso.com/go-gfs/pkg/gfslog"
 )
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		}
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	logService := flag.String("log-service", "", "Log service address")
@@ -48,9 +65,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// HTTP server
+	// HTTP server with CORS
 	handler := api.NewHandler(database, k8sClient)
-	server := &http.Server{Addr: *addr, Handler: handler}
+	server := &http.Server{Addr: *addr, Handler: corsMiddleware(handler)}
 
 	// Graceful shutdown
 	go func() {

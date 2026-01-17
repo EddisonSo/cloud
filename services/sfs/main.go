@@ -163,7 +163,7 @@ func main() {
 	log.Printf("listening on %s", *addr)
 	log.Printf("serving frontend from %s", srv.staticDir)
 		log.Printf("sharing files under namespace prefix %s", srv.prefix)
-	if err := http.ListenAndServe(*addr, logRequests(mux)); err != nil {
+	if err := http.ListenAndServe(*addr, corsMiddleware(logRequests(mux))); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}
 }
@@ -1741,5 +1741,24 @@ func logRequests(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 		duration := time.Since(start)
 		log.Printf("%s %s %s", r.Method, r.URL.Path, duration.Round(time.Millisecond))
+	})
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		// Allow requests from cloud.eddisonso.com and localhost for dev
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		}
+		// Handle preflight
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
