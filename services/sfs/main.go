@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -840,7 +841,14 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespace, err := sanitizeNamespace(namespace)
+	// URL-decode the file path to handle special characters
+	file, err := url.PathUnescape(file)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	namespace, err = sanitizeNamespace(namespace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -868,7 +876,7 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleFileDownload forces file download: GET /storage/{namespace}/{file...}/download
+// handleFileDownload forces file download: GET /storage/download/{namespace}/{file...}
 func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	namespace := r.PathValue("namespace")
 	file := r.PathValue("file")
@@ -878,7 +886,14 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespace, err := sanitizeNamespace(namespace)
+	// URL-decode the file path to handle special characters
+	file, err := url.PathUnescape(file)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	namespace, err = sanitizeNamespace(namespace)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
