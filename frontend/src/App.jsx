@@ -1,42 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import DataTable, { createTheme } from 'react-data-table-component';
 import '@xterm/xterm/css/xterm.css';
+
+// Custom theme for DataTable
+createTheme('cloudshare', {
+  text: { primary: '#0f172a', secondary: '#5b6677' },
+  background: { default: 'transparent' },
+  divider: { default: 'rgba(15, 23, 42, 0.08)' },
+  highlightOnHover: { default: 'rgba(26, 115, 232, 0.04)', text: '#0f172a' },
+  striped: { default: 'rgba(15, 23, 42, 0.02)', text: '#0f172a' },
+}, 'light');
+
+const tableStyles = {
+  headRow: { style: { backgroundColor: '#f1f5f9', borderRadius: '8px 8px 0 0', minHeight: '44px' } },
+  headCells: { style: { fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#5b6677' } },
+  rows: { style: { minHeight: '52px', fontSize: '0.9rem' } },
+  cells: { style: { paddingLeft: '16px', paddingRight: '16px' } },
+};
 
 const emptyState = "No files yet. Upload your first file to share it.";
 const defaultNamespace = "default";
 const hiddenNamespace = "hidden";
 
-// Reusable Table component for consistent styling
-function Table({ columns, data, emptyMessage = "No data", keyField = "id", renderCell }) {
-  if (!data || data.length === 0) {
-    return <p className="table-empty">{emptyMessage}</p>;
-  }
-  return (
-    <table className="data-table">
-      <thead>
-        <tr>
-          {columns.map((col) => (
-            <th key={col.key} style={col.width ? { width: col.width } : undefined}>
-              {col.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((row) => (
-          <tr key={row[keyField]}>
-            {columns.map((col) => (
-              <td key={col.key}>
-                {renderCell ? renderCell(col.key, row) : row[col.key]}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes === 0) {
@@ -2246,36 +2233,29 @@ function App() {
                     {adminLoading ? "Loading..." : "Refresh"}
                   </button>
                 </div>
-                <Table
+                <DataTable
                   columns={[
-                    { key: "user_id", label: "User ID", width: "80px" },
-                    { key: "name", label: "Name" },
-                    { key: "status", label: "Status", width: "100px" },
-                    { key: "ip", label: "IP Address", width: "140px" },
-                    { key: "resources", label: "Resources", width: "140px" },
+                    { name: 'User', selector: row => row.user_id, width: '70px' },
+                    { name: 'Name', selector: row => row.name, cell: row => (
+                      <div>
+                        <strong>{row.name}</strong>
+                        <div style={{ fontSize: '0.75rem', color: '#5b6677', fontFamily: 'monospace' }}>{row.id.slice(0, 8)}</div>
+                      </div>
+                    )},
+                    { name: 'Status', selector: row => row.status, width: '110px', cell: row => (
+                      <span className={`status-badge ${row.status}`}>{row.status}</span>
+                    )},
+                    { name: 'IP Address', selector: row => row.external_ip, width: '140px', cell: row => (
+                      row.external_ip ? <code>{row.external_ip}</code> : <span className="muted">-</span>
+                    )},
+                    { name: 'Resources', width: '140px', cell: row => `${row.memory_mb} MB / ${row.storage_gb} GB` },
                   ]}
                   data={adminContainers}
-                  emptyMessage="No containers found."
-                  renderCell={(key, row) => {
-                    switch (key) {
-                      case "name":
-                        return (
-                          <>
-                            <span className="cell-primary">{row.name}</span>
-                            <br />
-                            <code className="cell-secondary">{row.id.slice(0, 8)}</code>
-                          </>
-                        );
-                      case "status":
-                        return <span className={`status-badge ${row.status}`}>{row.status}</span>;
-                      case "ip":
-                        return row.external_ip ? <code>{row.external_ip}</code> : <span className="muted">-</span>;
-                      case "resources":
-                        return `${row.memory_mb} MB / ${row.storage_gb} GB`;
-                      default:
-                        return row[key];
-                    }
-                  }}
+                  theme="cloudshare"
+                  customStyles={tableStyles}
+                  noDataComponent={<p className="table-empty">No containers found.</p>}
+                  highlightOnHover
+                  dense
                 />
               </section>
               <section className="panel">
@@ -2304,32 +2284,24 @@ function App() {
                     {creatingUser ? "Adding..." : "Add User"}
                   </button>
                 </form>
-                <Table
+                <DataTable
                   columns={[
-                    { key: "id", label: "ID", width: "60px" },
-                    { key: "username", label: "Username" },
-                    { key: "actions", label: "Actions", width: "100px" },
+                    { name: 'ID', selector: row => row.id, width: '70px' },
+                    { name: 'Username', selector: row => row.username, grow: 1 },
+                    { name: 'Actions', width: '100px', right: true, cell: row => (
+                      row.username !== user ? (
+                        <button type="button" className="ghost danger-text" onClick={() => handleDeleteUser(row.id)}>
+                          Delete
+                        </button>
+                      ) : <span className="muted">-</span>
+                    )},
                   ]}
                   data={adminUsers}
-                  emptyMessage="No users found."
-                  renderCell={(key, row) => {
-                    if (key === "actions") {
-                      return row.username !== user ? (
-                        <div className="cell-actions">
-                          <button
-                            type="button"
-                            className="ghost danger-text"
-                            onClick={() => handleDeleteUser(row.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="muted">-</span>
-                      );
-                    }
-                    return row[key];
-                  }}
+                  theme="cloudshare"
+                  customStyles={tableStyles}
+                  noDataComponent={<p className="table-empty">No users found.</p>}
+                  highlightOnHover
+                  dense
                 />
               </section>
             </>
