@@ -93,21 +93,21 @@ export function SshKeyList({
       ) : (
         <div className="space-y-2">
           {/* Header */}
-          <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <div className="w-32 text-center">Name</div>
-            <div className="flex-1 min-w-0 text-center">Public Key</div>
-            <div className="w-20 text-center">Actions</div>
+          <div className="grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-center">Name</div>
+            <div className="text-center">Public Key</div>
+            <div className="text-center">Actions</div>
           </div>
           {/* Rows */}
           {sshKeys.map((key) => (
             <div
               key={key.id}
-              className="flex items-center gap-4 px-4 py-3 bg-secondary rounded-md"
+              className="grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
             >
-              <div className="w-32 text-center">
+              <div className="text-center">
                 <span className="font-medium truncate block">{key.name}</span>
               </div>
-              <div className="flex-1 min-w-0 flex items-center justify-center gap-2">
+              <div className="min-w-0 flex items-center justify-center gap-2">
                 <span className="text-xs text-muted-foreground font-mono truncate">
                   {key.public_key?.slice(0, 50)}...
                 </span>
@@ -121,7 +121,7 @@ export function SshKeyList({
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
               </div>
-              <div className="w-20 flex justify-center">
+              <div className="flex justify-center">
                 <Button
                   variant="ghost"
                   size="icon"

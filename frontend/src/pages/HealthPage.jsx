@@ -130,7 +130,7 @@ export function HealthPage() {
         <CardContent>
           {loading ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">Node</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">CPU</div>
@@ -138,12 +138,12 @@ export function HealthPage() {
                 <div className="text-center">Disk</div>
               </div>
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center">
-                  <Skeleton className="h-5 w-20" />
-                  <Skeleton className="h-5 w-16" />
+                <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                  <Skeleton className="h-5 w-20 mx-auto" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
                   <Skeleton className="h-2 w-full" />
                   <Skeleton className="h-2 w-full" />
-                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-16 mx-auto" />
                 </div>
               ))}
             </div>
@@ -156,7 +156,7 @@ export function HealthPage() {
           ) : (
             <div className="space-y-2">
               {/* Header */}
-              <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">Node</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">CPU</div>
@@ -170,7 +170,7 @@ export function HealthPage() {
                 return (
                   <div
                     key={node.name || idx}
-                    className="grid grid-cols-5 gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
                   >
                     <div className="font-medium truncate text-center" title={node.name}>
                       {node.name}

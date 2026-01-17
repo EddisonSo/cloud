@@ -28,11 +28,11 @@ export function ContainerList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <div className="flex-1 min-w-0 text-center">Container</div>
-        <div className="w-20 text-center">Status</div>
-        <div className="flex-1 min-w-0 text-center">Hostname</div>
-        <div className="w-32 text-center">Actions</div>
+      <div className="grid grid-cols-[2fr_1fr_2fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-center">Container</div>
+        <div className="text-center">Status</div>
+        <div className="text-center">Hostname</div>
+        <div className="text-center">Actions</div>
       </div>
       {/* Rows */}
       {containers.map((container) => {
@@ -43,24 +43,24 @@ export function ContainerList({
         return (
           <div
             key={container.id}
-            className="flex gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
+            className="grid grid-cols-[2fr_1fr_2fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
             onClick={() => onSelect?.(container)}
           >
-            <div className="flex-1 min-w-0 text-center">
+            <div className="min-w-0 text-center">
               <span className="font-medium block truncate">{container.name}</span>
               <CopyableText text={container.id.slice(0, 8)} mono />
             </div>
-            <div className="w-20 flex justify-center">
+            <div className="flex justify-center">
               <StatusBadge status={container.status} />
             </div>
-            <div className="flex-1 min-w-0 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="min-w-0 text-center" onClick={(e) => e.stopPropagation()}>
               {container.hostname ? (
                 <CopyableText text={container.hostname} mono className="text-sm" />
               ) : (
                 <span className="text-sm text-muted-foreground">—</span>
               )}
             </div>
-            <div className="w-32 flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className="flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
               {isRunning && (
                 <>
                   <Button

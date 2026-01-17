@@ -203,7 +203,7 @@ export function AdminPage() {
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden sm:grid sm:grid-cols-[1fr_2fr_2fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">ID</div>
                 <div className="text-center">Display Name</div>
                 <div className="text-center">Username</div>
@@ -212,7 +212,7 @@ export function AdminPage() {
               {users.map((u) => (
                 <div
                   key={u.id}
-                  className="flex flex-col sm:grid sm:grid-cols-4 gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
+                  className="flex flex-col sm:grid sm:grid-cols-[1fr_2fr_2fr_80px] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
                   <div className="flex justify-between sm:justify-center">
                     <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
@@ -256,7 +256,7 @@ export function AdminPage() {
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden lg:grid lg:grid-cols-5 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden lg:grid lg:grid-cols-[1fr_2fr_1.5fr_1fr_2fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">ID</div>
                 <div className="text-center">Name</div>
                 <div className="text-center">Owner</div>
@@ -266,7 +266,7 @@ export function AdminPage() {
               {containers.map((c) => (
                 <div
                   key={c.id}
-                  className="flex flex-col lg:grid lg:grid-cols-5 gap-2 lg:gap-4 px-4 py-3 bg-secondary rounded-md lg:items-center"
+                  className="flex flex-col lg:grid lg:grid-cols-[1fr_2fr_1.5fr_1fr_2fr] gap-2 lg:gap-4 px-4 py-3 bg-secondary rounded-md lg:items-center"
                 >
                   <div className="flex justify-between lg:justify-center">
                     <span className="text-xs text-muted-foreground lg:hidden">ID:</span>
@@ -310,7 +310,7 @@ export function AdminPage() {
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-4 gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">Name</div>
                 <div className="text-center">Files</div>
                 <div className="text-center">Visibility</div>
@@ -319,7 +319,7 @@ export function AdminPage() {
               {namespaces.map((ns) => (
                 <div
                   key={ns.name}
-                  className="flex flex-col sm:grid sm:grid-cols-4 gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
+                  className="flex flex-col sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
                   <div className="flex justify-between sm:block sm:text-center min-w-0">
                     <span className="text-xs text-muted-foreground sm:hidden">Name:</span>

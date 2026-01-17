@@ -31,7 +31,7 @@ export function FileList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[2fr_3fr_1fr_1.5fr_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div className="text-center">Name</div>
         <div className="text-center">Link</div>
         <div className="text-center">Size</div>
@@ -47,7 +47,7 @@ export function FileList({
         return (
           <div
             key={fileKey}
-            className="grid grid-cols-[minmax(120px,1fr)_minmax(150px,2fr)_80px_100px_auto] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+            className="grid grid-cols-[2fr_3fr_1fr_1.5fr_100px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
           >
             <div className="min-w-0 text-center">
               <span className="font-medium truncate block">{file.name}</span>
