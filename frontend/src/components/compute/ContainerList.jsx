@@ -28,11 +28,11 @@ export function ContainerList({
   return (
     <div className="space-y-2">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_90px_1fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <div>Container</div>
-        <div>Status</div>
-        <div>Hostname</div>
-        <div className="text-right">Actions</div>
+      <div className="flex gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="flex-1 min-w-0">Container</div>
+        <div className="w-20">Status</div>
+        <div className="flex-1 min-w-0">Hostname</div>
+        <div className="w-32 text-right">Actions</div>
       </div>
       {/* Rows */}
       {containers.map((container) => {
@@ -43,24 +43,24 @@ export function ContainerList({
         return (
           <div
             key={container.id}
-            className="grid grid-cols-[1fr_90px_1fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
+            className="flex gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
             onClick={() => onSelect?.(container)}
           >
-            <div className="min-w-0">
+            <div className="flex-1 min-w-0">
               <span className="font-medium block truncate">{container.name}</span>
               <CopyableText text={container.id.slice(0, 8)} mono />
             </div>
-            <div>
+            <div className="w-20">
               <StatusBadge status={container.status} />
             </div>
-            <div className="min-w-0">
+            <div className="flex-1 min-w-0">
               {container.hostname ? (
                 <CopyableText text={container.hostname} mono className="text-sm" />
               ) : (
                 <span className="text-sm text-muted-foreground">—</span>
               )}
             </div>
-            <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+            <div className="w-32 flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
               {isRunning && (
                 <>
                   <Button
