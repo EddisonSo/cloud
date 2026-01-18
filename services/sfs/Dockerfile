@@ -6,7 +6,7 @@ WORKDIR /src
 
 COPY go-gfs /go-gfs
 COPY edd-cloud-interface/services/sfs/go.mod edd-cloud-interface/services/sfs/go.sum /src/
-COPY edd-cloud-interface/services/sfs/main.go /src/
+COPY edd-cloud-interface/services/sfs/*.go /src/
 
 RUN go mod download && go build -o /out/sfs .
 
