@@ -1072,8 +1072,8 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteNoneMode,
+		Secure:   isSecureRequest(r),
 	})
 	writeJSON(w, sessionResponse{Username: payload.Username, DisplayName: displayName, IsAdmin: isAdmin(payload.Username)})
 }
@@ -1098,10 +1098,26 @@ func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteNoneMode,
+		Secure:   isSecureRequest(r),
 	})
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// isSecureRequest checks if the request is over HTTPS (directly or via proxy)
+func isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	// Check for proxy headers
+	if r.Header.Get("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	// Check for Cloudflare header
+	if r.Header.Get("CF-Visitor") != "" {
+		return strings.Contains(r.Header.Get("CF-Visitor"), `"scheme":"https"`)
+	}
+	return false
 }
 
 func (s *server) requireAuth(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -1514,15 +1530,18 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 }
 
 func (s *server) handleWS(ws *websocket.Conn) {
-	if _, ok := s.currentUser(ws.Request()); !ok {
+	r := ws.Request()
+	if _, ok := s.currentUser(r); !ok {
+		log.Printf("ws auth failed origin=%s cookies=%d", r.Header.Get("Origin"), len(r.Cookies()))
 		_ = ws.Close()
 		return
 	}
-	id := ws.Request().URL.Query().Get("id")
+	id := r.URL.Query().Get("id")
 	if id == "" {
 		_ = ws.Close()
 		return
 	}
+	log.Printf("ws connected id=%s", id)
 	s.registerWS(id, ws)
 	defer s.unregisterWS(id, ws)
 	_, _ = io.Copy(io.Discard, ws)
