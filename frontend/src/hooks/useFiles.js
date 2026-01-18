@@ -97,7 +97,7 @@ export function useFiles() {
         }
       };
 
-      await waitForSocket(socket, 2000).catch(() => {});
+      // Start fetch immediately (don't wait for WebSocket) - browser can prepare upload while WS connects
       const url = `${buildApiBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
       const response = await fetch(url, {
         method: "POST",
