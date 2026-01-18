@@ -749,6 +749,9 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		s.gfsNamespace(namespace),
 	)
 
+	// Send immediate "started" progress so UI shows activity right away
+	reporter.Update(0)
+
 	// Wrap file reader to track progress as HTTP data is received
 	counting := &countingReader{reader: file, reporter: reporter}
 
@@ -1471,8 +1474,8 @@ func (p *progressReporter) Update(bytes int64) {
 		return
 	}
 	now := time.Now()
-	// Always send first update immediately
-	isFirst := p.lastBytes == 0 && bytes > 0
+	// Always send first update immediately (even if 0 bytes)
+	isFirst := p.lastSent.IsZero()
 	if !isFirst && bytes-p.lastBytes < p.minBytes && now.Sub(p.lastSent) < p.minInterval {
 		return
 	}
