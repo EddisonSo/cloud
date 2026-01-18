@@ -755,52 +755,19 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	// Wrap file reader to track progress as HTTP data is received
 	counting := &countingReader{reader: file, reporter: reporter}
 
-	// Use PrepareUpload when file size is known to pre-allocate chunks
-	if total > 0 {
-		prepareStart := time.Now()
-		prepared, err := s.client.PrepareUploadWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), total)
-		log.Printf("PrepareUpload took %v for %s (%d bytes)", time.Since(prepareStart), name, total)
-		if err != nil {
-			reporter.Error(err)
-			log.Printf(
-				"upload prepare failed namespace=%s name=%s size=%d transfer=%s err=%v",
-				namespace,
-				name,
-				total,
-				transferID,
-				err,
-			)
-			fail(fmt.Sprintf("prepare upload failed: %v", err), http.StatusBadGateway)
-			return
-		}
-		if _, err := prepared.AppendFrom(ctx, counting); err != nil {
-			reporter.Error(err)
-			log.Printf(
-				"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
-				namespace,
-				name,
-				total,
-				transferID,
-				err,
-			)
-			fail(fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
-			return
-		}
-	} else {
-		// Fallback to regular append when size is unknown
-		if _, err := s.client.AppendFromWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
-			reporter.Error(err)
-			log.Printf(
-				"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
-				namespace,
-				name,
-				total,
-				transferID,
-				err,
-			)
-			fail(fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
-			return
-		}
+	// Use AppendFrom directly - allocates chunks on-demand for faster start
+	if _, err := s.client.AppendFromWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
+		reporter.Error(err)
+		log.Printf(
+			"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
+			namespace,
+			name,
+			total,
+			transferID,
+			err,
+		)
+		fail(fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
+		return
 	}
 	reporter.Done()
 	log.Printf(
