@@ -97,9 +97,9 @@ func New(connStr string) (*Router, error) {
 		return nil, fmt.Errorf("initial load: %w", err)
 	}
 
-	// Start background sync (every 5 seconds)
-	r.wg.Add(1)
-	go r.syncLoop()
+	// Background sync disabled - routes loaded once at startup
+	// r.wg.Add(1)
+	// go r.syncLoop()
 
 	return r, nil
 }
