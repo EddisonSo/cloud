@@ -126,8 +126,14 @@ export function HealthPage() {
 
       {/* Node Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Cluster Nodes</CardTitle>
+          <button
+            onClick={() => setShowPercent(!showPercent)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showPercent ? "Show absolute" : "Show percent"}
+          </button>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -169,6 +175,21 @@ export function HealthPage() {
               {health.nodes.map((node, idx) => {
                 const conditions = node.conditions || [];
                 const isHealthy = conditions.every((c) => c.status === "False");
+
+                // Parse CPU values (cpu_usage is like "500m", cpu_capacity is like "4")
+                const cpuUsageStr = node.cpu_usage || "0";
+                const cpuCapStr = node.cpu_capacity || "0";
+                const cpuUsageMillis = cpuUsageStr.includes("n")
+                  ? parseInt(cpuUsageStr) / 1000000
+                  : cpuUsageStr.includes("m")
+                  ? parseInt(cpuUsageStr)
+                  : parseInt(cpuUsageStr) * 1000;
+                const cpuCapMillis = parseInt(cpuCapStr) * 1000;
+
+                // Parse memory values
+                const memUsage = parseKiBytes(node.memory_usage || "0");
+                const memCap = parseKiBytes(node.memory_capacity || "0");
+
                 return (
                   <div
                     key={node.name || idx}
@@ -181,22 +202,37 @@ export function HealthPage() {
                       <StatusDot status={isHealthy ? "ok" : "warning"} />
                       <span className="text-sm">{isHealthy ? "Healthy" : "Pressure"}</span>
                     </div>
-                    <div className="space-y-1 text-center">
+                    <div
+                      className="space-y-1 text-center cursor-pointer"
+                      onClick={() => setShowPercent(!showPercent)}
+                    >
                       <Progress value={node.cpu_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
-                        {(node.cpu_percent || 0).toFixed(1)}%
+                        {showPercent
+                          ? `${(node.cpu_percent || 0).toFixed(1)}%`
+                          : `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m`}
                       </span>
                     </div>
-                    <div className="space-y-1 text-center">
+                    <div
+                      className="space-y-1 text-center cursor-pointer"
+                      onClick={() => setShowPercent(!showPercent)}
+                    >
                       <Progress value={node.memory_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
-                        {(node.memory_percent || 0).toFixed(1)}%
+                        {showPercent
+                          ? `${(node.memory_percent || 0).toFixed(1)}%`
+                          : `${formatBytes(memUsage)} / ${formatBytes(memCap)}`}
                       </span>
                     </div>
-                    <div className="space-y-1 text-center">
+                    <div
+                      className="space-y-1 text-center cursor-pointer"
+                      onClick={() => setShowPercent(!showPercent)}
+                    >
                       <Progress value={node.disk_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
-                        {formatBytes(node.disk_usage || 0)} / {formatBytes(node.disk_capacity || 0)}
+                        {showPercent
+                          ? `${(node.disk_percent || 0).toFixed(1)}%`
+                          : `${formatBytes(node.disk_usage || 0)} / ${formatBytes(node.disk_capacity || 0)}`}
                       </span>
                     </div>
                   </div>
@@ -221,20 +257,18 @@ export function HealthPage() {
         <CardContent>
           {loading ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Pod</div>
-                <div className="text-center">Node</div>
                 <div className="text-center">CPU</div>
                 <div className="text-center">Memory</div>
                 <div className="text-center">Disk</div>
               </div>
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                <div key={i} className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
                   <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-5 w-12 mx-auto" />
-                  <Skeleton className="h-5 w-16 mx-auto" />
-                  <Skeleton className="h-5 w-16 mx-auto" />
-                  <Skeleton className="h-5 w-16 mx-auto" />
+                  <Skeleton className="h-2 w-full" />
+                  <Skeleton className="h-2 w-full" />
+                  <Skeleton className="h-2 w-full" />
                 </div>
               ))}
             </div>
@@ -243,70 +277,89 @@ export function HealthPage() {
               {user ? "No pods found" : "Log in to view pod metrics"}
             </p>
           ) : (
-            <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Pod</div>
-                <div className="text-center">Node</div>
-                <div className="text-center">CPU</div>
-                <div className="text-center">Memory</div>
-                <div className="text-center">Disk</div>
-              </div>
-              {/* Rows */}
-              {(podMetrics.pods || []).map((pod, idx) => {
-                const cpuUsageMillis = (pod.cpu_usage || 0) / 1000000;
-                const cpuCapMillis = (pod.cpu_capacity || 0) / 1000000;
-                const cpuPercent = cpuCapMillis > 0 ? (cpuUsageMillis / cpuCapMillis) * 100 : 0;
-
-                const memUsage = pod.memory_usage || 0;
-                const memCap = pod.memory_capacity || 0;
-                const memPercent = memCap > 0 ? (memUsage / memCap) * 100 : 0;
-
-                const diskUsage = pod.disk_usage || 0;
-                const diskCap = pod.disk_capacity || 0;
-                const diskPercent = diskCap > 0 ? (diskUsage / diskCap) * 100 : 0;
-
-                return (
-                  <div
-                    key={pod.name || idx}
-                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
-                  >
-                    <div className="font-medium truncate" title={pod.name}>
-                      {pod.name}
-                    </div>
-                    <div className="text-sm text-muted-foreground text-center">
-                      {pod.node}
-                    </div>
-                    <div
-                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => setShowPercent(!showPercent)}
-                      title={showPercent ? `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m` : `${cpuPercent.toFixed(1)}%`}
-                    >
-                      {showPercent
-                        ? `${cpuPercent.toFixed(1)}%`
-                        : `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m`}
-                    </div>
-                    <div
-                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => setShowPercent(!showPercent)}
-                      title={showPercent ? `${formatBytes(memUsage)} / ${formatBytes(memCap)}` : `${memPercent.toFixed(1)}%`}
-                    >
-                      {showPercent
-                        ? `${memPercent.toFixed(1)}%`
-                        : `${formatBytes(memUsage)} / ${formatBytes(memCap)}`}
-                    </div>
-                    <div
-                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => setShowPercent(!showPercent)}
-                      title={showPercent ? `${formatBytes(diskUsage)} / ${formatBytes(diskCap)}` : `${diskPercent.toFixed(1)}%`}
-                    >
-                      {showPercent
-                        ? `${diskPercent.toFixed(1)}%`
-                        : `${formatBytes(diskUsage)} / ${formatBytes(diskCap)}`}
-                    </div>
+            <div className="space-y-4">
+              {/* Group pods by node */}
+              {Object.entries(
+                (podMetrics.pods || []).reduce((acc, pod) => {
+                  const node = pod.node || "Unknown";
+                  if (!acc[node]) acc[node] = [];
+                  acc[node].push(pod);
+                  return acc;
+                }, {})
+              ).map(([nodeName, pods]) => (
+                <div key={nodeName} className="space-y-2">
+                  {/* Node Header */}
+                  <div className="px-4 py-2 bg-muted/50 rounded-md">
+                    <span className="text-sm font-semibold">{nodeName}</span>
+                    <span className="text-xs text-muted-foreground ml-2">({pods.length} pods)</span>
                   </div>
-                );
-              })}
+                  {/* Column Header */}
+                  <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <div>Pod</div>
+                    <div className="text-center">CPU</div>
+                    <div className="text-center">Memory</div>
+                    <div className="text-center">Disk</div>
+                  </div>
+                  {/* Pod Rows */}
+                  {pods.map((pod, idx) => {
+                    const cpuUsageMillis = (pod.cpu_usage || 0) / 1000000;
+                    const cpuCapMillis = (pod.cpu_capacity || 0) / 1000000;
+                    const cpuPercent = cpuCapMillis > 0 ? (cpuUsageMillis / cpuCapMillis) * 100 : 0;
+
+                    const memUsage = pod.memory_usage || 0;
+                    const memCap = pod.memory_capacity || 0;
+                    const memPercent = memCap > 0 ? (memUsage / memCap) * 100 : 0;
+
+                    const diskUsage = pod.disk_usage || 0;
+                    const diskCap = pod.disk_capacity || 0;
+                    const diskPercent = diskCap > 0 ? (diskUsage / diskCap) * 100 : 0;
+
+                    return (
+                      <div
+                        key={pod.name || idx}
+                        className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                      >
+                        <div className="font-medium truncate" title={pod.name}>
+                          {pod.name}
+                        </div>
+                        <div
+                          className="space-y-1 text-center cursor-pointer"
+                          onClick={() => setShowPercent(!showPercent)}
+                        >
+                          <Progress value={cpuPercent} className="h-2" />
+                          <span className="text-xs text-muted-foreground">
+                            {showPercent
+                              ? `${cpuPercent.toFixed(1)}%`
+                              : `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m`}
+                          </span>
+                        </div>
+                        <div
+                          className="space-y-1 text-center cursor-pointer"
+                          onClick={() => setShowPercent(!showPercent)}
+                        >
+                          <Progress value={memPercent} className="h-2" />
+                          <span className="text-xs text-muted-foreground">
+                            {showPercent
+                              ? `${memPercent.toFixed(1)}%`
+                              : `${formatBytes(memUsage)} / ${formatBytes(memCap)}`}
+                          </span>
+                        </div>
+                        <div
+                          className="space-y-1 text-center cursor-pointer"
+                          onClick={() => setShowPercent(!showPercent)}
+                        >
+                          <Progress value={diskPercent} className="h-2" />
+                          <span className="text-xs text-muted-foreground">
+                            {showPercent
+                              ? `${diskPercent.toFixed(1)}%`
+                              : `${formatBytes(diskUsage)} / ${formatBytes(diskCap)}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
