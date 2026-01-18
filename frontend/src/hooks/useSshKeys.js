@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildApiBase, getAuthHeaders } from "@/lib/api";
 import { registerCacheClear } from "@/lib/cache";
 
 // Module-level cache that persists across component mounts
@@ -25,7 +25,7 @@ export function useSshKeys() {
     try {
       setLoading(true);
       const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
-        credentials: "include",
+        headers: getAuthHeaders(),
       });
       if (!response.ok) return [];
       const payload = await response.json();
@@ -45,8 +45,7 @@ export function useSshKeys() {
   const addSshKey = useCallback(async (name, publicKey) => {
     const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ name, public_key: publicKey }),
     });
     if (!response.ok) {
@@ -60,7 +59,7 @@ export function useSshKeys() {
   const deleteSshKey = useCallback(async (id) => {
     const response = await fetch(`${buildApiBase()}/compute/ssh-keys/${id}`, {
       method: "DELETE",
-      credentials: "include",
+      headers: getAuthHeaders(),
     });
     if (!response.ok) throw new Error("Failed to delete SSH key");
     await loadSshKeys(true);

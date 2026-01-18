@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { TextSkeleton } from "@/components/ui/skeleton";
 import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
-import { buildApiBase } from "@/lib/api";
+import { buildApiBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Trash2, UserPlus, Eye, EyeOff } from "lucide-react";
 
@@ -39,9 +39,9 @@ export function AdminPage() {
     setError("");
     try {
       const [containersRes, usersRes, namespacesRes] = await Promise.all([
-        fetch(`${buildApiBase()}/compute/admin/containers`, { credentials: "include" }),
-        fetch(`${buildApiBase()}/admin/users`, { credentials: "include" }),
-        fetch(`${buildApiBase()}/admin/namespaces`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/compute/admin/containers`, { headers: getAuthHeaders() }),
+        fetch(`${buildApiBase()}/admin/users`, { headers: getAuthHeaders() }),
+        fetch(`${buildApiBase()}/admin/namespaces`, { headers: getAuthHeaders() }),
       ]);
       if (containersRes.ok) {
         const data = await parseJsonSafe(containersRes);
@@ -77,8 +77,7 @@ export function AdminPage() {
     try {
       const response = await fetch(`${buildApiBase()}/admin/users`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           display_name: newUser.displayName.trim(),
           username: newUser.username.trim(),
@@ -104,7 +103,7 @@ export function AdminPage() {
     try {
       const response = await fetch(`${buildApiBase()}/admin/users?id=${userId}`, {
         method: "DELETE",
-        credentials: "include",
+        headers: getAuthHeaders(),
       });
       if (!response.ok) {
         const msg = await response.text();

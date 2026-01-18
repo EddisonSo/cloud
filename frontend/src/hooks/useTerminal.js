@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { resolveApiHost } from "@/lib/api";
+import { resolveApiHost, getAuthToken } from "@/lib/api";
 
 export function useTerminal() {
   const [container, setContainer] = useState(null);
@@ -74,7 +74,11 @@ export function useTerminal() {
     term.writeln('Connecting to container...');
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${resolveApiHost()}/compute/containers/${container.id}/terminal`;
+    const token = getAuthToken();
+    let wsUrl = `${wsProtocol}//${resolveApiHost()}/compute/containers/${container.id}/terminal`;
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    }
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

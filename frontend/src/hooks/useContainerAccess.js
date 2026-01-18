@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildApiBase, getAuthHeaders } from "@/lib/api";
 
 export function useContainerAccess() {
   const [container, setContainer] = useState(null);
@@ -17,8 +17,8 @@ export function useContainerAccess() {
 
     try {
       const [sshRes, ingressRes] = await Promise.all([
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ssh`, { credentials: "include" }),
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ingress`, { credentials: "include" }),
+        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ssh`, { headers: getAuthHeaders() }),
+        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ingress`, { headers: getAuthHeaders() }),
       ]);
       if (sshRes.ok) {
         const data = await sshRes.json();
@@ -51,8 +51,7 @@ export function useContainerAccess() {
         `${buildApiBase()}/compute/containers/${container.id}/ssh`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({ ssh_enabled: newValue }),
         }
       );
@@ -77,8 +76,7 @@ export function useContainerAccess() {
         `${buildApiBase()}/compute/containers/${container.id}/ingress`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({ port, target_port: targetPort || port }),
         }
       );
@@ -103,7 +101,7 @@ export function useContainerAccess() {
     if (!container) return;
     const response = await fetch(
       `${buildApiBase()}/compute/containers/${container.id}/ingress/${port}`,
-      { method: "DELETE", credentials: "include" }
+      { method: "DELETE", headers: getAuthHeaders() }
     );
     if (!response.ok) throw new Error("Failed to remove rule");
     setIngressRules((prev) => prev.filter((r) => r.port !== port));

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildApiBase, getAuthHeaders } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -28,7 +28,7 @@ export function useNamespaces() {
     try {
       setLoading(true);
       const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
-        credentials: "include",
+        headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error("Failed to load namespaces");
       const payload = await response.json();
@@ -55,8 +55,7 @@ export function useNamespaces() {
     const normalizedName = normalizeNamespace(name);
     const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ name: normalizedName, hidden }),
     });
     if (!response.ok) {
@@ -71,7 +70,7 @@ export function useNamespaces() {
   const deleteNamespace = useCallback(async (name) => {
     const response = await fetch(
       `${buildApiBase()}/storage/namespaces/${encodeURIComponent(name)}`,
-      { method: "DELETE", credentials: "include" }
+      { method: "DELETE", headers: getAuthHeaders() }
     );
     if (!response.ok) {
       const message = await response.text();
@@ -85,8 +84,7 @@ export function useNamespaces() {
       `${buildApiBase()}/storage/namespaces/${encodeURIComponent(name)}`,
       {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ hidden }),
       }
     );

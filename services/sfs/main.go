@@ -24,6 +24,7 @@ import (
 
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 	"eddisonso.com/go-gfs/pkg/gfslog"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/websocket"
 	_ "github.com/lib/pq"
@@ -46,10 +47,18 @@ type server struct {
 	listPrefix string
 	uploadTTL  time.Duration
 	db         *sql.DB
-	cookieName string
+	jwtSecret  []byte
 	sessionTTL time.Duration
 	wsMu       sync.Mutex
 	wsConns    map[string]*websocket.Conn
+}
+
+// JWTClaims represents the claims in a JWT token
+type JWTClaims struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	UserID      int64  `json:"user_id"`
+	jwt.RegisteredClaims
 }
 
 const (
@@ -62,6 +71,21 @@ type namespaceInfo struct {
 	Count   int    `json:"count"`
 	Hidden  bool   `json:"hidden"`
 	OwnerID *int   `json:"owner_id,omitempty"`
+}
+
+// getJWTSecret returns the JWT signing secret from environment variable
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		// Generate a random secret if not provided (not recommended for production)
+		b := make([]byte, 32)
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("failed to generate JWT secret:", err)
+		}
+		log.Println("WARNING: JWT_SECRET not set, using random secret (sessions won't persist across restarts)")
+		return b
+	}
+	return []byte(secret)
 }
 
 func main() {
@@ -135,7 +159,7 @@ func main() {
 		listPrefix: "",
 		uploadTTL:  *uploadTTL,
 		db:         db,
-		cookieName: "sfs_session",
+		jwtSecret:  getJWTSecret(),
 		sessionTTL: *sessionTTL,
 		wsConns:    make(map[string]*websocket.Conn),
 	}
@@ -974,6 +998,7 @@ type sessionResponse struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	IsAdmin     bool   `json:"is_admin"`
+	Token       string `json:"token,omitempty"`
 }
 
 var adminUsername = os.Getenv("ADMIN_USERNAME")
@@ -1020,33 +1045,31 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		displayName = payload.Username
 	}
 
-	token, err := generateToken(32)
+	// Generate JWT token
+	expires := time.Now().Add(s.sessionTTL)
+	claims := JWTClaims{
+		Username:    payload.Username,
+		DisplayName: displayName,
+		UserID:      userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expires),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   payload.Username,
+		},
+	}
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := jwtToken.SignedString(s.jwtSecret)
 	if err != nil {
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
-	expires := time.Now().Add(s.sessionTTL)
-	if _, err := s.db.Exec(
-		`INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-		userID,
-		token,
-		expires.Unix(),
-	); err != nil {
-		http.Error(w, "failed to create session", http.StatusInternalServerError)
-		return
-	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     s.cookieName,
-		Value:    token,
-		Path:     "/",
-		Domain:   getCookieDomain(r),
-		Expires:  expires,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   isSecureRequest(r),
+	writeJSON(w, sessionResponse{
+		Username:    payload.Username,
+		DisplayName: displayName,
+		IsAdmin:     isAdmin(payload.Username),
+		Token:       tokenString,
 	})
-	writeJSON(w, sessionResponse{Username: payload.Username, DisplayName: displayName, IsAdmin: isAdmin(payload.Username)})
 }
 
 func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
@@ -1059,20 +1082,8 @@ func (s *server) handleSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	token := s.sessionToken(r)
-	if token != "" {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     s.cookieName,
-		Value:    "",
-		Path:     "/",
-		Domain:   getCookieDomain(r),
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   isSecureRequest(r),
-	})
+	// With JWT, logout is handled client-side by removing the token
+	// Server just acknowledges the request
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
@@ -1116,31 +1127,34 @@ func (s *server) requireAuth(w http.ResponseWriter, r *http.Request) (string, bo
 	return username, true
 }
 
+// parseJWT extracts and validates claims from a JWT token
+func (s *server) parseJWT(tokenString string) (*JWTClaims, bool) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return s.jwtSecret, nil
+	})
+	if err != nil {
+		return nil, false
+	}
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil, false
+	}
+	return claims, true
+}
+
 func (s *server) currentUser(r *http.Request) (string, bool) {
 	token := s.sessionToken(r)
 	if token == "" {
 		return "", false
 	}
-
-	var (
-		username  string
-		expiresAt int64
-	)
-	err := s.db.QueryRow(
-		`SELECT users.username, sessions.expires_at
-		 FROM sessions
-		 JOIN users ON sessions.user_id = users.id
-		 WHERE sessions.token = $1`,
-		token,
-	).Scan(&username, &expiresAt)
-	if err != nil {
+	claims, ok := s.parseJWT(token)
+	if !ok {
 		return "", false
 	}
-	if time.Now().Unix() > expiresAt {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
-		return "", false
-	}
-	return username, true
+	return claims.Username, true
 }
 
 func (s *server) currentUserID(r *http.Request) (int, bool) {
@@ -1148,26 +1162,11 @@ func (s *server) currentUserID(r *http.Request) (int, bool) {
 	if token == "" {
 		return 0, false
 	}
-
-	var (
-		userID    int
-		expiresAt int64
-	)
-	err := s.db.QueryRow(
-		`SELECT users.id, sessions.expires_at
-		 FROM sessions
-		 JOIN users ON sessions.user_id = users.id
-		 WHERE sessions.token = $1`,
-		token,
-	).Scan(&userID, &expiresAt)
-	if err != nil {
+	claims, ok := s.parseJWT(token)
+	if !ok {
 		return 0, false
 	}
-	if time.Now().Unix() > expiresAt {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
-		return 0, false
-	}
-	return userID, true
+	return int(claims.UserID), true
 }
 
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {
@@ -1175,39 +1174,25 @@ func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) 
 	if token == "" {
 		return "", "", false
 	}
-
-	var (
-		username    string
-		displayName string
-		expiresAt   int64
-	)
-	err := s.db.QueryRow(
-		`SELECT users.username, COALESCE(users.display_name, users.username), sessions.expires_at
-		 FROM sessions
-		 JOIN users ON sessions.user_id = users.id
-		 WHERE sessions.token = $1`,
-		token,
-	).Scan(&username, &displayName, &expiresAt)
-	if err != nil {
+	claims, ok := s.parseJWT(token)
+	if !ok {
 		return "", "", false
 	}
-	if time.Now().Unix() > expiresAt {
-		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = $1`, token)
-		return "", "", false
-	}
+	displayName := claims.DisplayName
 	// Fall back to username if display_name is empty
 	if displayName == "" {
-		displayName = username
+		displayName = claims.Username
 	}
-	return username, displayName, true
+	return claims.Username, displayName, true
 }
 
 func (s *server) sessionToken(r *http.Request) string {
-	cookie, err := r.Cookie(s.cookieName)
-	if err != nil {
-		return ""
+	// Check Authorization header first (Bearer token)
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
 	}
-	return cookie.Value
+	return ""
 }
 
 func generateToken(length int) (string, error) {

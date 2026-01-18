@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import { buildApiBase, buildWsUrl, createTransferId, waitForSocket } from "@/lib/api";
+import { buildApiBase, buildWsUrl, createTransferId, waitForSocket, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -38,7 +38,7 @@ export function useFiles() {
       setLoading(true);
       const response = await fetch(
         `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`,
-        { credentials: "include" }
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error("Failed to load files");
       const payload = await response.json();
@@ -74,7 +74,11 @@ export function useFiles() {
     const formData = new FormData();
     formData.append("file", file);
     const transferId = createTransferId();
-    const socket = new WebSocket(buildWsUrl(transferId));
+    const token = getAuthToken();
+    const wsUrl = token
+      ? `${buildWsUrl(transferId)}&token=${encodeURIComponent(token)}`
+      : buildWsUrl(transferId);
+    const socket = new WebSocket(wsUrl);
 
     try {
       setUploading(true);
@@ -104,8 +108,7 @@ export function useFiles() {
       const response = await fetch(url, {
         method: "POST",
         body: formData,
-        credentials: "include",
-        headers: { "X-File-Size": file.size.toString() },
+        headers: { "X-File-Size": file.size.toString(), ...getAuthHeaders() },
       });
       if (!response.ok) {
         const message = await response.text();
@@ -138,9 +141,13 @@ export function useFiles() {
     const transferId = createTransferId();
     let socket;
     const fileKey = `${file.namespace || DEFAULT_NAMESPACE}:${file.name}`;
+    const token = getAuthToken();
 
     if (user) {
-      socket = new WebSocket(buildWsUrl(transferId));
+      const wsUrl = token
+        ? `${buildWsUrl(transferId)}&token=${encodeURIComponent(token)}`
+        : buildWsUrl(transferId);
+      socket = new WebSocket(wsUrl);
       setDownloadProgress((prev) => ({
         ...prev,
         [fileKey]: { bytes: 0, total: file.size, active: true },
@@ -167,8 +174,14 @@ export function useFiles() {
       await waitForSocket(socket, 2000).catch(() => {});
     }
 
+    // For downloads, pass token as query parameter since we're using a link
+    let downloadUrl = `${buildApiBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    if (token) {
+      downloadUrl += `&token=${encodeURIComponent(token)}`;
+    }
+
     const link = document.createElement("a");
-    link.href = `${buildApiBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    link.href = downloadUrl;
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
@@ -184,7 +197,7 @@ export function useFiles() {
     try {
       const response = await fetch(
         `${buildApiBase()}/storage/delete?name=${encodeURIComponent(file.name)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`,
-        { method: "DELETE", credentials: "include" }
+        { method: "DELETE", headers: getAuthHeaders() }
       );
       if (!response.ok) {
         const message = await response.text();

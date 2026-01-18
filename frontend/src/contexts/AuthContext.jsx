@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildApiBase, getAuthToken, setAuthToken, clearAuthToken } from "@/lib/api";
 import { clearAllCaches } from "@/lib/cache";
 
 const AuthContext = createContext();
@@ -11,11 +11,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const checkSession = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setUser(null);
+      setDisplayName(null);
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(`${buildApiBase()}/api/session`, {
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
+        clearAuthToken();
         setUser(null);
         setDisplayName(null);
         setIsAdmin(false);
@@ -26,6 +36,7 @@ export function AuthProvider({ children }) {
       setDisplayName(payload.display_name || payload.username);
       setIsAdmin(payload.is_admin || false);
     } catch (err) {
+      clearAuthToken();
       setUser(null);
       setDisplayName(null);
       setIsAdmin(false);
@@ -42,26 +53,33 @@ export function AuthProvider({ children }) {
     const response = await fetch(`${buildApiBase()}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ username, password }),
     });
     if (!response.ok) {
       const error = await response.text();
       throw new Error(error || "Login failed");
     }
-    await checkSession();
+    const data = await response.json();
+    if (data.token) {
+      setAuthToken(data.token);
+    }
+    setUser(data.username);
+    setDisplayName(data.display_name || data.username);
+    setIsAdmin(data.is_admin || false);
     return true;
   };
 
   const logout = async () => {
+    const token = getAuthToken();
     try {
       await fetch(`${buildApiBase()}/api/logout`, {
         method: "POST",
-        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
     } catch (err) {
       console.warn("Logout error:", err);
     }
+    clearAuthToken();
     setUser(null);
     setDisplayName(null);
     setIsAdmin(false);
