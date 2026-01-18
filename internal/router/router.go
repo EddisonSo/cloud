@@ -1,6 +1,7 @@
 package router
 
 import (
+	"container/list"
 	"context"
 	"database/sql"
 	"errors"
@@ -13,6 +14,97 @@ import (
 
 	_ "github.com/lib/pq"
 )
+
+// LRU cache for route lookups
+const routeCacheSize = 1000
+
+// routeCacheEntry holds a cached route lookup result.
+type routeCacheEntry struct {
+	key        string
+	route      *StaticRoute
+	targetPath string
+	err        error
+}
+
+// routeCache is a thread-safe LRU cache for route lookups.
+type routeCache struct {
+	mu       sync.Mutex
+	capacity int
+	items    map[string]*list.Element
+	order    *list.List // front = most recently used
+}
+
+// newRouteCache creates a new LRU cache with the given capacity.
+func newRouteCache(capacity int) *routeCache {
+	return &routeCache{
+		capacity: capacity,
+		items:    make(map[string]*list.Element),
+		order:    list.New(),
+	}
+}
+
+// get retrieves an entry from the cache, moving it to front (most recently used).
+func (c *routeCache) get(key string) (*routeCacheEntry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if elem, ok := c.items[key]; ok {
+		c.order.MoveToFront(elem)
+		return elem.Value.(*routeCacheEntry), true
+	}
+	return nil, false
+}
+
+// put adds an entry to the cache, evicting the least recently used if at capacity.
+func (c *routeCache) put(key string, route *StaticRoute, targetPath string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// If key exists, update and move to front
+	if elem, ok := c.items[key]; ok {
+		c.order.MoveToFront(elem)
+		entry := elem.Value.(*routeCacheEntry)
+		entry.route = route
+		entry.targetPath = targetPath
+		entry.err = err
+		return
+	}
+
+	// Evict LRU if at capacity
+	if c.order.Len() >= c.capacity {
+		oldest := c.order.Back()
+		if oldest != nil {
+			c.order.Remove(oldest)
+			delete(c.items, oldest.Value.(*routeCacheEntry).key)
+		}
+	}
+
+	// Add new entry at front
+	entry := &routeCacheEntry{
+		key:        key,
+		route:      route,
+		targetPath: targetPath,
+		err:        err,
+	}
+	elem := c.order.PushFront(entry)
+	c.items[key] = elem
+}
+
+// clear removes all entries from the cache.
+func (c *routeCache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.items = make(map[string]*list.Element)
+	c.order.Init()
+}
+
+// size returns the current number of entries in the cache.
+func (c *routeCache) size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.order.Len()
+}
 
 var (
 	ErrNotFound        = errors.New("container not found")
@@ -43,11 +135,12 @@ type Container struct {
 }
 
 // Router resolves container IDs and static routes.
-// Simple implementation with linear scanning, no caching.
+// Uses LRU caching for route lookups.
 type Router struct {
 	db         *sql.DB
 	containers map[string]*Container // containerID -> Container
 	routes     []StaticRoute         // sorted by path length (longest first)
+	cache      *routeCache           // LRU cache for route lookups
 	mu         sync.RWMutex
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -86,6 +179,7 @@ func New(connStr string) (*Router, error) {
 	r := &Router{
 		db:         db,
 		containers: make(map[string]*Container),
+		cache:      newRouteCache(routeCacheSize),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -182,6 +276,11 @@ func (r *Router) reload() error {
 	r.containers = containers
 	r.routes = routes
 	r.mu.Unlock()
+
+	// Clear cache since routes changed
+	if r.cache != nil {
+		r.cache.clear()
+	}
 
 	slog.Debug("reloaded router data", "containers", len(containers), "routes", len(routes))
 	for _, route := range routes {
@@ -283,9 +382,22 @@ func (r *Router) ResolveHTTP(hostname string, ingressPort int) (*Container, int,
 	return c, targetPort, nil
 }
 
-// ResolveStaticRoute finds a matching static route using simple linear scan.
+// ResolveStaticRoute finds a matching static route using LRU cache + linear scan.
 // Returns the route and the path to forward (with prefix stripped if configured).
 func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, error) {
+	// Build cache key
+	cacheKey := host + ":" + path
+
+	// Check cache first
+	if entry, ok := r.cache.get(cacheKey); ok {
+		if entry.err != nil {
+			return nil, "", entry.err
+		}
+		slog.Debug("route cache hit", "host", host, "path", path, "target", entry.route.Target)
+		return entry.route, entry.targetPath, nil
+	}
+
+	// Cache miss - do the lookup
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -305,11 +417,15 @@ func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, er
 				}
 			}
 			slog.Debug("route matched", "host", host, "path", path, "prefix", route.PathPrefix, "target", route.Target)
+			// Cache the result
+			r.cache.put(cacheKey, route, targetPath, nil)
 			return route, targetPath, nil
 		}
 	}
 
 	slog.Debug("no route matched", "host", host, "path", path)
+	// Cache the miss
+	r.cache.put(cacheKey, nil, "", ErrNoRoute)
 	return nil, "", ErrNoRoute
 }
 
