@@ -62,11 +62,12 @@ type PodMetricsInfo struct {
 
 // MetricsCache holds the latest metrics data updated by background workers
 type MetricsCache struct {
-	mu          sync.RWMutex
-	clusterInfo *ClusterInfo
-	podMetrics  *PodMetricsInfo
-	subscribers []chan *ClusterInfo
-	subMu       sync.Mutex
+	mu             sync.RWMutex
+	clusterInfo    *ClusterInfo
+	podMetrics     *PodMetricsInfo
+	subscribers    []chan *ClusterInfo
+	podSubscribers []chan *PodMetricsInfo
+	subMu          sync.Mutex
 }
 
 func NewMetricsCache() *MetricsCache {
@@ -108,6 +109,16 @@ func (c *MetricsCache) SetPodMetrics(info *PodMetricsInfo) {
 	c.mu.Lock()
 	c.podMetrics = info
 	c.mu.Unlock()
+
+	// Notify pod subscribers
+	c.subMu.Lock()
+	for _, ch := range c.podSubscribers {
+		select {
+		case ch <- info:
+		default: // Don't block if subscriber is slow
+		}
+	}
+	c.subMu.Unlock()
 }
 
 func (c *MetricsCache) Subscribe() chan *ClusterInfo {
@@ -124,6 +135,26 @@ func (c *MetricsCache) Unsubscribe(ch chan *ClusterInfo) {
 	for i, sub := range c.subscribers {
 		if sub == ch {
 			c.subscribers = append(c.subscribers[:i], c.subscribers[i+1:]...)
+			close(ch)
+			return
+		}
+	}
+}
+
+func (c *MetricsCache) SubscribePods() chan *PodMetricsInfo {
+	ch := make(chan *PodMetricsInfo, 1)
+	c.subMu.Lock()
+	c.podSubscribers = append(c.podSubscribers, ch)
+	c.subMu.Unlock()
+	return ch
+}
+
+func (c *MetricsCache) UnsubscribePods(ch chan *PodMetricsInfo) {
+	c.subMu.Lock()
+	defer c.subMu.Unlock()
+	for i, sub := range c.podSubscribers {
+		if sub == ch {
+			c.podSubscribers = append(c.podSubscribers[:i], c.podSubscribers[i+1:]...)
 			close(ch)
 			return
 		}
@@ -238,6 +269,10 @@ func main() {
 	mux.HandleFunc("/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cache.GetPodMetrics())
+	})
+
+	mux.HandleFunc("/ws/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
+		handlePodMetricsWS(w, r, cache)
 	})
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -588,6 +623,50 @@ func handleClusterInfoWS(w http.ResponseWriter, r *http.Request, cache *MetricsC
 
 	// Send current data immediately
 	if err := conn.WriteJSON(cache.GetClusterInfo()); err != nil {
+		return
+	}
+
+	// Send updates as they come in
+	for {
+		select {
+		case <-done:
+			return
+		case info := <-updates:
+			if err := conn.WriteJSON(info); err != nil {
+				slog.Error("WebSocket send failed", "error", err)
+				return
+			}
+		}
+	}
+}
+
+func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Error("WebSocket upgrade failed", "error", err)
+		return
+	}
+	defer conn.Close()
+
+	// Subscribe to updates
+	updates := cache.SubscribePods()
+	defer cache.UnsubscribePods(updates)
+
+	done := make(chan struct{})
+
+	// Read pump - handle close
+	go func() {
+		defer close(done)
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Send current data immediately
+	if err := conn.WriteJSON(cache.GetPodMetrics()); err != nil {
 		return
 	}
 
