@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"log/slog"
 	"net"
@@ -67,9 +68,14 @@ func main() {
 		}
 	}()
 
-	// Start HTTP server for WebSocket
+	// Start HTTP server for WebSocket and SSE
 	http.HandleFunc("/ws/logs", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, logServer)
+	})
+
+	// SSE endpoint (HTTP/2 compatible)
+	http.HandleFunc("/sse/logs", func(w http.ResponseWriter, r *http.Request) {
+		handleSSE(w, r, logServer)
 	})
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -179,4 +185,59 @@ func matchesFilter(entry *pb.LogEntry, source string, minLevel pb.LogLevel) bool
 		return false
 	}
 	return true
+}
+
+// SSE handler for logs (HTTP/2 compatible)
+func handleSSE(w http.ResponseWriter, r *http.Request, logServer *server.LogServer) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse query parameters
+	source := r.URL.Query().Get("source")
+	levelStr := r.URL.Query().Get("level")
+	minLevel := pb.LogLevel_DEBUG
+	if levelStr != "" {
+		switch levelStr {
+		case "INFO":
+			minLevel = pb.LogLevel_INFO
+		case "WARN":
+			minLevel = pb.LogLevel_WARN
+		case "ERROR":
+			minLevel = pb.LogLevel_ERROR
+		}
+	}
+
+	slog.Info("SSE client connected", "source", source, "level", levelStr, "minLevel", minLevel)
+
+	// Subscribe to logs
+	ch, unsubscribe := logServer.Subscribe(source, minLevel)
+	defer unsubscribe()
+
+	// Send logs as they come in
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case entry, ok := <-ch:
+			if !ok {
+				return
+			}
+			if matchesFilter(entry, source, minLevel) {
+				data, err := json.Marshal(entry)
+				if err != nil {
+					continue
+				}
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+			}
+		}
+	}
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { buildApiBase, buildWsBase } from "@/lib/api";
+import { buildApiBase } from "@/lib/api";
 
 export function useHealth(user, enabled = false) {
   const [health, setHealth] = useState({ cluster_ok: false, nodes: [] });
@@ -11,10 +11,11 @@ export function useHealth(user, enabled = false) {
 
   const latestDataRef = useRef(null);
 
+  // Cluster info via SSE
   useEffect(() => {
     if (!user || !enabled) return;
 
-    let ws = null;
+    let eventSource = null;
     let reconnectTimeout = null;
     let updateInterval = null;
     let isCleaningUp = false;
@@ -31,14 +32,14 @@ export function useHealth(user, enabled = false) {
       setLoading(true);
       setError("");
 
-      ws = new WebSocket(`${buildWsBase()}/ws/cluster-info`);
+      eventSource = new EventSource(`${buildApiBase()}/sse/cluster-info`);
 
-      ws.onopen = () => {
+      eventSource.onopen = () => {
         setLoading(false);
         setError("");
       };
 
-      ws.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           latestDataRef.current = payload;
@@ -52,13 +53,10 @@ export function useHealth(user, enabled = false) {
         }
       };
 
-      ws.onerror = () => {
-        setError("WebSocket error");
+      eventSource.onerror = () => {
+        setError("Connection error");
         setHealth({ cluster_ok: false, nodes: [] });
-      };
-
-      ws.onclose = () => {
-        setLoading(false);
+        eventSource.close();
         if (!isCleaningUp) {
           reconnectTimeout = setTimeout(connect, 5000);
         }
@@ -75,24 +73,24 @@ export function useHealth(user, enabled = false) {
       isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (updateInterval) clearInterval(updateInterval);
-      if (ws) ws.close();
+      if (eventSource) eventSource.close();
     };
   }, [user, enabled, updateFrequency]);
 
-  // Pod metrics via WebSocket
+  // Pod metrics via SSE
   useEffect(() => {
     if (!user || !enabled) return;
 
-    let ws = null;
+    let eventSource = null;
     let reconnectTimeout = null;
     let isCleaningUp = false;
 
     const connect = () => {
       if (isCleaningUp) return;
 
-      ws = new WebSocket(`${buildWsBase()}/ws/pod-metrics`);
+      eventSource = new EventSource(`${buildApiBase()}/sse/pod-metrics`);
 
-      ws.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           setPodMetrics(payload);
@@ -101,11 +99,9 @@ export function useHealth(user, enabled = false) {
         }
       };
 
-      ws.onerror = () => {
-        console.error("Pod metrics WebSocket error");
-      };
-
-      ws.onclose = () => {
+      eventSource.onerror = () => {
+        console.error("Pod metrics connection error");
+        eventSource.close();
         if (!isCleaningUp) {
           reconnectTimeout = setTimeout(connect, 5000);
         }
@@ -117,7 +113,7 @@ export function useHealth(user, enabled = false) {
     return () => {
       isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (ws) ws.close();
+      if (eventSource) eventSource.close();
     };
   }, [user, enabled]);
 

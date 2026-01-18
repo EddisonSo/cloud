@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { buildWsBase } from "@/lib/api";
+import { buildApiBase } from "@/lib/api";
 
 export function useLogs(user, enabled = false) {
   const [logs, setLogs] = useState([]);
@@ -44,7 +44,7 @@ export function useLogs(user, enabled = false) {
   useEffect(() => {
     if (!user || !enabled) return;
 
-    let ws = null;
+    let eventSource = null;
     let reconnectTimeout = null;
     let flushInterval = null;
     let isCleaningUp = false;
@@ -70,16 +70,16 @@ export function useLogs(user, enabled = false) {
       const params = new URLSearchParams();
       if (sourceFilter) params.set("source", sourceFilter);
       if (levelFilter && levelFilter !== "DEBUG") params.set("level", levelFilter);
-      const wsUrl = `${buildWsBase()}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
+      const sseUrl = `${buildApiBase()}/sse/logs${params.toString() ? "?" + params.toString() : ""}`;
 
-      ws = new WebSocket(wsUrl);
+      eventSource = new EventSource(sseUrl);
 
-      ws.onopen = () => {
+      eventSource.onopen = () => {
         setConnected(true);
         setError("");
       };
 
-      ws.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const entry = JSON.parse(event.data);
           setLastLogTime(new Date());
@@ -104,13 +104,10 @@ export function useLogs(user, enabled = false) {
         }
       };
 
-      ws.onerror = () => {
-        setError("WebSocket connection error");
+      eventSource.onerror = () => {
+        setError("Connection error");
         setConnected(false);
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
+        eventSource.close();
         if (!isCleaningUp) {
           reconnectTimeout = setTimeout(connect, 5000);
         }
@@ -127,7 +124,7 @@ export function useLogs(user, enabled = false) {
       isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (flushInterval) clearInterval(flushInterval);
-      if (ws) ws.close();
+      if (eventSource) eventSource.close();
       flushBuffer();
     };
   }, [user, enabled, sourceFilter, levelFilter, updateFrequency]);
