@@ -144,17 +144,17 @@ export function ClusterManagerSection() {
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden md:grid md:grid-cols-[2fr_1fr_1fr_1fr_160px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden md:grid md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Node</div>
                 <div className="text-center">Hostname</div>
                 <div className="text-center">Uptime</div>
                 <div className="text-center">Cron Jobs</div>
-                <div className="text-center">Actions</div>
+                <div className="text-center min-w-[180px]">Actions</div>
               </div>
               {nodes.map((node) => (
                 <div
                   key={node.name}
-                  className="flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_1fr_160px] gap-2 md:gap-4 px-4 py-3 bg-secondary rounded-md md:items-center"
+                  className="flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 px-4 py-3 bg-secondary rounded-md md:items-center"
                 >
                   <div className="flex items-center gap-2">
                     <StatusDot status="running" />
@@ -178,7 +178,7 @@ export function ClusterManagerSection() {
                       {node.cron_count ?? "—"}
                     </span>
                   </div>
-                  <div className="flex gap-2 justify-center mt-2 md:mt-0">
+                  <div className="flex gap-2 justify-center mt-2 md:mt-0 min-w-[180px]">
                     <Button
                       variant="outline"
                       size="sm"
