@@ -10,6 +10,22 @@ export function AuthProvider({ children }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Decode JWT payload without validation (validation happens server-side)
+  const decodeToken = (token) => {
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return null;
+      const payload = JSON.parse(atob(parts[1]));
+      // Check if token is expired
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        return null;
+      }
+      return payload;
+    } catch {
+      return null;
+    }
+  };
+
   const checkSession = async () => {
     const token = getAuthToken();
     if (!token) {
@@ -20,28 +36,46 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    // First, try to decode the token locally for immediate state
+    const decoded = decodeToken(token);
+    if (!decoded) {
+      // Token is invalid or expired
+      clearAuthToken();
+      setUser(null);
+      setDisplayName(null);
+      setIsAdmin(false);
+      setLoading(false);
+      return;
+    }
+
+    // Set state from decoded token immediately (optimistic)
+    setUser(decoded.username);
+    setDisplayName(decoded.display_name || decoded.username);
+    setLoading(false);
+
+    // Then verify with server in background (for is_admin and fresh data)
     try {
       const response = await fetch(`${buildApiBase()}/api/session`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
+      if (response.status === 401) {
+        // Token rejected by server - clear it
         clearAuthToken();
         setUser(null);
         setDisplayName(null);
         setIsAdmin(false);
         return;
       }
-      const payload = await response.json();
-      setUser(payload.username);
-      setDisplayName(payload.display_name || payload.username);
-      setIsAdmin(payload.is_admin || false);
+      if (response.ok) {
+        const payload = await response.json();
+        setUser(payload.username);
+        setDisplayName(payload.display_name || payload.username);
+        setIsAdmin(payload.is_admin || false);
+      }
+      // On other errors (network, 500, etc), keep the decoded token state
     } catch (err) {
-      clearAuthToken();
-      setUser(null);
-      setDisplayName(null);
-      setIsAdmin(false);
-    } finally {
-      setLoading(false);
+      // Network error - don't clear token, keep decoded state
+      console.warn("Session check failed:", err.message);
     }
   };
 
