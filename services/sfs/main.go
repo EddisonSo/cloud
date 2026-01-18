@@ -1192,6 +1192,10 @@ func (s *server) sessionToken(r *http.Request) string {
 	if strings.HasPrefix(auth, "Bearer ") {
 		return strings.TrimPrefix(auth, "Bearer ")
 	}
+	// Check query string token (for shareable download links)
+	if token := r.URL.Query().Get("token"); token != "" {
+		return token
+	}
 	return ""
 }
 
