@@ -2,9 +2,12 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 
 	"eddisonso.com/edd-gateway/internal/k8s"
@@ -13,6 +16,9 @@ import (
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"gopkg.in/yaml.v3"
 )
+
+// ready indicates whether the gateway is fully initialized
+var ready atomic.Bool
 
 type routeConfig struct {
 	Routes []struct {
@@ -126,7 +132,13 @@ func main() {
 		}()
 	}
 
-	slog.Info("gateway started", "ssh", *sshPort, "http", *httpPort, "https", *httpsPort, "extra_ports", "8000-8999")
+	// Start health check server
+	go startHealthServer(9091)
+
+	// Mark as ready
+	ready.Store(true)
+
+	slog.Info("gateway started", "ssh", *sshPort, "http", *httpPort, "https", *httpsPort, "extra_ports", "8000-8999", "health_port", 9091)
 
 	// Wait for shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -135,4 +147,32 @@ func main() {
 
 	slog.Info("gateway shutting down")
 	srv.Close()
+}
+
+// startHealthServer starts a simple HTTP server for health checks
+func startHealthServer(port int) {
+	mux := http.NewServeMux()
+
+	// /healthz - always returns 200 if the process is alive
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	// /readyz - returns 200 only when fully initialized
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if ready.Load() {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ready"))
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("not ready"))
+		}
+	})
+
+	addr := fmt.Sprintf(":%d", port)
+	slog.Info("health server listening", "port", port)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		slog.Error("health server failed", "error", err)
+	}
 }

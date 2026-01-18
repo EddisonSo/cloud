@@ -222,6 +222,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		return
 	}
 
+	slog.Info("backend connected", "host", sni, "path", path, "backend", route.Target)
+
 	// Rewrite path if strip_prefix is enabled
 	headers := headerBuf.Bytes()
 	if route.StripPrefix && path != targetPath {
@@ -236,7 +238,10 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	reader.Read(buffered)
 	initialData := append(headers, buffered...)
 
-	proxy(conn, backend, initialData)
+	// Extract method for logging
+	method := extractMethod(headerBuf.String())
+
+	proxyWithResponseLogging(conn, backend, initialData, method, sni, path, route.Target)
 }
 
 // replayConn replays buffered data before reading from the underlying connection.

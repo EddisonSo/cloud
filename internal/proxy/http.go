@@ -132,8 +132,11 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	// Combine headers with any buffered body data
 	initialData := append(headers, buffered...)
 
-	// Proxy the connection
-	proxy(conn, backend, initialData)
+	// Extract method from request line for logging
+	method := extractMethod(headerBuf.String())
+
+	// Proxy the connection with response logging
+	proxyWithResponseLogging(conn, backend, initialData, method, hostname, path, backendAddr)
 }
 
 // extractHostHeader finds the Host header value in HTTP headers.
@@ -221,4 +224,144 @@ func addHeader(headers []byte, name, value string) []byte {
 		return []byte(headerStr[:idx] + "\n" + name + ": " + value + "\n\n")
 	}
 	return []byte(headerStr[:idx] + "\r\n" + name + ": " + value + "\r\n\r\n")
+}
+
+// extractMethod extracts the HTTP method from the request line.
+func extractMethod(headers string) string {
+	idx := strings.Index(headers, " ")
+	if idx == -1 {
+		return "UNKNOWN"
+	}
+	return headers[:idx]
+}
+
+// proxyWithResponseLogging proxies the connection and logs the response status.
+func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, method, host, path, backendAddr string) {
+	defer client.Close()
+	defer backend.Close()
+
+	slog.Info("starting proxy", "method", method, "host", host, "path", path, "backend", backendAddr)
+
+	// Send the request to backend
+	if len(initialData) > 0 {
+		if _, err := backend.Write(initialData); err != nil {
+			slog.Error("failed to write request to backend", "error", err, "host", host, "path", path)
+			return
+		}
+	}
+
+	// Create channels for coordination
+	done := make(chan struct{}, 2)
+
+	// Backend -> Client (capture response status)
+	go func() {
+		defer func() { done <- struct{}{} }()
+
+		// Read response with buffering to capture status line
+		buf := make([]byte, 4096)
+		statusLogged := false
+
+		for {
+			n, err := backend.Read(buf)
+			if n > 0 {
+				// Log response status on first read
+				if !statusLogged {
+					statusCode, statusText := parseResponseStatus(buf[:n])
+					if statusCode >= 400 {
+						slog.Warn("HTTP error response",
+							"method", method,
+							"host", host,
+							"path", path,
+							"backend", backendAddr,
+							"status", statusCode,
+							"statusText", statusText,
+						)
+					} else if statusCode > 0 {
+						slog.Info("HTTP response",
+							"method", method,
+							"host", host,
+							"path", path,
+							"backend", backendAddr,
+							"status", statusCode,
+						)
+					} else {
+						slog.Debug("HTTP response parse failed",
+							"method", method,
+							"host", host,
+							"path", path,
+							"backend", backendAddr,
+							"firstBytes", string(buf[:minInt(n, 50)]),
+						)
+					}
+					statusLogged = true
+				}
+
+				if _, werr := client.Write(buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Client -> Backend
+	go func() {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 4096)
+		for {
+			n, err := client.Read(buf)
+			if n > 0 {
+				if _, werr := backend.Write(buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Wait for both directions
+	<-done
+	<-done
+}
+
+// minInt returns the smaller of two integers.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// parseResponseStatus extracts the HTTP status code and text from the response.
+func parseResponseStatus(data []byte) (int, string) {
+	// Look for "HTTP/1.x NNN Status Text\r\n"
+	str := string(data)
+	idx := strings.Index(str, "\r\n")
+	if idx == -1 {
+		idx = strings.Index(str, "\n")
+	}
+	if idx == -1 || idx > 100 {
+		return 0, ""
+	}
+
+	statusLine := str[:idx]
+	// Parse "HTTP/1.1 200 OK" or similar
+	parts := strings.SplitN(statusLine, " ", 3)
+	if len(parts) < 2 {
+		return 0, ""
+	}
+
+	var code int
+	fmt.Sscanf(parts[1], "%d", &code)
+
+	statusText := ""
+	if len(parts) >= 3 {
+		statusText = parts[2]
+	}
+
+	return code, statusText
 }
