@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -266,6 +267,11 @@ func main() {
 		handleClusterInfoWS(w, r, cache)
 	})
 
+	// SSE endpoint for cluster-info (HTTP/2 compatible)
+	mux.HandleFunc("/sse/cluster-info", func(w http.ResponseWriter, r *http.Request) {
+		handleClusterInfoSSE(w, r, cache)
+	})
+
 	mux.HandleFunc("/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cache.GetPodMetrics())
@@ -273,6 +279,11 @@ func main() {
 
 	mux.HandleFunc("/ws/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
 		handlePodMetricsWS(w, r, cache)
+	})
+
+	// SSE endpoint for pod-metrics (HTTP/2 compatible)
+	mux.HandleFunc("/sse/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
+		handlePodMetricsSSE(w, r, cache)
 	})
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -680,6 +691,76 @@ func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCa
 				slog.Error("WebSocket send failed", "error", err)
 				return
 			}
+		}
+	}
+}
+
+// SSE handler for cluster-info (HTTP/2 compatible)
+func handleClusterInfoSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Subscribe to updates
+	updates := cache.Subscribe()
+	defer cache.Unsubscribe(updates)
+
+	// Send current data immediately
+	data, _ := json.Marshal(cache.GetClusterInfo())
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	flusher.Flush()
+
+	// Send updates as they come in
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case info := <-updates:
+			data, _ := json.Marshal(info)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+}
+
+// SSE handler for pod-metrics (HTTP/2 compatible)
+func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Subscribe to updates
+	updates := cache.SubscribePods()
+	defer cache.UnsubscribePods(updates)
+
+	// Send current data immediately
+	data, _ := json.Marshal(cache.GetPodMetrics())
+	fmt.Fprintf(w, "data: %s\n\n", data)
+	flusher.Flush()
+
+	// Send updates as they come in
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case info := <-updates:
+			data, _ := json.Marshal(info)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
 		}
 	}
 }
