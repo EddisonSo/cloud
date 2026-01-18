@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,19 +31,6 @@ type StaticRoute struct {
 	Priority    int    // Higher priority = matched first (longer paths get higher priority)
 }
 
-// Router resolves container IDs to their network addresses.
-// Uses an in-memory cache with periodic sync from PostgreSQL.
-type Router struct {
-	db         *sql.DB
-	cache      sync.Map       // containerID -> *Container
-	routeTable *routeTable    // radix tree for path routing
-	routesList []StaticRoute  // flat list for ListRoutes()
-	routesMu   sync.RWMutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-}
-
 // Container holds routing information for a container.
 type Container struct {
 	ID           string
@@ -54,14 +42,25 @@ type Container struct {
 	PortMap      map[int]int // ingress port -> target port
 }
 
-// New creates a router with in-memory cache backed by PostgreSQL.
+// Router resolves container IDs and static routes.
+// Simple implementation with linear scanning, no caching.
+type Router struct {
+	db         *sql.DB
+	containers map[string]*Container // containerID -> Container
+	routes     []StaticRoute         // sorted by path length (longest first)
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+}
+
+// New creates a router backed by PostgreSQL.
 func New(connStr string) (*Router, error) {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Test connection
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("ping database: %w", err)
@@ -85,28 +84,30 @@ func New(connStr string) (*Router, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Router{
-		db:     db,
-		ctx:    ctx,
-		cancel: cancel,
+		db:         db,
+		containers: make(map[string]*Container),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
-	// Initial load of all containers and routes into memory
-	if err := r.loadAll(); err != nil {
+	// Initial load
+	if err := r.reload(); err != nil {
 		db.Close()
 		cancel()
 		return nil, fmt.Errorf("initial load: %w", err)
 	}
 
-	// Start background sync
+	// Start background sync (every 5 seconds)
 	r.wg.Add(1)
 	go r.syncLoop()
 
 	return r, nil
 }
 
-// loadAll loads all running containers from the database into memory.
-func (r *Router) loadAll() error {
+// reload fetches all data from the database.
+func (r *Router) reload() error {
 	// Load containers
+	containers := make(map[string]*Container)
 	rows, err := r.db.Query(`
 		SELECT id, namespace, external_ip, status,
 		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
@@ -118,29 +119,21 @@ func (r *Router) loadAll() error {
 	}
 	defer rows.Close()
 
-	// Build new cache
-	newCache := make(map[string]*Container)
 	for rows.Next() {
 		var c Container
 		var externalIP sql.NullString
-		if err := rows.Scan(&c.ID, &c.Namespace, &externalIP, &c.Status,
-			&c.SSHEnabled, &c.HTTPSEnabled); err != nil {
+		if err := rows.Scan(&c.ID, &c.Namespace, &externalIP, &c.Status, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return fmt.Errorf("scan container: %w", err)
 		}
 		if externalIP.Valid && externalIP.String != "" {
 			c.ExternalIP = externalIP.String
 			c.PortMap = make(map[int]int)
-			newCache[c.ID] = &c
+			containers[c.ID] = &c
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate containers: %w", err)
-	}
 
-	// Load ingress rules for all containers
-	ruleRows, err := r.db.Query(`
-		SELECT container_id, port, target_port FROM ingress_rules
-	`)
+	// Load ingress rules
+	ruleRows, err := r.db.Query(`SELECT container_id, port, target_port FROM ingress_rules`)
 	if err != nil {
 		return fmt.Errorf("query ingress rules: %w", err)
 	}
@@ -152,25 +145,12 @@ func (r *Router) loadAll() error {
 		if err := ruleRows.Scan(&containerID, &port, &targetPort); err != nil {
 			return fmt.Errorf("scan ingress rule: %w", err)
 		}
-		if c, exists := newCache[containerID]; exists {
+		if c, ok := containers[containerID]; ok {
 			c.PortMap[port] = targetPort
 		}
 	}
 
-	// Clear old entries and add new ones
-	r.cache.Range(func(key, value any) bool {
-		if _, exists := newCache[key.(string)]; !exists {
-			r.cache.Delete(key)
-		}
-		return true
-	})
-	for id, c := range newCache {
-		r.cache.Store(id, c)
-	}
-
-	slog.Debug("loaded containers into cache", "count", len(newCache))
-
-	// Load static routes into radix tree
+	// Load static routes
 	routeRows, err := r.db.Query(`
 		SELECT id, host, path_prefix, target, strip_prefix, priority
 		FROM static_routes
@@ -180,35 +160,38 @@ func (r *Router) loadAll() error {
 	}
 	defer routeRows.Close()
 
-	newTable := newRouteTable()
 	var routes []StaticRoute
 	for routeRows.Next() {
 		var route StaticRoute
-		if err := routeRows.Scan(&route.ID, &route.Host, &route.PathPrefix,
-			&route.Target, &route.StripPrefix, &route.Priority); err != nil {
+		if err := routeRows.Scan(&route.ID, &route.Host, &route.PathPrefix, &route.Target, &route.StripPrefix, &route.Priority); err != nil {
 			return fmt.Errorf("scan static route: %w", err)
 		}
 		routes = append(routes, route)
-		newTable.insert(&routes[len(routes)-1])
-	}
-	if err := routeRows.Err(); err != nil {
-		return fmt.Errorf("iterate static routes: %w", err)
 	}
 
-	r.routesMu.Lock()
-	r.routeTable = newTable
-	r.routesList = routes
-	r.routesMu.Unlock()
+	// Sort routes by path length (longest first) for proper matching
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].Host != routes[j].Host {
+			return routes[i].Host < routes[j].Host
+		}
+		return len(routes[i].PathPrefix) > len(routes[j].PathPrefix)
+	})
 
-	// Log all loaded routes for debugging
+	// Atomic swap
+	r.mu.Lock()
+	r.containers = containers
+	r.routes = routes
+	r.mu.Unlock()
+
+	slog.Debug("reloaded router data", "containers", len(containers), "routes", len(routes))
 	for _, route := range routes {
-		slog.Debug("loaded route", "host", route.Host, "path", route.PathPrefix, "target", route.Target, "strip_prefix", route.StripPrefix)
+		slog.Debug("loaded route", "host", route.Host, "path", route.PathPrefix, "target", route.Target)
 	}
-	slog.Debug("loaded static routes into cache", "count", len(routes))
+
 	return nil
 }
 
-// syncLoop periodically syncs the cache from the database.
+// syncLoop periodically reloads data from the database.
 func (r *Router) syncLoop() {
 	defer r.wg.Done()
 	ticker := time.NewTicker(5 * time.Second)
@@ -219,35 +202,33 @@ func (r *Router) syncLoop() {
 		case <-r.ctx.Done():
 			return
 		case <-ticker.C:
-			if err := r.loadAll(); err != nil {
-				slog.Error("failed to sync cache", "error", err)
+			if err := r.reload(); err != nil {
+				slog.Error("failed to reload router data", "error", err)
 			}
 		}
 	}
 }
 
-// Close closes the database connection and stops background sync.
+// Close stops the router.
 func (r *Router) Close() error {
 	r.cancel()
 	r.wg.Wait()
 	return r.db.Close()
 }
 
-// Resolve looks up a container by ID from the in-memory cache.
+// Resolve looks up a container by ID.
 func (r *Router) Resolve(containerID string) (*Container, error) {
-	if cached, ok := r.cache.Load(containerID); ok {
-		c := cached.(*Container)
-		if c.ExternalIP != "" && c.Status == "running" {
-			return c, nil
-		}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if c, ok := r.containers[containerID]; ok {
+		return c, nil
 	}
 	return nil, ErrNotFound
 }
 
-// ResolveByHostname extracts container ID from hostname (e.g., "abc123.cloud.eddisonso.com")
-// and resolves it.
+// ResolveByHostname extracts container ID from hostname and resolves it.
 func (r *Router) ResolveByHostname(hostname string) (*Container, error) {
-	// Extract first subdomain as container ID
 	containerID := extractContainerID(hostname)
 	if containerID == "" {
 		return nil, ErrNotFound
@@ -257,34 +238,15 @@ func (r *Router) ResolveByHostname(hostname string) (*Container, error) {
 
 // extractContainerID extracts the container ID from a hostname.
 // "abc123.cloud.eddisonso.com" -> "abc123"
-// "cloud.eddisonso.com" -> ""
 func extractContainerID(hostname string) string {
-	// Count dots to determine if there's a subdomain
-	dots := 0
-	firstDot := -1
-	for i, c := range hostname {
-		if c == '.' {
-			dots++
-			if firstDot == -1 {
-				firstDot = i
-			}
-		}
-	}
-
-	// Need at least 3 parts (subdomain.domain.tld)
-	if dots < 2 || firstDot <= 0 {
+	parts := strings.Split(hostname, ".")
+	if len(parts) < 3 {
 		return ""
 	}
-
-	return hostname[:firstDot]
+	return parts[0]
 }
 
-// InvalidateCache removes a container from the cache.
-func (r *Router) InvalidateCache(containerID string) {
-	r.cache.Delete(containerID)
-}
-
-// ResolveSSH resolves a container by ID and checks SSH access is enabled.
+// ResolveSSH resolves a container and checks SSH access.
 func (r *Router) ResolveSSH(containerID string) (*Container, error) {
 	c, err := r.Resolve(containerID)
 	if err != nil {
@@ -296,7 +258,7 @@ func (r *Router) ResolveSSH(containerID string) (*Container, error) {
 	return c, nil
 }
 
-// ResolveHTTPS resolves a container by hostname and checks HTTPS access is enabled.
+// ResolveHTTPS resolves a container by hostname and checks HTTPS access.
 func (r *Router) ResolveHTTPS(hostname string) (*Container, error) {
 	c, err := r.ResolveByHostname(hostname)
 	if err != nil {
@@ -309,7 +271,6 @@ func (r *Router) ResolveHTTPS(hostname string) (*Container, error) {
 }
 
 // ResolveHTTP resolves a container by hostname for a given ingress port.
-// Returns the container and target port if the ingress port is configured.
 func (r *Router) ResolveHTTP(hostname string, ingressPort int) (*Container, int, error) {
 	c, err := r.ResolveByHostname(hostname)
 	if err != nil {
@@ -322,16 +283,48 @@ func (r *Router) ResolveHTTP(hostname string, ingressPort int) (*Container, int,
 	return c, targetPort, nil
 }
 
-// GetAllIngressPorts returns all unique ingress ports configured across all containers.
+// ResolveStaticRoute finds a matching static route using simple linear scan.
+// Returns the route and the path to forward (with prefix stripped if configured).
+func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Linear scan through routes (sorted by path length, longest first)
+	for i := range r.routes {
+		route := &r.routes[i]
+		if route.Host != host {
+			continue
+		}
+		if strings.HasPrefix(path, route.PathPrefix) {
+			// Found a match
+			targetPath := path
+			if route.StripPrefix && route.PathPrefix != "/" {
+				targetPath = strings.TrimPrefix(path, route.PathPrefix)
+				if targetPath == "" {
+					targetPath = "/"
+				}
+			}
+			slog.Debug("route matched", "host", host, "path", path, "prefix", route.PathPrefix, "target", route.Target)
+			return route, targetPath, nil
+		}
+	}
+
+	slog.Debug("no route matched", "host", host, "path", path)
+	return nil, "", ErrNoRoute
+}
+
+// GetAllIngressPorts returns all unique ingress ports.
 func (r *Router) GetAllIngressPorts() []int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	portSet := make(map[int]bool)
-	r.cache.Range(func(key, value any) bool {
-		c := value.(*Container)
+	for _, c := range r.containers {
 		for port := range c.PortMap {
 			portSet[port] = true
 		}
-		return true
-	})
+	}
+
 	ports := make([]int, 0, len(portSet))
 	for port := range portSet {
 		ports = append(ports, port)
@@ -339,13 +332,11 @@ func (r *Router) GetAllIngressPorts() []int {
 	return ports
 }
 
-// RegisterRoute adds or updates a static route in the database.
-// Priority is automatically set based on path length (longer paths = higher priority).
+// RegisterRoute adds or updates a static route.
 func (r *Router) RegisterRoute(host, pathPrefix, target string, stripPrefix bool) error {
-	// Auto-calculate priority based on path specificity
 	priority := len(pathPrefix) * 10
 	if pathPrefix == "/" {
-		priority = 0 // Catch-all has lowest priority
+		priority = 0
 	}
 
 	_, err := r.db.Exec(`
@@ -360,15 +351,12 @@ func (r *Router) RegisterRoute(host, pathPrefix, target string, stripPrefix bool
 		return fmt.Errorf("insert static route: %w", err)
 	}
 
-	// Reload routes into cache
-	return r.loadStaticRoutes()
+	return r.reload()
 }
 
-// UnregisterRoute removes a static route from the database.
+// UnregisterRoute removes a static route.
 func (r *Router) UnregisterRoute(host, pathPrefix string) error {
-	result, err := r.db.Exec(`
-		DELETE FROM static_routes WHERE host = $1 AND path_prefix = $2
-	`, host, pathPrefix)
+	result, err := r.db.Exec(`DELETE FROM static_routes WHERE host = $1 AND path_prefix = $2`, host, pathPrefix)
 	if err != nil {
 		return fmt.Errorf("delete static route: %w", err)
 	}
@@ -378,93 +366,15 @@ func (r *Router) UnregisterRoute(host, pathPrefix string) error {
 		return ErrNoRoute
 	}
 
-	// Reload routes into cache
-	return r.loadStaticRoutes()
+	return r.reload()
 }
 
-// loadStaticRoutes reloads just the static routes from the database.
-func (r *Router) loadStaticRoutes() error {
-	routeRows, err := r.db.Query(`
-		SELECT id, host, path_prefix, target, strip_prefix, priority
-		FROM static_routes
-	`)
-	if err != nil {
-		return fmt.Errorf("query static routes: %w", err)
-	}
-	defer routeRows.Close()
-
-	// Build new route table
-	newTable := newRouteTable()
-	var routes []StaticRoute
-
-	for routeRows.Next() {
-		var route StaticRoute
-		if err := routeRows.Scan(&route.ID, &route.Host, &route.PathPrefix,
-			&route.Target, &route.StripPrefix, &route.Priority); err != nil {
-			return fmt.Errorf("scan static route: %w", err)
-		}
-		routes = append(routes, route)
-		newTable.insert(&routes[len(routes)-1])
-	}
-
-	r.routesMu.Lock()
-	r.routeTable = newTable
-	r.routesList = routes
-	r.routesMu.Unlock()
-
-	slog.Info("reloaded static routes", "count", len(routes))
-	return nil
-}
-
-// ResolveStaticRoute finds a matching static route for the given host and path.
-// Uses radix tree for O(path_length) lookup.
-// Returns the route and the path to use (with prefix stripped if configured).
-func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, error) {
-	r.routesMu.RLock()
-	defer r.routesMu.RUnlock()
-
-	if r.routeTable == nil {
-		slog.Debug("route resolution: routeTable is nil", "host", host, "path", path)
-		return nil, "", ErrNoRoute
-	}
-
-	slog.Debug("route resolution: looking up", "host", host, "path", path, "known_hosts", len(r.routeTable.hosts))
-
-	route, remaining := r.routeTable.lookup(host, path)
-	if route == nil {
-		slog.Debug("route resolution: no route found", "host", host, "path", path)
-		return nil, "", ErrNoRoute
-	}
-
-	slog.Debug("route resolution: found match", "host", host, "path", path, "matched_prefix", route.PathPrefix, "target", route.Target, "remaining", remaining)
-
-	targetPath := path
-	if route.StripPrefix && route.PathPrefix != "/" {
-		targetPath = remaining
-		if targetPath == "" {
-			targetPath = "/"
-		}
-	}
-
-	return route, targetPath, nil
-}
-
-// ListRoutes returns all configured static routes.
+// ListRoutes returns all static routes.
 func (r *Router) ListRoutes() []StaticRoute {
-	r.routesMu.RLock()
-	defer r.routesMu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	// Return a copy to avoid race conditions
-	routes := make([]StaticRoute, len(r.routesList))
-	copy(routes, r.routesList)
-
-	// Sort by host, then path for display
-	sort.Slice(routes, func(i, j int) bool {
-		if routes[i].Host != routes[j].Host {
-			return routes[i].Host < routes[j].Host
-		}
-		return routes[i].PathPrefix < routes[j].PathPrefix
-	})
-
+	routes := make([]StaticRoute, len(r.routes))
+	copy(routes, r.routes)
 	return routes
 }
