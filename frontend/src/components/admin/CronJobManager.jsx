@@ -19,7 +19,6 @@ export function CronJobManager({ node, privilegedToken, onBack }) {
     command: "",
     enabled: true,
     schedule: {
-      second: "0",
       minute: "*",
       hour: "*",
       day: "*",
@@ -67,7 +66,6 @@ export function CronJobManager({ node, privilegedToken, onBack }) {
       command: "",
       enabled: true,
       schedule: {
-        second: "0",
         minute: "*",
         hour: "*",
         day: "*",
