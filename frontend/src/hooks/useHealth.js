@@ -79,27 +79,46 @@ export function useHealth(user, enabled = false) {
     };
   }, [user, enabled, updateFrequency]);
 
-  // Fetch pod metrics
+  // Pod metrics via WebSocket
   useEffect(() => {
     if (!user || !enabled) return;
 
-    const fetchPodMetrics = async () => {
-      try {
-        const res = await fetch(`${buildApiBase()}/pod-metrics`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setPodMetrics(data);
+    let ws = null;
+    let reconnectTimeout = null;
+    let isCleaningUp = false;
+
+    const connect = () => {
+      if (isCleaningUp) return;
+
+      ws = new WebSocket(`${buildWsBase()}/ws/pod-metrics`);
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          setPodMetrics(payload);
+        } catch (err) {
+          console.error("Failed to parse pod metrics:", err);
         }
-      } catch (err) {
-        console.error("Failed to fetch pod metrics:", err);
-      }
+      };
+
+      ws.onerror = () => {
+        console.error("Pod metrics WebSocket error");
+      };
+
+      ws.onclose = () => {
+        if (!isCleaningUp) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
+      };
     };
 
-    fetchPodMetrics();
-    const interval = setInterval(fetchPodMetrics, 5000);
-    return () => clearInterval(interval);
+    connect();
+
+    return () => {
+      isCleaningUp = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    };
   }, [user, enabled]);
 
   return { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency };
