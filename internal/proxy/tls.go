@@ -232,6 +232,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 	// Add X-Forwarded-Proto header for TLS-terminated requests
 	headers = addHeader(headers, "X-Forwarded-Proto", "https")
+	// Force connection close - gateway doesn't support HTTP keep-alive yet
+	headers = addHeader(headers, "Connection", "close")
 
 	// Get buffered data and proxy
 	buffered := make([]byte, reader.Buffered())

@@ -129,6 +129,9 @@ func (s *Server) handleHTTP(conn net.Conn) {
 		headers = modifiedHeaders
 	}
 
+	// Force connection close - gateway doesn't support HTTP keep-alive yet
+	headers = addHeader(headers, "Connection", "close")
+
 	// Combine headers with any buffered body data
 	initialData := append(headers, buffered...)
 

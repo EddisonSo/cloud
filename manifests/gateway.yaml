@@ -50,7 +50,7 @@ spec:
       serviceAccountName: gateway
       containers:
         - name: gateway
-          image: eddisonso/edd-gateway:latest
+          image: eddisonso/edd-gateway:bb12909
           args:
             - -ssh-port
             - "2222"
