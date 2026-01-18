@@ -202,18 +202,17 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	// Extract method and path for detailed logging
 	requestLine := extractRequestLine(headerBuf.String())
 	path := extractRequestPath(headerBuf.String())
-	slog.Info("HTTP after TLS termination", "host", sni, "path", path, "request_line", requestLine, "client", clientAddr)
 
 	// Use static routes for routing
 	route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 	if err != nil {
-		slog.Warn("no static route found", "host", sni, "path", path, "error", err)
+		slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "request_line", requestLine, "client", clientAddr)
 		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nNo backend available\r\n"))
 		conn.Close()
 		return
 	}
 
-	slog.Info("routing via static route", "host", sni, "path", path, "target", route.Target, "targetPath", targetPath, "strip_prefix", route.StripPrefix, "route_path", route.PathPrefix)
+	slog.Info(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_line", requestLine)
 
 	backend, err := net.DialTimeout("tcp", route.Target, 5*time.Second)
 	if err != nil {

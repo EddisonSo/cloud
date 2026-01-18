@@ -88,7 +88,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	// 1. Check static routes first
 	if route, targetPath, err := s.router.ResolveStaticRoute(hostname, path); err == nil {
 		backendAddr = route.Target
-		slog.Info("routing HTTP via static route", "host", hostname, "path", path, "target", route.Target, "targetPath", targetPath)
+		slog.Info(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
 
 		// If strip_prefix is enabled, rewrite the request path
 		if route.StripPrefix && path != targetPath {
@@ -97,17 +97,17 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	} else if container, targetPort, err := s.router.ResolveHTTP(hostname, ingressPort); err == nil {
 		// 2. Try container routing
 		backendAddr = fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-		slog.Info("routing HTTP to container", "host", hostname, "container", container.ID, "port", ingressPort, "target", targetPort, "backend", backendAddr)
+		slog.Info(fmt.Sprintf("HTTP %s%s -> %s (container)", hostname, path, backendAddr))
 	} else {
 		// 3. Fall back to default upstream
 		if s.fallbackAddr == "" {
-			slog.Warn("no route found", "host", hostname, "path", path, "port", ingressPort)
+			slog.Warn(fmt.Sprintf("HTTP %s%s -> NO ROUTE", hostname, path), "port", ingressPort)
 			conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nNo backend available\r\n"))
 			conn.Close()
 			return
 		}
-		slog.Debug("routing HTTP to fallback upstream", "host", hostname, "fallback", s.fallbackAddr)
 		backendAddr = fmt.Sprintf("%s:%d", s.fallbackAddr, ingressPort)
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (fallback)", hostname, path, backendAddr))
 	}
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
