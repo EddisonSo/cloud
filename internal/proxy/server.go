@@ -40,6 +40,7 @@ func (s *Server) LoadTLSCert(certFile, keyFile string) error {
 	s.tlsConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,
+		NextProtos:   []string{"http/1.1"}, // Force HTTP/1.1, don't advertise HTTP/2
 	}
 
 	slog.Info("loaded TLS certificate", "cert", certFile)
