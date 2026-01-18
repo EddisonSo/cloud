@@ -9,8 +9,7 @@ import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
 import { buildApiBase } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2, UserPlus, Eye, EyeOff, Server } from "lucide-react";
-import { ClusterManagerSection } from "@/components/admin";
+import { Trash2, UserPlus, Eye, EyeOff } from "lucide-react";
 
 export function AdminPage() {
   const copy = TAB_COPY.admin;
@@ -342,11 +341,6 @@ export function AdminPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Cluster Manager Section */}
-      <div className="mt-6">
-        <ClusterManagerSection />
-      </div>
 
       {/* Create User Modal */}
       <Modal
