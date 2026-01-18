@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -447,14 +449,22 @@ func discoverClusterNodes() ([]ClusterNode, error) {
 	}
 
 	caPath := "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	namespace, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	caCert, err := os.ReadFile(caPath)
 	if err != nil {
-		namespace = []byte("default")
+		return nil, fmt.Errorf("failed to read CA cert: %w", err)
 	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
 
 	// Create HTTP client with service account CA
 	client := &http.Client{
 		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: caCertPool,
+			},
+		},
 	}
 
 	// Query Kubernetes API for nodes
@@ -470,10 +480,6 @@ func discoverClusterNodes() ([]ClusterNode, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+string(token))
-
-	// Skip TLS verification for in-cluster communication (or use ca.crt)
-	_ = caPath
-	_ = namespace
 
 	resp, err := client.Do(req)
 	if err != nil {
