@@ -66,6 +66,13 @@ func (s *Server) handleTLS(conn net.Conn) {
 
 	// Check if we should terminate TLS (have cert + have static routes for this host)
 	if s.tlsConfig != nil && !strings.Contains(sni, ".compute.") {
+		// If SNI is an IP address, terminate TLS and send redirect
+		if ip := net.ParseIP(sni); ip != nil {
+			slog.Debug("IP-based SNI, terminating TLS and redirecting", "ip", sni, "client", clientAddr)
+			s.handleIPRedirect(conn, header, payload, sni, clientAddr)
+			return
+		}
+
 		// Check if we have static routes for this hostname
 		if _, _, err := s.router.ResolveStaticRoute(sni, "/"); err == nil {
 			// Terminate TLS and handle as HTTP
@@ -127,6 +134,43 @@ func (s *Server) handleTLSTermination(rawConn net.Conn, header, payload []byte, 
 
 	// Now handle the decrypted connection as HTTP
 	s.handleTerminatedHTTP(tlsConn, sni)
+}
+
+// handleIPRedirect terminates TLS for IP-based SNI and sends an HTTP redirect.
+func (s *Server) handleIPRedirect(rawConn net.Conn, header, payload []byte, ip, clientAddr string) {
+	// Create a connection that replays the already-read ClientHello
+	replayConn := &replayConn{
+		Conn:   rawConn,
+		replay: append(header, payload...),
+	}
+
+	// Wrap with TLS server
+	tlsConn := tls.Server(replayConn, s.tlsConfig)
+	if err := tlsConn.Handshake(); err != nil {
+		slog.Debug("TLS handshake failed for IP redirect", "ip", ip, "error", err, "client", clientAddr)
+		rawConn.Close()
+		return
+	}
+
+	slog.Debug("TLS terminated for IP redirect", "ip", ip, "client", clientAddr)
+
+	// Read the HTTP request (we need to consume it before sending redirect)
+	reader := bufio.NewReader(tlsConn)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			slog.Debug("failed to read HTTP request for IP redirect", "error", err, "client", clientAddr)
+			tlsConn.Close()
+			return
+		}
+		if line == "\r\n" || line == "\n" {
+			break
+		}
+	}
+
+	// Send HTTP redirect to the proper hostname
+	tlsConn.Write([]byte("HTTP/1.1 302 Found\r\nLocation: https://cloud.eddisonso.com/\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n\r\n"))
+	tlsConn.Close()
 }
 
 // handleTerminatedHTTP handles HTTP traffic after TLS termination.

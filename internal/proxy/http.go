@@ -58,6 +58,14 @@ func (s *Server) handleHTTP(conn net.Conn) {
 		hostname = host[:idx]
 	}
 
+	// If hostname is an IP address, redirect to the proper hostname
+	if ip := net.ParseIP(hostname); ip != nil {
+		slog.Debug("IP-based request, redirecting to hostname", "ip", hostname, "client", clientAddr)
+		conn.Write([]byte("HTTP/1.1 302 Found\r\nLocation: https://cloud.eddisonso.com/\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n"))
+		conn.Close()
+		return
+	}
+
 	// Get the ingress port from the connection's local address
 	ingressPort := 80
 	if addr, ok := conn.LocalAddr().(*net.TCPAddr); ok {
