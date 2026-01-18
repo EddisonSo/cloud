@@ -757,7 +757,9 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Use PrepareUpload when file size is known to pre-allocate chunks
 	if total > 0 {
+		prepareStart := time.Now()
 		prepared, err := s.client.PrepareUploadWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), total)
+		log.Printf("PrepareUpload took %v for %s (%d bytes)", time.Since(prepareStart), name, total)
 		if err != nil {
 			reporter.Error(err)
 			log.Printf(
