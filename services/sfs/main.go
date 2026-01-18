@@ -126,6 +126,10 @@ func main() {
 	if err := initAuthDB(db, defaultUsername, defaultPassword); err != nil {
 		log.Fatalf("failed to init auth db: %v", err)
 	}
+	if err := initPrivilegedTokensTable(db); err != nil {
+		log.Fatalf("failed to init privileged tokens table: %v", err)
+	}
+	go cleanupExpiredPrivilegedTokens(db)
 
 	srv := &server{
 		client:     client,
@@ -159,6 +163,15 @@ func main() {
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
 	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
 	mux.HandleFunc("/admin/users", srv.handleAdminUsers)
+	// Cluster Manager endpoints
+	mux.HandleFunc("POST /api/verify-password", srv.handleVerifyPassword)
+	mux.HandleFunc("GET /cluster-manager/nodes", srv.handleClusterNodes)
+	mux.HandleFunc("GET /cluster-manager/nodes/{name}/cron", srv.handleNodeCronList)
+	mux.HandleFunc("POST /cluster-manager/nodes/{name}/cron", srv.handleNodeCronCreate)
+	mux.HandleFunc("PUT /cluster-manager/nodes/{name}/cron/{id}", srv.handleNodeCronUpdate)
+	mux.HandleFunc("DELETE /cluster-manager/nodes/{name}/cron/{id}", srv.handleNodeCronDelete)
+	mux.HandleFunc("POST /cluster-manager/nodes/{name}/cron/{id}/run", srv.handleNodeCronRun)
+	mux.Handle("/cluster-manager/nodes/{name}/terminal", websocket.Handler(srv.handleNodeTerminal))
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
 	mux.Handle("/", srv.staticHandler())
 
