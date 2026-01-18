@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
@@ -10,11 +10,28 @@ import { useHealth } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatBytes } from "@/lib/formatters";
 
+function SortHeader({ children, column, sortColumn, sortDir, onSort, className = "" }) {
+  const isActive = sortColumn === column;
+  return (
+    <button
+      onClick={() => onSort(column)}
+      className={`flex items-center justify-center gap-1 hover:text-foreground transition-colors ${className}`}
+    >
+      {children}
+      <span className="text-[10px]">
+        {isActive ? (sortDir === "asc" ? "▲" : "▼") : ""}
+      </span>
+    </button>
+  );
+}
+
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
   const { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
   const [showPercent, setShowPercent] = useState(false);
+  const [nodeSort, setNodeSort] = useState({ column: null, dir: "desc" });
+  const [podSort, setPodSort] = useState({ column: null, dir: "desc" });
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
@@ -36,6 +53,86 @@ export function HealthPage() {
     if (str.includes("Gi")) return num * 1024 * 1024 * 1024;
     return num;
   }
+
+  const handleNodeSort = (column) => {
+    setNodeSort((prev) => ({
+      column,
+      dir: prev.column === column && prev.dir === "desc" ? "asc" : "desc",
+    }));
+  };
+
+  const handlePodSort = (column) => {
+    setPodSort((prev) => ({
+      column,
+      dir: prev.column === column && prev.dir === "desc" ? "asc" : "desc",
+    }));
+  };
+
+  const sortedNodes = useMemo(() => {
+    if (!nodeSort.column) return health.nodes;
+    return [...health.nodes].sort((a, b) => {
+      let aVal, bVal;
+      switch (nodeSort.column) {
+        case "name":
+          aVal = a.name || "";
+          bVal = b.name || "";
+          break;
+        case "status":
+          aVal = (a.conditions || []).every((c) => c.status === "False") ? 1 : 0;
+          bVal = (b.conditions || []).every((c) => c.status === "False") ? 1 : 0;
+          break;
+        case "cpu":
+          aVal = a.cpu_percent || 0;
+          bVal = b.cpu_percent || 0;
+          break;
+        case "memory":
+          aVal = a.memory_percent || 0;
+          bVal = b.memory_percent || 0;
+          break;
+        case "disk":
+          aVal = a.disk_percent || 0;
+          bVal = b.disk_percent || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string") {
+        return nodeSort.dir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return nodeSort.dir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }, [health.nodes, nodeSort]);
+
+  const sortPods = (pods) => {
+    if (!podSort.column) return pods;
+    return [...pods].sort((a, b) => {
+      let aVal, bVal;
+      switch (podSort.column) {
+        case "name":
+          aVal = a.name || "";
+          bVal = b.name || "";
+          break;
+        case "cpu":
+          aVal = a.cpu_usage || 0;
+          bVal = b.cpu_usage || 0;
+          break;
+        case "memory":
+          aVal = a.memory_usage || 0;
+          bVal = b.memory_usage || 0;
+          break;
+        case "disk":
+          aVal = a.disk_usage || 0;
+          bVal = b.disk_usage || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (typeof aVal === "string") {
+        return podSort.dir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return podSort.dir === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  };
 
   return (
     <div>
@@ -165,14 +262,24 @@ export function HealthPage() {
             <div className="space-y-2">
               {/* Header */}
               <div className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">Node</div>
-                <div className="text-center">Status</div>
-                <div className="text-center">CPU</div>
-                <div className="text-center">Memory</div>
-                <div className="text-center">Disk</div>
+                <SortHeader column="name" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
+                  Node
+                </SortHeader>
+                <SortHeader column="status" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
+                  Status
+                </SortHeader>
+                <SortHeader column="cpu" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
+                  CPU
+                </SortHeader>
+                <SortHeader column="memory" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
+                  Memory
+                </SortHeader>
+                <SortHeader column="disk" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
+                  Disk
+                </SortHeader>
               </div>
               {/* Rows */}
-              {health.nodes.map((node, idx) => {
+              {sortedNodes.map((node, idx) => {
                 const conditions = node.conditions || [];
                 const isHealthy = conditions.every((c) => c.status === "False");
 
@@ -295,13 +402,21 @@ export function HealthPage() {
                   </div>
                   {/* Column Header */}
                   <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <div>Pod</div>
-                    <div className="text-center">CPU</div>
-                    <div className="text-center">Memory</div>
-                    <div className="text-center">Disk</div>
+                    <SortHeader column="name" sortColumn={podSort.column} sortDir={podSort.dir} onSort={handlePodSort} className="justify-start">
+                      Pod
+                    </SortHeader>
+                    <SortHeader column="cpu" sortColumn={podSort.column} sortDir={podSort.dir} onSort={handlePodSort}>
+                      CPU
+                    </SortHeader>
+                    <SortHeader column="memory" sortColumn={podSort.column} sortDir={podSort.dir} onSort={handlePodSort}>
+                      Memory
+                    </SortHeader>
+                    <SortHeader column="disk" sortColumn={podSort.column} sortDir={podSort.dir} onSort={handlePodSort}>
+                      Disk
+                    </SortHeader>
                   </div>
                   {/* Pod Rows */}
-                  {pods.map((pod, idx) => {
+                  {sortPods(pods).map((pod, idx) => {
                     const cpuUsageMillis = (pod.cpu_usage || 0) / 1000000;
                     const cpuCapMillis = (pod.cpu_capacity || 0) / 1000000;
                     const cpuPercent = cpuCapMillis > 0 ? (cpuUsageMillis / cpuCapMillis) * 100 : 0;
