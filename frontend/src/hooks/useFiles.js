@@ -42,10 +42,12 @@ export function useFiles() {
       );
       if (!response.ok) throw new Error("Failed to load files");
       const payload = await response.json();
-      setFiles(payload);
-      filesCache[selectedNamespace] = payload;
+      // Sort by modification date, most recent first
+      const sorted = [...payload].sort((a, b) => (b.modified || 0) - (a.modified || 0));
+      setFiles(sorted);
+      filesCache[selectedNamespace] = sorted;
       currentNamespaceRef.current = selectedNamespace;
-      return payload;
+      return sorted;
     } catch (err) {
       setStatus(err.message);
       return [];
