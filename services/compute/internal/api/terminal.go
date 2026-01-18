@@ -65,6 +65,13 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
+	// Configure WebSocket keepalive
+	ws.SetReadDeadline(time.Now().Add(60 * time.Second))
+	ws.SetPongHandler(func(string) error {
+		ws.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	slog.Info("terminal session started", "container", containerID, "user", userID)
 
 	// Generate temporary keypair
@@ -150,18 +157,18 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 
 	var wg sync.WaitGroup
 
-	// WebSocket keepalive ping
+	// WebSocket keepalive ping - ping every 5 seconds to keep connection alive through proxies
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
 					slog.Debug("ping failed", "error", err)
 					cancel()
 					return
