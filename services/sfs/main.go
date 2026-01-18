@@ -1068,6 +1068,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Name:     s.cookieName,
 		Value:    token,
 		Path:     "/",
+		Domain:   getCookieDomain(r),
 		Expires:  expires,
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
@@ -1094,6 +1095,7 @@ func (s *server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Name:     s.cookieName,
 		Value:    "",
 		Path:     "/",
+		Domain:   getCookieDomain(r),
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
@@ -1116,6 +1118,21 @@ func isSecureRequest(r *http.Request) bool {
 		return strings.Contains(r.Header.Get("CF-Visitor"), `"scheme":"https"`)
 	}
 	return false
+}
+
+// getCookieDomain extracts the parent domain for cookie sharing across subdomains
+func getCookieDomain(r *http.Request) string {
+	host := r.Host
+	// Remove port if present
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		host = host[:idx]
+	}
+	// For eddisonso.com subdomains, use .eddisonso.com
+	if strings.HasSuffix(host, ".eddisonso.com") {
+		return ".eddisonso.com"
+	}
+	// For localhost or other domains, don't set domain (use default)
+	return ""
 }
 
 func (s *server) requireAuth(w http.ResponseWriter, r *http.Request) (string, bool) {
