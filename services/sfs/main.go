@@ -1460,9 +1460,9 @@ func (s *server) newReporter(id, direction string, total int64) *progressReporte
 		id:          id,
 		direction:   direction,
 		total:       total,
-		lastSent:    time.Now(),
-		minBytes:    256 * 1024,
-		minInterval: 350 * time.Millisecond,
+		lastSent:    time.Time{}, // Zero time so first update sends immediately
+		minBytes:    64 * 1024,   // 64KB - more frequent updates
+		minInterval: 200 * time.Millisecond,
 	}
 }
 
@@ -1471,7 +1471,9 @@ func (p *progressReporter) Update(bytes int64) {
 		return
 	}
 	now := time.Now()
-	if bytes-p.lastBytes < p.minBytes && now.Sub(p.lastSent) < p.minInterval {
+	// Always send first update immediately
+	isFirst := p.lastBytes == 0 && bytes > 0
+	if !isFirst && bytes-p.lastBytes < p.minBytes && now.Sub(p.lastSent) < p.minInterval {
 		return
 	}
 	p.lastBytes = bytes
