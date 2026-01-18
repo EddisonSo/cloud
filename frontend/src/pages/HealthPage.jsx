@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,7 @@ export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
   const { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
+  const [showPercent, setShowPercent] = useState(false);
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
@@ -207,8 +209,14 @@ export function HealthPage() {
 
       {/* Pod Metrics Table */}
       <Card className="mt-6">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Pod Metrics</CardTitle>
+          <button
+            onClick={() => setShowPercent(!showPercent)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showPercent ? "Show absolute" : "Show percent"}
+          </button>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -245,28 +253,60 @@ export function HealthPage() {
                 <div className="text-center">Disk</div>
               </div>
               {/* Rows */}
-              {(podMetrics.pods || []).map((pod, idx) => (
-                <div
-                  key={pod.name || idx}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
-                >
-                  <div className="font-medium truncate" title={pod.name}>
-                    {pod.name}
+              {(podMetrics.pods || []).map((pod, idx) => {
+                const cpuUsageMillis = (pod.cpu_usage || 0) / 1000000;
+                const cpuCapMillis = (pod.cpu_capacity || 0) / 1000000;
+                const cpuPercent = cpuCapMillis > 0 ? (cpuUsageMillis / cpuCapMillis) * 100 : 0;
+
+                const memUsage = pod.memory_usage || 0;
+                const memCap = pod.memory_capacity || 0;
+                const memPercent = memCap > 0 ? (memUsage / memCap) * 100 : 0;
+
+                const diskUsage = pod.disk_usage || 0;
+                const diskCap = pod.disk_capacity || 0;
+                const diskPercent = diskCap > 0 ? (diskUsage / diskCap) * 100 : 0;
+
+                return (
+                  <div
+                    key={pod.name || idx}
+                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                  >
+                    <div className="font-medium truncate" title={pod.name}>
+                      {pod.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground text-center">
+                      {pod.node}
+                    </div>
+                    <div
+                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => setShowPercent(!showPercent)}
+                      title={showPercent ? `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m` : `${cpuPercent.toFixed(1)}%`}
+                    >
+                      {showPercent
+                        ? `${cpuPercent.toFixed(1)}%`
+                        : `${cpuUsageMillis.toFixed(0)}m / ${cpuCapMillis.toFixed(0)}m`}
+                    </div>
+                    <div
+                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => setShowPercent(!showPercent)}
+                      title={showPercent ? `${formatBytes(memUsage)} / ${formatBytes(memCap)}` : `${memPercent.toFixed(1)}%`}
+                    >
+                      {showPercent
+                        ? `${memPercent.toFixed(1)}%`
+                        : `${formatBytes(memUsage)} / ${formatBytes(memCap)}`}
+                    </div>
+                    <div
+                      className="text-sm text-center cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => setShowPercent(!showPercent)}
+                      title={showPercent ? `${formatBytes(diskUsage)} / ${formatBytes(diskCap)}` : `${diskPercent.toFixed(1)}%`}
+                    >
+                      {showPercent
+                        ? `${diskPercent.toFixed(1)}%`
+                        : `${formatBytes(diskUsage)} / ${formatBytes(diskCap)}`}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground text-center">
-                    {pod.node}
-                  </div>
-                  <div className="text-sm text-center">
-                    {((pod.cpu_usage || 0) / 1000000).toFixed(1)}m
-                  </div>
-                  <div className="text-sm text-center">
-                    {formatBytes(pod.memory_usage || 0)}
-                  </div>
-                  <div className="text-sm text-center">
-                    {formatBytes(pod.disk_usage || 0)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
