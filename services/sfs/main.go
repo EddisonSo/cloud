@@ -749,6 +749,9 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		s.gfsNamespace(namespace),
 	)
 
+	// Wrap file reader to track progress as HTTP data is received
+	counting := &countingReader{reader: file, reporter: reporter}
+
 	// Use PrepareUpload when file size is known to pre-allocate chunks
 	if total > 0 {
 		prepared, err := s.client.PrepareUploadWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), total)
@@ -765,11 +768,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			fail(fmt.Sprintf("prepare upload failed: %v", err), http.StatusBadGateway)
 			return
 		}
-		// Track progress based on bytes actually written to GFS (not bytes read from HTTP)
-		prepared.OnProgress(func(bytesWritten int64) {
-			reporter.Update(bytesWritten)
-		})
-		if _, err := prepared.AppendFrom(ctx, file); err != nil {
+		if _, err := prepared.AppendFrom(ctx, counting); err != nil {
 			reporter.Error(err)
 			log.Printf(
 				"upload append failed namespace=%s name=%s size=%d transfer=%s err=%v",
@@ -783,8 +782,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Fallback to regular append when size is unknown (track read progress)
-		counting := &countingReader{reader: file, reporter: reporter}
+		// Fallback to regular append when size is unknown
 		if _, err := s.client.AppendFromWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
 			reporter.Error(err)
 			log.Printf(
