@@ -191,3 +191,8 @@ Stores metadata for:
 - [ ] **Distributed tracing** - Request tracing across services
 - [ ] **Alerting** - Automated alerts for service health
 - [ ] **Log aggregation** - Searchable log storage
+
+### Future Services
+
+- [ ] **Message Queue** - Pub/sub messaging for async communication between services
+- [ ] **Datastore** - NoSQL database for flexible document/key-value storage
