@@ -10,8 +10,10 @@ The Gateway service is the main entry point for all external traffic. It handles
 
 - **TLS Termination**: Handles HTTPS with automatic certificate management
 - **Dynamic Routing**: Routes based on host and path prefix from PostgreSQL
+- **Route Caching**: LRU cache (1000 entries) for O(1) route lookups
 - **SSH Tunneling**: Provides SSH access to containers via port 2222
 - **WebSocket Support**: Proxies WebSocket connections for real-time features
+- **HTTP→HTTPS Redirect**: Automatic upgrade for core services
 
 ## Architecture
 
@@ -44,6 +46,18 @@ CREATE TABLE static_routes (
 2. Host must match exactly
 3. Path must start with `path_prefix`
 4. First matching route wins
+
+### Route Cache
+
+The gateway uses an LRU (Least Recently Used) cache to optimize route lookups:
+
+- **Cache Size**: 1000 entries
+- **Key**: `host + path`
+- **Hit**: O(1) lookup, bypasses route matching
+- **Miss**: Linear scan through routes, result cached
+- **Invalidation**: Cache cleared on route table reload
+
+This means repeated requests to the same endpoints are served with minimal overhead, regardless of the total number of routes.
 
 ### Example Routes
 
