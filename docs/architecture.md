@@ -173,6 +173,7 @@ Stores metadata for:
 - [x] **Chunk garbage collection** - Clean up orphaned chunks (1-hour grace period, via heartbeat)
 - [ ] **Chunk corruption recovery** - Detect corrupted chunks via checksums and re-replicate from healthy replicas
 - [ ] **Tiered storage** - Hot/cold data separation
+- [ ] **Programmatic API** - Upload and download files via REST API for external integrations
 
 ### Compute Improvements
 
