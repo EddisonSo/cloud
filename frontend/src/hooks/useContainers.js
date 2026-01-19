@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { buildApiBase, buildWsBase, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -17,17 +17,35 @@ export function useContainers(user) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actions, setActions] = useState({});
+  const abortControllerRef = useRef(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const loadContainers = useCallback(async (forceRefresh = false) => {
     // Skip if already loaded and not forcing refresh
     if (containersLoaded && !forceRefresh) {
       return cachedContainers;
     }
+
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
       setError("");
       const response = await fetch(`${buildApiBase()}/compute/containers`, {
         headers: getAuthHeaders(),
+        signal: abortControllerRef.current.signal,
       });
       if (!response.ok) {
         if (response.status === 401) {
@@ -43,6 +61,7 @@ export function useContainers(user) {
       containersLoaded = true;
       return list;
     } catch (err) {
+      if (err.name === "AbortError") return [];
       setError(err.message);
       return [];
     } finally {

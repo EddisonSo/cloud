@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { buildApiBase, buildSseUrl, createTransferId, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
@@ -22,6 +22,16 @@ export function useFiles() {
   const fileInputRef = useRef(null);
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
   const currentNamespaceRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const loadFiles = useCallback(async (namespace, forceRefresh = false) => {
     const selectedNamespace = namespace || DEFAULT_NAMESPACE;
@@ -34,11 +44,18 @@ export function useFiles() {
       }
       return filesCache[selectedNamespace];
     }
+
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
       const response = await fetch(
         `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`,
-        { headers: getAuthHeaders() }
+        { headers: getAuthHeaders(), signal: abortControllerRef.current.signal }
       );
       if (!response.ok) throw new Error("Failed to load files");
       const payload = await response.json();
@@ -49,6 +66,7 @@ export function useFiles() {
       currentNamespaceRef.current = selectedNamespace;
       return sorted;
     } catch (err) {
+      if (err.name === "AbortError") return [];
       setStatus(err.message);
       return [];
     } finally {

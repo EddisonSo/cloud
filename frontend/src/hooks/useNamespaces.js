@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { buildApiBase, getAuthHeaders } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
@@ -17,6 +17,16 @@ export function useNamespaces() {
   const [namespaces, setNamespaces] = useState(cachedNamespaces || []);
   const [activeNamespace, setActiveNamespace] = useState("");
   const [loading, setLoading] = useState(false);
+  const abortControllerRef = useRef(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const normalizeNamespace = (value) => (value && value.trim() ? value.trim() : DEFAULT_NAMESPACE);
 
@@ -25,10 +35,18 @@ export function useNamespaces() {
     if (namespacesLoaded && !forceRefresh) {
       return cachedNamespaces;
     }
+
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
       const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
         headers: getAuthHeaders(),
+        signal: abortControllerRef.current.signal,
       });
       if (!response.ok) throw new Error("Failed to load namespaces");
       const payload = await response.json();
@@ -44,6 +62,7 @@ export function useNamespaces() {
       namespacesLoaded = true;
       return sorted;
     } catch (err) {
+      if (err.name === "AbortError") return [];
       console.warn(err.message);
       return [];
     } finally {
