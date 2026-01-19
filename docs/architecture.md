@@ -180,6 +180,7 @@ Stores metadata for:
 - [ ] **Container networking** - Private networks between user containers
 - [ ] **Persistent volumes** - User-attached storage volumes
 - [ ] **True VMs** - Full virtual machines via Type 1 hypervisor (KVM) for stronger isolation
+- [ ] **Multi-architecture support** - Provision compute on different architectures (amd64, arm64)
 
 ### Infrastructure
 
