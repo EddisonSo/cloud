@@ -388,7 +388,7 @@ export function HealthPage() {
             </p>
           ) : (
             <div className="space-y-4">
-              {/* Group pods by node */}
+              {/* Group pods by node, sorted alphabetically */}
               {Object.entries(
                 (podMetrics.pods || []).reduce((acc, pod) => {
                   const node = pod.node || "Unknown";
@@ -396,7 +396,7 @@ export function HealthPage() {
                   acc[node].push(pod);
                   return acc;
                 }, {})
-              ).map(([nodeName, pods]) => (
+              ).sort(([a], [b]) => a.localeCompare(b)).map(([nodeName, pods]) => (
                 <div key={nodeName} className="space-y-2">
                   {/* Node Header */}
                   <div className="px-4 py-3 bg-primary/10 border-l-4 border-primary rounded-md">
@@ -437,7 +437,7 @@ export function HealthPage() {
                         key={pod.name || idx}
                         className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
                       >
-                        <div className="font-medium truncate" title={pod.name}>
+                        <div className="font-semibold text-foreground truncate" title={pod.name}>
                           {pod.name}
                         </div>
                         <div
