@@ -130,3 +130,45 @@ Stores metadata for:
 - Each service implements CORS middleware
 - Origin header reflected for cross-domain requests
 - Credentials allowed for authenticated requests
+
+## TODO / Roadmap
+
+### Gateway Improvements
+
+- [ ] **Radix tree routing** - Replace linear route matching with radix tree for O(log n) lookups
+- [ ] **L4 load balancer pre-ingress** - Add TCP/UDP load balancer layer for distributed gateway deployment
+- [ ] **Connection pooling** - Reuse backend connections to reduce latency
+
+### Distributed Gateway Architecture (Future)
+
+```
+                    ┌─────────────┐
+                    │   L4 LB     │
+                    │  (TCP/UDP)  │
+                    └──────┬──────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+         ▼                 ▼                 ▼
+   ┌───────────┐     ┌───────────┐     ┌───────────┐
+   │ Gateway 1 │     │ Gateway 2 │     │ Gateway 3 │
+   └───────────┘     └───────────┘     └───────────┘
+```
+
+### Storage Improvements
+
+- [ ] **Chunk garbage collection** - Clean up orphaned chunks
+- [ ] **Erasure coding** - Reduce storage overhead vs 3x replication
+- [ ] **Tiered storage** - Hot/cold data separation
+
+### Compute Improvements
+
+- [ ] **Container resource limits** - CPU/memory quotas per user
+- [ ] **Container networking** - Private networks between user containers
+- [ ] **Persistent volumes** - User-attached storage volumes
+
+### Monitoring
+
+- [ ] **Distributed tracing** - Request tracing across services
+- [ ] **Alerting** - Automated alerts for service health
+- [ ] **Log aggregation** - Searchable log storage
