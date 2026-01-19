@@ -47,10 +47,8 @@ spec:
 The gateway routes requests based on host and path:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Gateway                              │
-├─────────────────────────────────────────────────────────────┤
-│  Host                          │  Path     │  Target        │
+┌────────────────────────────────┬───────────┬────────────────┐
+│            Gateway             │   Path    │     Target     │
 ├────────────────────────────────┼───────────┼────────────────┤
 │  cloud.eddisonso.com           │  /        │  frontend      │
 │  cloud-api.eddisonso.com       │  /api     │  sfs-backend   │

@@ -10,23 +10,23 @@ GFS is a custom implementation of Google File System, providing distributed, rep
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    CLIENT APPLICATION                        │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │ gRPC (port 9000)            │ Custom TCP (port 8080)
-        ▼                             ▼
-┌───────────────┐            ┌─────────────────────────────────┐
-│    MASTER     │            │     PRIMARY CHUNKSERVER         │
-│  - Namespace  │            │  - Receives client data         │
-│  - Chunk map  │◄──────────▶│  - Coordinates 2PC              │
-│  - CS registry│  Heartbeat │  - Reports commits to master    │
-└───────────────┘            └──────────┬────────────┬─────────┘
-                                        │            │
-                                        ▼            ▼
-                                ┌──────────────┐  ┌──────────────┐
-                                │  REPLICA CS2 │  │  REPLICA CS3 │
-                                └──────────────┘  └──────────────┘
+│                      CLIENT APPLICATION                     │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+          ┌──────────────────┴──────────────────┐
+          │ gRPC (port 9000)                    │ Custom TCP (port 8080)
+          ▼                                     ▼
+┌───────────────┐              ┌─────────────────────────────────┐
+│    MASTER     │              │       PRIMARY CHUNKSERVER       │
+│  - Namespace  │              │  - Receives client data         │
+│  - Chunk map  │◄────────────▶│  - Coordinates 2PC              │
+│  - CS registry│   Heartbeat  │  - Reports commits to master    │
+└───────────────┘              └───────────┬───────────┬─────────┘
+                                           │           │
+                                           ▼           ▼
+                                  ┌──────────────┐  ┌──────────────┐
+                                  │  REPLICA CS2 │  │  REPLICA CS3 │
+                                  └──────────────┘  └──────────────┘
 ```
 
 ## Key Specifications
