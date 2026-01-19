@@ -232,74 +232,50 @@ export function AdminPage() {
         </CardContent>
       </Card>
 
-      {/* Recent Sessions Section */}
+      {/* Active Sessions Section */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Recent Sessions
+            Active Sessions
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-muted-foreground py-4">Loading sessions...</p>
           ) : sessions.length === 0 ? (
-            <p className="text-muted-foreground py-4">No recent sessions</p>
+            <p className="text-muted-foreground py-4">No active sessions</p>
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_2fr_2fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">User</div>
+                <div className="text-center">IP</div>
                 <div className="text-center">Logged In</div>
-                <div className="text-center">Expires</div>
-                <div className="text-center">Status</div>
               </div>
               {sessions.map((s, idx) => {
-                const now = Date.now() / 1000;
-                const isExpired = s.expires_at < now;
-                const expiresIn = s.expires_at - now;
-                const expiresSoon = !isExpired && expiresIn < 3600; // less than 1 hour
-
                 const formatTime = (unix) => {
                   if (!unix) return "—";
                   const date = new Date(unix * 1000);
                   return date.toLocaleString();
                 };
 
-                const formatRelative = (unix) => {
-                  if (!unix) return "—";
-                  const diff = unix - now;
-                  if (diff < 0) return "Expired";
-                  if (diff < 60) return `${Math.floor(diff)}s`;
-                  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-                  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-                  return `${Math.floor(diff / 86400)}d`;
-                };
-
                 return (
                   <div
                     key={`${s.user_id}-${s.created_at}-${idx}`}
-                    className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_2fr_2fr] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
+                    className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                   >
                     <div className="flex justify-between sm:block sm:text-center">
                       <span className="text-xs text-muted-foreground sm:hidden">User:</span>
                       <span className="font-medium truncate">{s.display_name || s.username}</span>
                     </div>
                     <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">Logged In:</span>
-                      <span className="text-sm text-muted-foreground">{formatTime(s.created_at)}</span>
+                      <span className="text-xs text-muted-foreground sm:hidden">IP:</span>
+                      <span className="text-sm text-muted-foreground font-mono">{s.ip_address || "—"}</span>
                     </div>
                     <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">Expires:</span>
-                      <span className="text-sm text-muted-foreground" title={formatTime(s.expires_at)}>
-                        {formatRelative(s.expires_at)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between sm:justify-center items-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">Status:</span>
-                      <span className={`text-sm font-medium ${isExpired ? 'text-red-400' : expiresSoon ? 'text-yellow-400' : 'text-green-400'}`}>
-                        {isExpired ? 'Expired' : expiresSoon ? 'Expiring Soon' : 'Active'}
-                      </span>
+                      <span className="text-xs text-muted-foreground sm:hidden">Logged In:</span>
+                      <span className="text-sm text-muted-foreground">{formatTime(s.created_at)}</span>
                     </div>
                   </div>
                 );

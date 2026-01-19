@@ -246,6 +246,9 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 	// Migration: add created_at column to sessions if it doesn't exist
 	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`)
 
+	// Migration: add ip_address column to sessions if it doesn't exist
+	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT ''`)
+
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
 		return err
@@ -1074,9 +1077,26 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Store session in database for tracking (keep only latest per user)
 	now := time.Now().Unix()
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP == "" {
+		clientIP = r.Header.Get("X-Real-IP")
+	}
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+	// Take first IP if comma-separated
+	if idx := strings.Index(clientIP, ","); idx != -1 {
+		clientIP = strings.TrimSpace(clientIP[:idx])
+	}
+	// Remove port if present
+	if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+		if !strings.Contains(clientIP[idx:], "]") { // not IPv6
+			clientIP = clientIP[:idx]
+		}
+	}
 	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, userID)
-	_, _ = s.db.Exec(`INSERT INTO sessions (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4)`,
-		userID, tokenString, expires.Unix(), now)
+	_, _ = s.db.Exec(`INSERT INTO sessions (user_id, token, expires_at, created_at, ip_address) VALUES ($1, $2, $3, $4, $5)`,
+		userID, tokenString, expires.Unix(), now, clientIP)
 
 	writeJSON(w, sessionResponse{
 		Username:    payload.Username,
@@ -2034,7 +2054,7 @@ type recentSession struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	CreatedAt   int64  `json:"created_at"`
-	ExpiresAt   int64  `json:"expires_at"`
+	IPAddress   string `json:"ip_address"`
 }
 
 func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
@@ -2050,13 +2070,15 @@ func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get most recent session per user, ordered by most recent first
+	// Get active sessions (not expired), most recent per user
+	now := time.Now().Unix()
 	rows, err := s.db.Query(`
-		SELECT DISTINCT ON (s.user_id) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, s.expires_at
+		SELECT DISTINCT ON (s.user_id) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, COALESCE(s.ip_address, '')
 		FROM sessions s
 		JOIN users u ON s.user_id = u.id
+		WHERE s.expires_at > $1
 		ORDER BY s.user_id, s.created_at DESC
-	`)
+	`, now)
 	if err != nil {
 		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
 		return
@@ -2066,7 +2088,7 @@ func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
 	sessions := make([]recentSession, 0)
 	for rows.Next() {
 		var sess recentSession
-		if err := rows.Scan(&sess.UserID, &sess.Username, &sess.DisplayName, &sess.CreatedAt, &sess.ExpiresAt); err != nil {
+		if err := rows.Scan(&sess.UserID, &sess.Username, &sess.DisplayName, &sess.CreatedAt, &sess.IPAddress); err != nil {
 			http.Error(w, "failed to scan session", http.StatusInternalServerError)
 			return
 		}
