@@ -35,6 +35,7 @@ sidebar_position: 10
 - [ ] **Namespace access control** - Enforce permissions based on visibility level
 - [ ] **Chunk corruption recovery** - Detect corrupted chunks via checksums and re-replicate from healthy replicas
 - [ ] **Tiered storage** - Hot/cold data separation
+- [ ] **Storage load balancing** - Distribute chunks based on capacity, I/O load, memory, and CPU heuristics
 - [ ] **Programmatic API** - Upload and download files via REST API for external integrations
 
 ## Compute Improvements
