@@ -58,6 +58,10 @@ sidebar_position: 10
 - [ ] **Log aggregation** - Searchable log storage
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth
 
+## Frontend
+
+- [ ] **Mobile UI** - Fix responsive layout and usability on mobile devices
+
 ## Future Services
 
 - [ ] **Message Queue** - Pub/sub messaging for async communication between services
