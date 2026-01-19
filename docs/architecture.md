@@ -165,6 +165,11 @@ Stores metadata for:
 - [ ] **Container networking** - Private networks between user containers
 - [ ] **Persistent volumes** - User-attached storage volumes
 
+### Infrastructure
+
+- [ ] **Migrate control plane to s0** - Move K3s server from rp1 (arm64, 8GB, flash) to s0 (amd64, 16GB, SSD)
+- [ ] **Multi-master HA** - Add redundant control plane for high availability
+
 ### Monitoring
 
 - [ ] **Distributed tracing** - Request tracing across services
