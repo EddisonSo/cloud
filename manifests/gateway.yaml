@@ -48,6 +48,8 @@ spec:
         app: gateway
     spec:
       serviceAccountName: gateway
+      nodeSelector:
+        size: medium
       containers:
         - name: gateway
           image: eddisonso/edd-gateway:021a13e

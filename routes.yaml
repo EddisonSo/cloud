@@ -28,3 +28,9 @@ routes:
     path: /ws
     target: cluster-monitor:80
     strip_prefix: true
+
+  # SSE endpoints for file transfer progress
+  - host: cloud-api.eddisonso.com
+    path: /sse
+    target: simple-file-share-backend:80
+    strip_prefix: false
