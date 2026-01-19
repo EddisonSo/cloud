@@ -6,6 +6,31 @@ sidebar_position: 1
 
 The Gateway service is the main entry point for all external traffic. It handles TLS termination, HTTP/HTTPS routing, and SSH tunneling.
 
+## Protocol Support
+
+| Protocol | Status | Notes |
+|----------|--------|-------|
+| **HTTP/1.1** | ✅ Supported | Plain HTTP and after TLS termination |
+| **HTTPS/TLS** | ✅ Supported | TLS 1.2+, SNI-based routing |
+| **SSH** | ✅ Supported | Username-based container routing |
+| **WebSocket** | ✅ Supported | Proxied over HTTP/1.1 |
+| **HTTP/2** | ❌ Not supported | TLS config only advertises HTTP/1.1 |
+| **gRPC** | ❌ Not supported | Requires HTTP/2 |
+| **HTTP Keep-Alive** | ❌ Not supported | Forces `Connection: close` |
+
+### TLS Handling
+
+- **TLS Termination**: For static routes (core services), gateway terminates TLS and proxies plain HTTP to backends
+- **TLS Passthrough**: For container routes (`*.compute.*`), raw TLS is forwarded to the container
+- **SNI Extraction**: Reads SNI from TLS ClientHello to determine routing before handshake
+
+### Multi-Protocol Detection (Ports 8000-8999)
+
+The gateway auto-detects protocols on extra ports by inspecting the first bytes:
+- `SSH-` → SSH protocol
+- `0x16` → TLS handshake
+- `GET`, `POST`, etc. → Plain HTTP
+
 ## Features
 
 - **TLS Termination**: Handles HTTPS with automatic certificate management
