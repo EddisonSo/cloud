@@ -87,6 +87,23 @@ func (s *Server) handleHTTP(conn net.Conn) {
 
 	// 1. Check static routes first
 	if route, targetPath, err := s.router.ResolveStaticRoute(hostname, path); err == nil {
+		// Redirect HTTP to HTTPS for static routes (core services)
+		if ingressPort == 80 {
+			requestLine := extractRequestLine(headerBuf.String())
+			fullPath := path
+			// Preserve query string if present
+			if parts := strings.SplitN(requestLine, " ", 3); len(parts) >= 2 {
+				if qIdx := strings.Index(parts[1], "?"); qIdx != -1 {
+					fullPath = parts[1]
+				}
+			}
+			redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
+			slog.Info("HTTP->HTTPS redirect", "host", hostname, "path", path, "location", redirectURL)
+			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
+			conn.Close()
+			return
+		}
+
 		backendAddr = route.Target
 		slog.Info(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
 
