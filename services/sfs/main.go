@@ -51,6 +51,8 @@ type server struct {
 	sessionTTL time.Duration
 	wsMu       sync.Mutex
 	wsConns    map[string]*websocket.Conn
+	sseMu      sync.Mutex
+	sseConns   map[string]chan progressMessage
 }
 
 // JWTClaims represents the claims in a JWT token
@@ -162,6 +164,7 @@ func main() {
 		jwtSecret:  getJWTSecret(),
 		sessionTTL: *sessionTTL,
 		wsConns:    make(map[string]*websocket.Conn),
+		sseConns:   make(map[string]chan progressMessage),
 	}
 
 	mux := http.NewServeMux()
@@ -184,6 +187,7 @@ func main() {
 	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
 	mux.HandleFunc("/admin/users", srv.handleAdminUsers)
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
+	mux.HandleFunc("/sse/progress", srv.handleSSE)
 	mux.Handle("/", srv.staticHandler())
 
 	log.Printf("listening on %s", *addr)
@@ -1546,13 +1550,88 @@ func (s *server) sendProgress(msg progressMessage) {
 	if msg.ID == "" {
 		return
 	}
+	// Send to websocket if connected
 	s.wsMu.Lock()
-	conn := s.wsConns[msg.ID]
+	wsConn := s.wsConns[msg.ID]
 	s.wsMu.Unlock()
-	if conn == nil {
+	if wsConn != nil {
+		_ = websocket.JSON.Send(wsConn, msg)
+	}
+	// Send to SSE if connected
+	s.sseMu.Lock()
+	sseChan := s.sseConns[msg.ID]
+	s.sseMu.Unlock()
+	if sseChan != nil {
+		select {
+		case sseChan <- msg:
+		default:
+			// Channel full, skip this update
+		}
+	}
+}
+
+func (s *server) handleSSE(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.currentUser(r); !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	_ = websocket.JSON.Send(conn, msg)
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "missing id parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Create channel for this connection
+	ch := make(chan progressMessage, 10)
+	s.sseMu.Lock()
+	s.sseConns[id] = ch
+	s.sseMu.Unlock()
+
+	log.Printf("sse connected id=%s", id)
+
+	defer func() {
+		s.sseMu.Lock()
+		if current := s.sseConns[id]; current == ch {
+			delete(s.sseConns, id)
+		}
+		s.sseMu.Unlock()
+		close(ch)
+		log.Printf("sse disconnected id=%s", id)
+	}()
+
+	// Send initial keepalive
+	fmt.Fprintf(w, ": keepalive\n\n")
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, _ := json.Marshal(msg)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+			if msg.Done {
+				return
+			}
+		}
+	}
 }
 
 func (s *server) transferID(r *http.Request) string {

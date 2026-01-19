@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import { buildApiBase, buildWsUrl, createTransferId, waitForSocket, getAuthHeaders, getAuthToken } from "@/lib/api";
+import { buildApiBase, buildSseUrl, createTransferId, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -75,17 +75,19 @@ export function useFiles() {
     formData.append("file", file);
     const transferId = createTransferId();
     const token = getAuthToken();
-    const wsUrl = token
-      ? `${buildWsUrl(transferId)}&token=${encodeURIComponent(token)}`
-      : buildWsUrl(transferId);
-    const socket = new WebSocket(wsUrl);
+
+    // Use SSE for progress tracking
+    const sseUrl = token
+      ? `${buildSseUrl(transferId)}&token=${encodeURIComponent(token)}`
+      : buildSseUrl(transferId);
+    const eventSource = new EventSource(sseUrl, { withCredentials: true });
 
     try {
       setUploading(true);
       setUploadProgress({ bytes: 0, total: file.size, active: true });
       setStatus("Uploading...");
 
-      socket.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.direction !== "upload") return;
@@ -96,14 +98,19 @@ export function useFiles() {
           }));
           if (payload.done) {
             setUploadProgress((prev) => ({ ...prev, active: false }));
-            socket.close();
+            eventSource.close();
           }
         } catch (err) {
           console.warn("Failed to parse upload progress", err);
         }
       };
 
-      // Start fetch immediately (don't wait for WebSocket) - browser can prepare upload while WS connects
+      eventSource.onerror = () => {
+        // SSE connection closed or errored - this is normal when upload completes
+        eventSource.close();
+      };
+
+      // Start fetch immediately - browser can prepare upload while SSE connects
       const url = `${buildApiBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
       const response = await fetch(url, {
         method: "POST",
@@ -116,7 +123,7 @@ export function useFiles() {
         if (response.status === 409) {
           setStatus("");
           setUploading(false);
-          socket.close();
+          eventSource.close();
           return { success: false, fileExists: true, fileName: file.name };
         }
         throw new Error(message || "Upload failed");
@@ -133,27 +140,27 @@ export function useFiles() {
       return { success: false };
     } finally {
       setUploading(false);
-      socket.close();
+      eventSource.close();
     }
   }, [loadFiles]);
 
   const downloadFile = useCallback(async (file, user) => {
     const transferId = createTransferId();
-    let socket;
+    let eventSource;
     const fileKey = `${file.namespace || DEFAULT_NAMESPACE}:${file.name}`;
     const token = getAuthToken();
 
     if (user) {
-      const wsUrl = token
-        ? `${buildWsUrl(transferId)}&token=${encodeURIComponent(token)}`
-        : buildWsUrl(transferId);
-      socket = new WebSocket(wsUrl);
+      const sseUrl = token
+        ? `${buildSseUrl(transferId)}&token=${encodeURIComponent(token)}`
+        : buildSseUrl(transferId);
+      eventSource = new EventSource(sseUrl, { withCredentials: true });
       setDownloadProgress((prev) => ({
         ...prev,
         [fileKey]: { bytes: 0, total: file.size, active: true },
       }));
 
-      socket.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.direction !== "download") return;
@@ -165,13 +172,15 @@ export function useFiles() {
               active: !payload.done,
             },
           }));
-          if (payload.done) socket.close();
+          if (payload.done) eventSource.close();
         } catch (err) {
           console.warn("Failed to parse download progress", err);
         }
       };
 
-      await waitForSocket(socket, 2000).catch(() => {});
+      eventSource.onerror = () => {
+        eventSource.close();
+      };
     }
 
     // For downloads, pass token as query parameter since we're using a link
@@ -187,7 +196,7 @@ export function useFiles() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (socket) socket.close();
+    if (eventSource) eventSource.close();
   }, []);
 
   const deleteFile = useCallback(async (file, namespace, onComplete) => {

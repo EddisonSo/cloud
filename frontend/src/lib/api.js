@@ -39,6 +39,10 @@ export function buildWsUrl(id) {
   return `${buildWsBase()}/ws?id=${encodeURIComponent(id)}`;
 }
 
+export function buildSseUrl(id) {
+  return `${buildApiBase()}/sse/progress?id=${encodeURIComponent(id)}`;
+}
+
 export function buildClusterInfoUrl() {
   return `${buildApiBase()}/cluster-info`;
 }
