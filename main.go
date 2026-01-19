@@ -286,6 +286,11 @@ func main() {
 		handlePodMetricsSSE(w, r, cache)
 	})
 
+	// Combined SSE endpoint for both cluster-info and pod-metrics
+	mux.HandleFunc("/sse/health", func(w http.ResponseWriter, r *http.Request) {
+		handleHealthSSE(w, r, cache)
+	})
+
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
@@ -759,6 +764,55 @@ func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsC
 			return
 		case info := <-updates:
 			data, _ := json.Marshal(info)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
+}
+
+// HealthData combines cluster info and pod metrics for the combined SSE endpoint
+type HealthData struct {
+	Type    string      `json:"type"` // "cluster" or "pods"
+	Payload interface{} `json:"payload"`
+}
+
+// SSE handler for combined health data (cluster-info + pod-metrics)
+func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Subscribe to both updates
+	clusterUpdates := cache.Subscribe()
+	defer cache.Unsubscribe(clusterUpdates)
+	podUpdates := cache.SubscribePods()
+	defer cache.UnsubscribePods(podUpdates)
+
+	// Send current data immediately
+	clusterData, _ := json.Marshal(HealthData{Type: "cluster", Payload: cache.GetClusterInfo()})
+	fmt.Fprintf(w, "data: %s\n\n", clusterData)
+	podData, _ := json.Marshal(HealthData{Type: "pods", Payload: cache.GetPodMetrics()})
+	fmt.Fprintf(w, "data: %s\n\n", podData)
+	flusher.Flush()
+
+	// Send updates as they come in
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case info := <-clusterUpdates:
+			data, _ := json.Marshal(HealthData{Type: "cluster", Payload: info})
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case info := <-podUpdates:
+			data, _ := json.Marshal(HealthData{Type: "pods", Payload: info})
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		}
