@@ -82,7 +82,7 @@ const config: Config = {
             },
             {
               label: 'Services',
-              to: '/category/services',
+              to: '/services/gateway',
             },
           ],
         },
