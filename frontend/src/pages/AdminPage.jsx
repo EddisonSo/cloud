@@ -251,7 +251,7 @@ export function AdminPage() {
               <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">User</div>
                 <div className="text-center">IP</div>
-                <div className="text-center">Logged In</div>
+                <div className="text-center">JWT Issued</div>
               </div>
               {sessions.map((s, idx) => {
                 const formatTime = (unix) => {
@@ -274,7 +274,7 @@ export function AdminPage() {
                       <span className="text-sm text-muted-foreground font-mono">{s.ip_address || "—"}</span>
                     </div>
                     <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">Logged In:</span>
+                      <span className="text-xs text-muted-foreground sm:hidden">JWT Issued:</span>
                       <span className="text-sm text-muted-foreground">{formatTime(s.created_at)}</span>
                     </div>
                   </div>
