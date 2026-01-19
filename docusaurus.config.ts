@@ -59,11 +59,6 @@ const config: Config = {
           label: 'Dashboard',
           position: 'right',
         },
-        {
-          href: 'https://github.com/EddisonSo/edd-cloud',
-          label: 'GitHub',
-          position: 'right',
-        },
       ],
     },
     footer: {

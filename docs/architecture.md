@@ -73,6 +73,21 @@ sidebar_position: 2
 - **Consistency**: Two-Phase Commit (2PC)
 - **Write Quorum**: 2 of 3 replicas
 
+#### Garbage Collection
+
+GFS implements automatic cleanup of orphaned chunks (chunks on disk not tracked by the master):
+
+1. **Chunk Reporting**: Chunkservers report all their chunks during registration and periodic heartbeats
+2. **Orphan Detection**: Master checks each reported chunk against its metadata
+3. **Grace Period**: Unknown chunks are tracked for 1 hour before deletion (prevents removing in-flight data)
+4. **Scheduled Deletion**: After grace period, chunks are added to `pendingDeletes`
+5. **Cleanup**: On next heartbeat, master returns pending deletes and chunkserver removes the files
+
+This handles scenarios like:
+- Master restart losing in-memory metadata (WAL recovery may miss recent chunks)
+- Partial writes that never committed
+- Manual file deletions that didn't propagate
+
 ### PostgreSQL
 
 Stores metadata for:
@@ -155,8 +170,8 @@ Stores metadata for:
 
 ### Storage Improvements
 
-- [ ] **Chunk garbage collection** - Clean up orphaned chunks
-- [ ] **Erasure coding** - Reduce storage overhead vs 3x replication
+- [x] **Chunk garbage collection** - Clean up orphaned chunks (1-hour grace period, via heartbeat)
+- [ ] **Chunk corruption recovery** - Detect corrupted chunks via checksums and re-replicate from healthy replicas
 - [ ] **Tiered storage** - Hot/cold data separation
 
 ### Compute Improvements
@@ -164,6 +179,7 @@ Stores metadata for:
 - [ ] **Container resource limits** - CPU/memory quotas per user
 - [ ] **Container networking** - Private networks between user containers
 - [ ] **Persistent volumes** - User-attached storage volumes
+- [ ] **True VMs** - Full virtual machines via Type 1 hypervisor (KVM) for stronger isolation
 
 ### Infrastructure
 
