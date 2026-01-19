@@ -9,9 +9,10 @@ export function useHealth(user, enabled = false) {
   const [lastCheck, setLastCheck] = useState(null);
   const [updateFrequency, setUpdateFrequency] = useState(0);
 
-  const latestDataRef = useRef(null);
+  const latestClusterRef = useRef(null);
+  const latestPodsRef = useRef(null);
 
-  // Cluster info via SSE
+  // Combined health SSE (cluster-info + pod-metrics in single connection)
   useEffect(() => {
     if (!user || !enabled) return;
 
@@ -21,9 +22,12 @@ export function useHealth(user, enabled = false) {
     let isCleaningUp = false;
 
     const applyUpdate = () => {
-      if (latestDataRef.current) {
-        setHealth({ cluster_ok: true, nodes: latestDataRef.current.nodes || [] });
+      if (latestClusterRef.current) {
+        setHealth({ cluster_ok: true, nodes: latestClusterRef.current.nodes || [] });
         setLastCheck(new Date());
+      }
+      if (latestPodsRef.current) {
+        setPodMetrics(latestPodsRef.current);
       }
     };
 
@@ -32,7 +36,7 @@ export function useHealth(user, enabled = false) {
       setLoading(true);
       setError("");
 
-      eventSource = new EventSource(`${buildApiBase()}/sse/cluster-info`);
+      eventSource = new EventSource(`${buildApiBase()}/sse/health`);
 
       eventSource.onopen = () => {
         setLoading(false);
@@ -41,15 +45,22 @@ export function useHealth(user, enabled = false) {
 
       eventSource.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data);
-          latestDataRef.current = payload;
+          const message = JSON.parse(event.data);
 
-          if (updateFrequency === 0) {
-            setHealth({ cluster_ok: true, nodes: payload.nodes || [] });
-            setLastCheck(new Date());
+          if (message.type === "cluster") {
+            latestClusterRef.current = message.payload;
+            if (updateFrequency === 0) {
+              setHealth({ cluster_ok: true, nodes: message.payload.nodes || [] });
+              setLastCheck(new Date());
+            }
+          } else if (message.type === "pods") {
+            latestPodsRef.current = message.payload;
+            if (updateFrequency === 0) {
+              setPodMetrics(message.payload);
+            }
           }
         } catch (err) {
-          console.error("Failed to parse cluster info:", err);
+          console.error("Failed to parse health data:", err);
         }
       };
 
@@ -76,46 +87,6 @@ export function useHealth(user, enabled = false) {
       if (eventSource) eventSource.close();
     };
   }, [user, enabled, updateFrequency]);
-
-  // Pod metrics via SSE
-  useEffect(() => {
-    if (!user || !enabled) return;
-
-    let eventSource = null;
-    let reconnectTimeout = null;
-    let isCleaningUp = false;
-
-    const connect = () => {
-      if (isCleaningUp) return;
-
-      eventSource = new EventSource(`${buildApiBase()}/sse/pod-metrics`);
-
-      eventSource.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          setPodMetrics(payload);
-        } catch (err) {
-          console.error("Failed to parse pod metrics:", err);
-        }
-      };
-
-      eventSource.onerror = () => {
-        console.error("Pod metrics connection error");
-        eventSource.close();
-        if (!isCleaningUp) {
-          reconnectTimeout = setTimeout(connect, 5000);
-        }
-      };
-    };
-
-    connect();
-
-    return () => {
-      isCleaningUp = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (eventSource) eventSource.close();
-    };
-  }, [user, enabled]);
 
   return { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency };
 }
