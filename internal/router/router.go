@@ -382,22 +382,9 @@ func (r *Router) ResolveHTTP(hostname string, ingressPort int) (*Container, int,
 	return c, targetPort, nil
 }
 
-// ResolveStaticRoute finds a matching static route using LRU cache + linear scan.
+// ResolveStaticRoute finds a matching static route using simple linear scan.
 // Returns the route and the path to forward (with prefix stripped if configured).
 func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, error) {
-	// Build cache key
-	cacheKey := host + ":" + path
-
-	// Check cache first
-	if entry, ok := r.cache.get(cacheKey); ok {
-		if entry.err != nil {
-			return nil, "", entry.err
-		}
-		slog.Debug("route cache hit", "host", host, "path", path, "target", entry.route.Target)
-		return entry.route, entry.targetPath, nil
-	}
-
-	// Cache miss - do the lookup
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -417,15 +404,11 @@ func (r *Router) ResolveStaticRoute(host, path string) (*StaticRoute, string, er
 				}
 			}
 			slog.Debug("route matched", "host", host, "path", path, "prefix", route.PathPrefix, "target", route.Target)
-			// Cache the result
-			r.cache.put(cacheKey, route, targetPath, nil)
 			return route, targetPath, nil
 		}
 	}
 
 	slog.Debug("no route matched", "host", host, "path", path)
-	// Cache the miss
-	r.cache.put(cacheKey, nil, "", ErrNoRoute)
 	return nil, "", ErrNoRoute
 }
 
