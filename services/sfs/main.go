@@ -1420,14 +1420,23 @@ type progressReporter struct {
 }
 
 func (s *server) newReporter(id, direction string, total int64) *progressReporter {
+	// Scale minBytes with file size: target ~100 updates per file
+	// Minimum 64KB, maximum 10MB between updates
+	minBytes := total / 100
+	if minBytes < 64*1024 {
+		minBytes = 64 * 1024
+	}
+	if minBytes > 10*1024*1024 {
+		minBytes = 10 * 1024 * 1024
+	}
 	return &progressReporter{
 		server:      s,
 		id:          id,
 		direction:   direction,
 		total:       total,
 		lastSent:    time.Time{}, // Zero time so first update sends immediately
-		minBytes:    64 * 1024,   // 64KB - more frequent updates
-		minInterval: 200 * time.Millisecond,
+		minBytes:    minBytes,
+		minInterval: 500 * time.Millisecond,
 	}
 }
 
