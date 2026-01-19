@@ -1075,7 +1075,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store session in database for tracking (keep only latest per user)
+	// Store session in database for tracking (keep only latest per user+IP)
 	now := time.Now().Unix()
 	clientIP := r.Header.Get("X-Forwarded-For")
 	if clientIP == "" {
@@ -1094,7 +1094,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			clientIP = clientIP[:idx]
 		}
 	}
-	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, userID)
+	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1 AND ip_address = $2`, userID, clientIP)
 	_, _ = s.db.Exec(`INSERT INTO sessions (user_id, token, expires_at, created_at, ip_address) VALUES ($1, $2, $3, $4, $5)`,
 		userID, tokenString, expires.Unix(), now, clientIP)
 
@@ -2070,14 +2070,14 @@ func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get active sessions (not expired), most recent per user
+	// Get active sessions (not expired), most recent per user+IP combination
 	now := time.Now().Unix()
 	rows, err := s.db.Query(`
-		SELECT DISTINCT ON (s.user_id) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, COALESCE(s.ip_address, '')
+		SELECT DISTINCT ON (s.user_id, s.ip_address) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, COALESCE(s.ip_address, '')
 		FROM sessions s
 		JOIN users u ON s.user_id = u.id
 		WHERE s.expires_at > $1
-		ORDER BY s.user_id, s.created_at DESC
+		ORDER BY s.user_id, s.ip_address, s.created_at DESC
 	`, now)
 	if err != nil {
 		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
