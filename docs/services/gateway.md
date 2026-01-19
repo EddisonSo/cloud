@@ -58,7 +58,7 @@ CREATE TABLE static_routes (
 The gateway provides SSH access to containers:
 
 ```bash
-ssh -p 2222 user@cloud.eddisonso.com
+ssh <container-id>@compute.cloud.eddisonso.com
 ```
 
 SSH keys are managed through the Compute API and stored in PostgreSQL.

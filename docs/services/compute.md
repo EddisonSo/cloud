@@ -85,7 +85,7 @@ When SSH is enabled for a container:
 
 1. Container gets an SSH server sidecar
 2. User's SSH keys are injected
-3. Access via: `ssh -p 2222 user@cloud.eddisonso.com`
+3. Access via: `ssh <container-id>@compute.cloud.eddisonso.com`
 
 ## Ingress Rules
 
