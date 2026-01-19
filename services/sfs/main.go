@@ -186,6 +186,7 @@ func main() {
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
 	mux.HandleFunc("/admin/namespaces", srv.handleAdminNamespaces)
 	mux.HandleFunc("/admin/users", srv.handleAdminUsers)
+	mux.HandleFunc("/admin/sessions", srv.handleAdminSessions)
 	mux.Handle("/ws", websocket.Handler(srv.handleWS))
 	mux.HandleFunc("/sse/progress", srv.handleSSE)
 	mux.Handle("/", srv.staticHandler())
@@ -241,6 +242,9 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 
 	// Migration: add owner_id column to namespaces if it doesn't exist
 	_, _ = db.Exec(`ALTER TABLE namespaces ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)`)
+
+	// Migration: add created_at column to sessions if it doesn't exist
+	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`)
 
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
@@ -1067,6 +1071,11 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
+
+	// Store session in database for tracking
+	now := time.Now().Unix()
+	_, _ = s.db.Exec(`INSERT INTO sessions (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4)`,
+		userID, tokenString, expires.Unix(), now)
 
 	writeJSON(w, sessionResponse{
 		Username:    payload.Username,
@@ -2017,6 +2026,54 @@ func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+type recentSession struct {
+	UserID      int64  `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   int64  `json:"created_at"`
+	ExpiresAt   int64  `json:"expires_at"`
+}
+
+func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
+	username, ok := s.currentUser(r)
+	if !ok || !isAdmin(username) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get recent sessions with user info, ordered by most recent first
+	rows, err := s.db.Query(`
+		SELECT s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, s.expires_at
+		FROM sessions s
+		JOIN users u ON s.user_id = u.id
+		ORDER BY s.created_at DESC
+		LIMIT 50
+	`)
+	if err != nil {
+		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	sessions := make([]recentSession, 0)
+	for rows.Next() {
+		var sess recentSession
+		if err := rows.Scan(&sess.UserID, &sess.Username, &sess.DisplayName, &sess.CreatedAt, &sess.ExpiresAt); err != nil {
+			http.Error(w, "failed to scan session", http.StatusInternalServerError)
+			return
+		}
+		sessions = append(sessions, sess)
+	}
+
+	writeJSON(w, sessions)
 }
 
 func writeJSON(w http.ResponseWriter, payload any) {
