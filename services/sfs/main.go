@@ -1072,8 +1072,9 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store session in database for tracking
+	// Store session in database for tracking (keep only latest per user)
 	now := time.Now().Unix()
+	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, userID)
 	_, _ = s.db.Exec(`INSERT INTO sessions (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4)`,
 		userID, tokenString, expires.Unix(), now)
 
@@ -2049,13 +2050,12 @@ func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get recent sessions with user info, ordered by most recent first
+	// Get most recent session per user, ordered by most recent first
 	rows, err := s.db.Query(`
-		SELECT s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, s.expires_at
+		SELECT DISTINCT ON (s.user_id) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, s.expires_at
 		FROM sessions s
 		JOIN users u ON s.user_id = u.id
-		ORDER BY s.created_at DESC
-		LIMIT 50
+		ORDER BY s.user_id, s.created_at DESC
 	`)
 	if err != nil {
 		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
