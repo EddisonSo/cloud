@@ -30,9 +30,8 @@ export function resolveApiHost() {
 export function resolveServiceHost(service) {
   const host = window.location.host;
   if (host.startsWith("cloud.")) {
-    // Extract base domain (e.g., "eddisonso.com" from "cloud.eddisonso.com")
-    const baseDomain = host.replace("cloud.", "");
-    return `${service}.${baseDomain}`;
+    // Use service.cloud.domain format (e.g., "storage.cloud.eddisonso.com")
+    return `${service}.${host}`;
   }
   return host;
 }
