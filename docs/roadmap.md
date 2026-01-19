@@ -36,6 +36,7 @@ sidebar_position: 10
 
 ## Compute Improvements
 
+- [ ] **Container access control** - Users can only access their own containers (SSH, logs, management)
 - [ ] **Container resource limits** - CPU/memory quotas per user
 - [ ] **Container networking** - Private networks between user containers
 - [ ] **Persistent volumes** - User-attached storage volumes
