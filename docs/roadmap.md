@@ -6,6 +6,7 @@ sidebar_position: 10
 
 ## Gateway Improvements
 
+- [ ] **IP-based filtering** - Allow/block traffic based on IP address or CIDR range
 - [ ] **Radix tree routing** - Replace linear route matching with radix tree for O(log n) lookups
 - [ ] **L4 load balancer pre-ingress** - Add TCP/UDP load balancer layer for distributed gateway deployment
 - [ ] **Connection pooling** - Reuse backend connections to reduce latency
