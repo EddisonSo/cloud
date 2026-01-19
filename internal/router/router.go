@@ -16,7 +16,7 @@ import (
 )
 
 // LRU cache for route lookups
-const routeCacheSize = 1000
+const routeCacheSize = 100
 
 // routeCacheEntry holds a cached route lookup result.
 type routeCacheEntry struct {
