@@ -9,7 +9,7 @@ import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
 import { buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2, UserPlus, Eye, EyeOff, Clock } from "lucide-react";
+import { Trash2, UserPlus, Eye, EyeOff, Link, Clock } from "lucide-react";
 
 export function AdminPage() {
   const copy = TAB_COPY.admin;
@@ -374,10 +374,15 @@ export function AdminPage() {
                   <div className="flex justify-between sm:justify-center items-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Visibility:</span>
                     <span className="flex items-center gap-1 text-sm">
-                      {ns.hidden ? (
+                      {ns.visibility === 0 ? (
                         <>
                           <EyeOff className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Hidden</span>
+                          <span className="text-muted-foreground">Private</span>
+                        </>
+                      ) : ns.visibility === 1 ? (
+                        <>
+                          <Link className="w-4 h-4 text-yellow-400" />
+                          <span className="text-yellow-400">Unlisted</span>
                         </>
                       ) : (
                         <>

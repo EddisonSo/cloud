@@ -11,7 +11,7 @@ import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Plus, Settings, Eye, EyeOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2 } from "lucide-react";
 
 export function StoragePage() {
   const copy = TAB_COPY.storage;
@@ -26,7 +26,7 @@ export function StoragePage() {
     loadNamespaces,
     createNamespace,
     deleteNamespace,
-    toggleNamespaceHidden,
+    updateNamespaceVisibility,
   } = useNamespaces();
   const {
     files,
@@ -61,12 +61,12 @@ export function StoragePage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+  const [showVisibilityModal, setShowVisibilityModal] = useState(false);
   const [namespaceInput, setNamespaceInput] = useState("");
-  const [namespaceHidden, setNamespaceHidden] = useState(false);
+  const [namespaceVisibility, setNamespaceVisibility] = useState(2); // 0=private, 1=unlisted, 2=public
   const [creating, setCreating] = useState(false);
   const [deletingNs, setDeletingNs] = useState(false);
-  const [togglingNs, setTogglingNs] = useState(false);
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [namespaceError, setNamespaceError] = useState("");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [overwriteFileName, setOverwriteFileName] = useState("");
@@ -94,9 +94,9 @@ export function StoragePage() {
     setCreating(true);
     setNamespaceError("");
     try {
-      await createNamespace(namespaceInput.trim(), namespaceHidden);
+      await createNamespace(namespaceInput.trim(), namespaceVisibility);
       setNamespaceInput("");
-      setNamespaceHidden(false);
+      setNamespaceVisibility(2);
       setShowCreateModal(false);
     } catch (err) {
       setNamespaceError(err.message);
@@ -120,18 +120,16 @@ export function StoragePage() {
     }
   };
 
-  const handleToggleHidden = async () => {
+  const handleUpdateVisibility = async (newVisibility) => {
     if (!activeNamespace) return;
-    const currentNs = namespaces.find((ns) => ns.name === activeNamespace);
-    if (!currentNs) return;
-    setTogglingNs(true);
+    setUpdatingVisibility(true);
     try {
-      await toggleNamespaceHidden(activeNamespace, !currentNs.hidden);
-      setShowToggleConfirm(false);
+      await updateNamespaceVisibility(activeNamespace, newVisibility);
+      setShowVisibilityModal(false);
     } catch (err) {
       setStatus(err.message);
     } finally {
-      setTogglingNs(false);
+      setUpdatingVisibility(false);
     }
   };
 
@@ -236,9 +234,14 @@ export function StoragePage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <CardTitle>{activeNamespace}</CardTitle>
-                      {currentNamespace?.hidden && (
+                      {currentNamespace?.visibility === 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          Hidden
+                          Private
+                        </span>
+                      )}
+                      {currentNamespace?.visibility === 1 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-500">
+                          Unlisted
                         </span>
                       )}
                     </div>
@@ -294,7 +297,7 @@ export function StoragePage() {
         onClose={() => {
           setShowCreateModal(false);
           setNamespaceInput("");
-          setNamespaceHidden(false);
+          setNamespaceVisibility(2);
           setNamespaceError("");
         }}
         title="Create Namespace"
@@ -311,18 +314,65 @@ export function StoragePage() {
               autoFocus
             />
           </div>
-          <label className="flex items-center gap-3 p-3 rounded-md bg-secondary cursor-pointer">
-            <input
-              type="checkbox"
-              checked={namespaceHidden}
-              onChange={(e) => setNamespaceHidden(e.target.checked)}
-              className="w-4 h-4 accent-primary"
-            />
-            <div>
-              <span className="text-sm font-medium">Hidden</span>
-              <p className="text-xs text-muted-foreground">Hidden namespaces are not visible to guests</p>
+          <div className="space-y-2">
+            <Label>Visibility</Label>
+            <div className="space-y-2">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
+                  namespaceVisibility === 0 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  checked={namespaceVisibility === 0}
+                  onChange={() => setNamespaceVisibility(0)}
+                  className="w-4 h-4 accent-primary"
+                />
+                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <span className="text-sm font-medium">Private</span>
+                  <p className="text-xs text-muted-foreground">Only you can see and access</p>
+                </div>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
+                  namespaceVisibility === 1 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  checked={namespaceVisibility === 1}
+                  onChange={() => setNamespaceVisibility(1)}
+                  className="w-4 h-4 accent-primary"
+                />
+                <Link className="w-4 h-4 text-yellow-400" />
+                <div>
+                  <span className="text-sm font-medium">Unlisted</span>
+                  <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
+                </div>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
+                  namespaceVisibility === 2 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="visibility"
+                  checked={namespaceVisibility === 2}
+                  onChange={() => setNamespaceVisibility(2)}
+                  className="w-4 h-4 accent-primary"
+                />
+                <Eye className="w-4 h-4 text-green-400" />
+                <div>
+                  <span className="text-sm font-medium">Public</span>
+                  <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
+                </div>
+              </label>
             </div>
-          </label>
+          </div>
           {namespaceError && <p className="text-sm text-destructive">{namespaceError}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
@@ -342,22 +392,20 @@ export function StoragePage() {
       >
         <div className="space-y-4">
           <button
-            onClick={() => setShowToggleConfirm(true)}
+            onClick={() => setShowVisibilityModal(true)}
             className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary hover:bg-secondary/80 transition-colors text-left"
           >
-            {currentNamespace?.hidden ? (
-              <Eye className="w-4 h-4 text-muted-foreground" />
-            ) : (
+            {currentNamespace?.visibility === 0 ? (
               <EyeOff className="w-4 h-4 text-muted-foreground" />
+            ) : currentNamespace?.visibility === 1 ? (
+              <Link className="w-4 h-4 text-yellow-400" />
+            ) : (
+              <Eye className="w-4 h-4 text-green-400" />
             )}
             <div>
-              <span className="text-sm font-medium">
-                {currentNamespace?.hidden ? "Show Namespace" : "Hide Namespace"}
-              </span>
+              <span className="text-sm font-medium">Change Visibility</span>
               <p className="text-xs text-muted-foreground">
-                {currentNamespace?.hidden
-                  ? "Make this namespace visible to guests"
-                  : "Hide this namespace from guests"}
+                Currently: {currentNamespace?.visibility === 0 ? "Private" : currentNamespace?.visibility === 1 ? "Unlisted" : "Public"}
               </p>
             </div>
           </button>
@@ -376,31 +424,59 @@ export function StoragePage() {
         </div>
       </Modal>
 
-      {/* Toggle Visibility Confirmation Modal */}
+      {/* Change Visibility Modal */}
       <Modal
-        open={showToggleConfirm}
-        onClose={() => setShowToggleConfirm(false)}
-        title={currentNamespace?.hidden ? "Show Namespace" : "Hide Namespace"}
-        description={
-          currentNamespace?.hidden
-            ? <>Make <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code> visible to guests?</>
-            : <>Hide <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code> from guests?</>
-        }
+        open={showVisibilityModal}
+        onClose={() => setShowVisibilityModal(false)}
+        title="Change Visibility"
+        description={<>Set visibility for <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code></>}
       >
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {currentNamespace?.hidden
-              ? "This namespace will become visible to all visitors."
-              : "This namespace will only be visible to authenticated users."}
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowToggleConfirm(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleToggleHidden} disabled={togglingNs}>
-              {togglingNs ? "Updating..." : "Confirm"}
-            </Button>
+          <div className="space-y-2">
+            <button
+              onClick={() => handleUpdateVisibility(0)}
+              disabled={updatingVisibility}
+              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
+                currentNamespace?.visibility === 0 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              }`}
+            >
+              <EyeOff className="w-4 h-4 text-muted-foreground" />
+              <div className="flex-1">
+                <span className="text-sm font-medium">Private</span>
+                <p className="text-xs text-muted-foreground">Only you can see and access</p>
+              </div>
+              {currentNamespace?.visibility === 0 && <span className="text-xs text-primary">Current</span>}
+            </button>
+            <button
+              onClick={() => handleUpdateVisibility(1)}
+              disabled={updatingVisibility}
+              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
+                currentNamespace?.visibility === 1 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              }`}
+            >
+              <Link className="w-4 h-4 text-yellow-400" />
+              <div className="flex-1">
+                <span className="text-sm font-medium">Unlisted</span>
+                <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
+              </div>
+              {currentNamespace?.visibility === 1 && <span className="text-xs text-primary">Current</span>}
+            </button>
+            <button
+              onClick={() => handleUpdateVisibility(2)}
+              disabled={updatingVisibility}
+              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
+                currentNamespace?.visibility === 2 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              }`}
+            >
+              <Eye className="w-4 h-4 text-green-400" />
+              <div className="flex-1">
+                <span className="text-sm font-medium">Public</span>
+                <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
+              </div>
+              {currentNamespace?.visibility === 2 && <span className="text-xs text-primary">Current</span>}
+            </button>
           </div>
+          {updatingVisibility && <p className="text-sm text-muted-foreground text-center">Updating...</p>}
         </div>
       </Modal>
 

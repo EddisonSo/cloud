@@ -55,6 +55,7 @@ export function useNamespaces() {
           name: item.name,
           count: item.count ?? 0,
           hidden: item.hidden ?? false,
+          visibility: item.visibility ?? 2, // Default to public
         }))
         .sort((a, b) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
@@ -70,12 +71,13 @@ export function useNamespaces() {
     }
   }, []);
 
-  const createNamespace = useCallback(async (name, hidden = false) => {
+  // visibility: 0=private, 1=visible (unlisted), 2=public
+  const createNamespace = useCallback(async (name, visibility = 2) => {
     const normalizedName = normalizeNamespace(name);
     const response = await fetch(`${buildStorageBase()}/storage/namespaces`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ name: normalizedName, hidden }),
+      body: JSON.stringify({ name: normalizedName, visibility }),
     });
     if (!response.ok) {
       if (response.status === 409) throw new Error("Namespace already exists.");
@@ -98,13 +100,14 @@ export function useNamespaces() {
     await loadNamespaces(true);
   }, [loadNamespaces]);
 
-  const toggleNamespaceHidden = useCallback(async (name, hidden) => {
+  // visibility: 0=private, 1=visible (unlisted), 2=public
+  const updateNamespaceVisibility = useCallback(async (name, visibility) => {
     const response = await fetch(
       `${buildStorageBase()}/storage/namespaces/${encodeURIComponent(name)}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ hidden }),
+        body: JSON.stringify({ visibility }),
       }
     );
     if (!response.ok) throw new Error("Failed to update namespace");
@@ -120,6 +123,6 @@ export function useNamespaces() {
     loadNamespaces,
     createNamespace,
     deleteNamespace,
-    toggleNamespaceHidden,
+    updateNamespaceVisibility,
   };
 }
