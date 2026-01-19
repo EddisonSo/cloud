@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { buildApiBase, getAuthHeaders } from "@/lib/api";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -16,16 +16,34 @@ export function useSshKeys() {
   const [sshKeys, setSshKeys] = useState(cachedSshKeys || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const abortControllerRef = useRef(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const loadSshKeys = useCallback(async (forceRefresh = false) => {
     // Skip if already loaded and not forcing refresh
     if (sshKeysLoaded && !forceRefresh) {
       return cachedSshKeys;
     }
+
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
       const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
         headers: getAuthHeaders(),
+        signal: abortControllerRef.current.signal,
       });
       if (!response.ok) return [];
       const payload = await response.json();
@@ -35,6 +53,7 @@ export function useSshKeys() {
       sshKeysLoaded = true;
       return list;
     } catch (err) {
+      if (err.name === "AbortError") return [];
       console.warn("Failed to load SSH keys:", err.message);
       return [];
     } finally {

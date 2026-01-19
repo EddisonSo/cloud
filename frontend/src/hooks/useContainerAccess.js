@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { buildApiBase, getAuthHeaders } from "@/lib/api";
 
 export function useContainerAccess() {
@@ -8,6 +8,16 @@ export function useContainerAccess() {
   const [savingSSH, setSavingSSH] = useState(false);
   const [ingressRules, setIngressRules] = useState([]);
   const [addingRule, setAddingRule] = useState(false);
+  const abortControllerRef = useRef(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const openAccess = useCallback(async (containerData) => {
     setContainer(containerData);
@@ -15,10 +25,22 @@ export function useContainerAccess() {
     setSshEnabled(containerData.ssh_enabled || false);
     setIngressRules([]);
 
+    // Abort any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       const [sshRes, ingressRes] = await Promise.all([
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ssh`, { headers: getAuthHeaders() }),
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ingress`, { headers: getAuthHeaders() }),
+        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ssh`, {
+          headers: getAuthHeaders(),
+          signal: abortControllerRef.current.signal,
+        }),
+        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ingress`, {
+          headers: getAuthHeaders(),
+          signal: abortControllerRef.current.signal,
+        }),
       ]);
       if (sshRes.ok) {
         const data = await sshRes.json();
@@ -29,6 +51,7 @@ export function useContainerAccess() {
         setIngressRules(data.rules || []);
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       console.warn("Failed to load access settings:", err.message);
     } finally {
       setLoading(false);
