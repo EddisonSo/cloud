@@ -104,7 +104,10 @@ export function HealthPage() {
   }, [health.nodes, nodeSort]);
 
   const sortPods = (pods) => {
-    if (!podSort.column) return pods;
+    // Default to sorting by name lexicographically
+    if (!podSort.column) {
+      return [...pods].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
     return [...pods].sort((a, b) => {
       let aVal, bVal;
       switch (podSort.column) {
@@ -396,9 +399,9 @@ export function HealthPage() {
               ).map(([nodeName, pods]) => (
                 <div key={nodeName} className="space-y-2">
                   {/* Node Header */}
-                  <div className="px-4 py-2 bg-muted/50 rounded-md">
-                    <span className="text-sm font-semibold">{nodeName}</span>
-                    <span className="text-xs text-muted-foreground ml-2">({pods.length} pods)</span>
+                  <div className="px-4 py-3 bg-primary/10 border-l-4 border-primary rounded-md">
+                    <span className="text-base font-bold">{nodeName}</span>
+                    <span className="text-sm text-muted-foreground ml-2">({pods.length} pods)</span>
                   </div>
                   {/* Column Header */}
                   <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
