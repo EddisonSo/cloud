@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { TextSkeleton } from "@/components/ui/skeleton";
 import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
-import { buildApiBase, getAuthHeaders } from "@/lib/api";
+import { buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Trash2, UserPlus, Eye, EyeOff } from "lucide-react";
 
@@ -39,9 +39,9 @@ export function AdminPage() {
     setError("");
     try {
       const [containersRes, usersRes, namespacesRes] = await Promise.all([
-        fetch(`${buildApiBase()}/compute/admin/containers`, { headers: getAuthHeaders() }),
-        fetch(`${buildApiBase()}/admin/users`, { headers: getAuthHeaders() }),
-        fetch(`${buildApiBase()}/admin/namespaces`, { headers: getAuthHeaders() }),
+        fetch(`${buildComputeBase()}/compute/admin/containers`, { headers: getAuthHeaders() }),
+        fetch(`${buildStorageBase()}/admin/users`, { headers: getAuthHeaders() }),
+        fetch(`${buildStorageBase()}/admin/namespaces`, { headers: getAuthHeaders() }),
       ]);
       if (containersRes.ok) {
         const data = await parseJsonSafe(containersRes);
@@ -75,7 +75,7 @@ export function AdminPage() {
     setCreating(true);
     setError("");
     try {
-      const response = await fetch(`${buildApiBase()}/admin/users`, {
+      const response = await fetch(`${buildStorageBase()}/admin/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
@@ -101,7 +101,7 @@ export function AdminPage() {
   const handleDeleteUser = async (userId) => {
     if (!confirm("Delete this user?")) return;
     try {
-      const response = await fetch(`${buildApiBase()}/admin/users?id=${userId}`, {
+      const response = await fetch(`${buildStorageBase()}/admin/users?id=${userId}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });

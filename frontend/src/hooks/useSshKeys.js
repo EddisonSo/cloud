@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { buildApiBase, getAuthHeaders } from "@/lib/api";
+import { buildComputeBase, getAuthHeaders } from "@/lib/api";
 import { registerCacheClear } from "@/lib/cache";
 
 // Module-level cache that persists across component mounts
@@ -41,7 +41,7 @@ export function useSshKeys() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
+      const response = await fetch(`${buildComputeBase()}/compute/ssh-keys`, {
         headers: getAuthHeaders(),
         signal: abortControllerRef.current.signal,
       });
@@ -62,7 +62,7 @@ export function useSshKeys() {
   }, []);
 
   const addSshKey = useCallback(async (name, publicKey) => {
-    const response = await fetch(`${buildApiBase()}/compute/ssh-keys`, {
+    const response = await fetch(`${buildComputeBase()}/compute/ssh-keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ name, public_key: publicKey }),
@@ -76,7 +76,7 @@ export function useSshKeys() {
   }, [loadSshKeys]);
 
   const deleteSshKey = useCallback(async (id) => {
-    const response = await fetch(`${buildApiBase()}/compute/ssh-keys/${id}`, {
+    const response = await fetch(`${buildComputeBase()}/compute/ssh-keys/${id}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });

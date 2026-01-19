@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildHealthBase } from "@/lib/api";
 
 export function useLogs(user, enabled = false) {
   const [logs, setLogs] = useState([]);
@@ -70,7 +70,7 @@ export function useLogs(user, enabled = false) {
       const params = new URLSearchParams();
       if (sourceFilter) params.set("source", sourceFilter);
       if (levelFilter && levelFilter !== "DEBUG") params.set("level", levelFilter);
-      const sseUrl = `${buildApiBase()}/sse/logs${params.toString() ? "?" + params.toString() : ""}`;
+      const sseUrl = `${buildHealthBase()}/sse/logs${params.toString() ? "?" + params.toString() : ""}`;
 
       eventSource = new EventSource(sseUrl);
 

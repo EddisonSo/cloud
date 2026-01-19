@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { buildApiBase, buildWsBase, getAuthHeaders, getAuthToken } from "@/lib/api";
+import { buildComputeBase, buildComputeWsBase, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { registerCacheClear } from "@/lib/cache";
 
 // Module-level cache that persists across component mounts
@@ -43,7 +43,7 @@ export function useContainers(user) {
     try {
       setLoading(true);
       setError("");
-      const response = await fetch(`${buildApiBase()}/compute/containers`, {
+      const response = await fetch(`${buildComputeBase()}/compute/containers`, {
         headers: getAuthHeaders(),
         signal: abortControllerRef.current.signal,
       });
@@ -70,7 +70,7 @@ export function useContainers(user) {
   }, []);
 
   const createContainer = useCallback(async (data) => {
-    const response = await fetch(`${buildApiBase()}/compute/containers`, {
+    const response = await fetch(`${buildComputeBase()}/compute/containers`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(data),
@@ -89,8 +89,8 @@ export function useContainers(user) {
       const method = action === "deleting" ? "DELETE" : "POST";
       const endpoint =
         action === "deleting"
-          ? `${buildApiBase()}/compute/containers/${id}`
-          : `${buildApiBase()}/compute/containers/${id}/${action === "starting" ? "start" : "stop"}`;
+          ? `${buildComputeBase()}/compute/containers/${id}`
+          : `${buildComputeBase()}/compute/containers/${id}/${action === "starting" ? "start" : "stop"}`;
       const response = await fetch(endpoint, { method, headers: getAuthHeaders() });
       if (!response.ok) {
         const message = await response.text();
@@ -116,8 +116,8 @@ export function useContainers(user) {
       // Include token in WebSocket URL as query parameter
       const token = getAuthToken();
       const wsUrl = token
-        ? `${buildWsBase()}/compute/ws?token=${encodeURIComponent(token)}`
-        : `${buildWsBase()}/compute/ws`;
+        ? `${buildComputeWsBase()}/compute/ws?token=${encodeURIComponent(token)}`
+        : `${buildComputeWsBase()}/compute/ws`;
       ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {

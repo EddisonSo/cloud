@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { buildApiBase, getAuthHeaders } from "@/lib/api";
+import { buildComputeBase, getAuthHeaders } from "@/lib/api";
 
 export function useContainerAccess() {
   const [container, setContainer] = useState(null);
@@ -33,11 +33,11 @@ export function useContainerAccess() {
 
     try {
       const [sshRes, ingressRes] = await Promise.all([
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ssh`, {
+        fetch(`${buildComputeBase()}/compute/containers/${containerData.id}/ssh`, {
           headers: getAuthHeaders(),
           signal: abortControllerRef.current.signal,
         }),
-        fetch(`${buildApiBase()}/compute/containers/${containerData.id}/ingress`, {
+        fetch(`${buildComputeBase()}/compute/containers/${containerData.id}/ingress`, {
           headers: getAuthHeaders(),
           signal: abortControllerRef.current.signal,
         }),
@@ -71,7 +71,7 @@ export function useContainerAccess() {
     setSavingSSH(true);
     try {
       const response = await fetch(
-        `${buildApiBase()}/compute/containers/${container.id}/ssh`,
+        `${buildComputeBase()}/compute/containers/${container.id}/ssh`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -96,7 +96,7 @@ export function useContainerAccess() {
     setAddingRule(true);
     try {
       const response = await fetch(
-        `${buildApiBase()}/compute/containers/${container.id}/ingress`,
+        `${buildComputeBase()}/compute/containers/${container.id}/ingress`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -123,7 +123,7 @@ export function useContainerAccess() {
   const removeIngressRule = useCallback(async (port, updateContainers) => {
     if (!container) return;
     const response = await fetch(
-      `${buildApiBase()}/compute/containers/${container.id}/ingress/${port}`,
+      `${buildComputeBase()}/compute/containers/${container.id}/ingress/${port}`,
       { method: "DELETE", headers: getAuthHeaders() }
     );
     if (!response.ok) throw new Error("Failed to remove rule");

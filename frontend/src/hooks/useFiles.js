@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { buildApiBase, buildSseUrl, createTransferId, getAuthHeaders, getAuthToken } from "@/lib/api";
+import { buildStorageBase, buildSseUrl, createTransferId, getAuthHeaders, getAuthToken } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -54,7 +54,7 @@ export function useFiles() {
     try {
       setLoading(true);
       const response = await fetch(
-        `${buildApiBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`,
+        `${buildStorageBase()}/storage/files?namespace=${encodeURIComponent(selectedNamespace)}`,
         { headers: getAuthHeaders(), signal: abortControllerRef.current.signal }
       );
       if (!response.ok) throw new Error("Failed to load files");
@@ -129,7 +129,7 @@ export function useFiles() {
       };
 
       // Start fetch immediately - browser can prepare upload while SSE connects
-      const url = `${buildApiBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
+      const url = `${buildStorageBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
       const response = await fetch(url, {
         method: "POST",
         body: formData,
@@ -202,7 +202,7 @@ export function useFiles() {
     }
 
     // For downloads, pass token as query parameter since we're using a link
-    let downloadUrl = `${buildApiBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    let downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
     if (token) {
       downloadUrl += `&token=${encodeURIComponent(token)}`;
     }
@@ -223,7 +223,7 @@ export function useFiles() {
     setStatus(`Deleting ${file.name}...`);
     try {
       const response = await fetch(
-        `${buildApiBase()}/storage/delete?name=${encodeURIComponent(file.name)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`,
+        `${buildStorageBase()}/storage/delete?name=${encodeURIComponent(file.name)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`,
         { method: "DELETE", headers: getAuthHeaders() }
       );
       if (!response.ok) {

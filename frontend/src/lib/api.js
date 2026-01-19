@@ -18,10 +18,21 @@ export function getAuthHeaders() {
 }
 
 export function resolveApiHost() {
-  // Use cloud-api subdomain for API calls
+  // Use cloud-api subdomain for API calls (legacy, used for auth)
   const host = window.location.host;
   if (host.startsWith("cloud.")) {
     return host.replace("cloud.", "cloud-api.");
+  }
+  return host;
+}
+
+// Service-specific hosts for better connection pooling
+export function resolveServiceHost(service) {
+  const host = window.location.host;
+  if (host.startsWith("cloud.")) {
+    // Extract base domain (e.g., "eddisonso.com" from "cloud.eddisonso.com")
+    const baseDomain = host.replace("cloud.", "");
+    return `${service}.${baseDomain}`;
   }
   return host;
 }
@@ -30,9 +41,30 @@ export function buildApiBase() {
   return `${window.location.protocol}//${resolveApiHost()}`;
 }
 
+export function buildServiceBase(service) {
+  return `${window.location.protocol}//${resolveServiceHost(service)}`;
+}
+
+export function buildComputeBase() {
+  return buildServiceBase("compute");
+}
+
+export function buildStorageBase() {
+  return buildServiceBase("storage");
+}
+
+export function buildHealthBase() {
+  return buildServiceBase("health");
+}
+
 export function buildWsBase() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   return `${protocol}://${resolveApiHost()}`;
+}
+
+export function buildComputeWsBase() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${resolveServiceHost("compute")}`;
 }
 
 export function buildWsUrl(id) {
@@ -40,7 +72,7 @@ export function buildWsUrl(id) {
 }
 
 export function buildSseUrl(id) {
-  return `${buildApiBase()}/sse/progress?id=${encodeURIComponent(id)}`;
+  return `${buildStorageBase()}/sse/progress?id=${encodeURIComponent(id)}`;
 }
 
 export function buildClusterInfoUrl() {

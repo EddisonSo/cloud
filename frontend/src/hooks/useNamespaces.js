@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { buildApiBase, getAuthHeaders } from "@/lib/api";
+import { buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { DEFAULT_NAMESPACE } from "@/lib/constants";
 import { registerCacheClear } from "@/lib/cache";
 
@@ -44,7 +44,7 @@ export function useNamespaces() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
+      const response = await fetch(`${buildStorageBase()}/storage/namespaces`, {
         headers: getAuthHeaders(),
         signal: abortControllerRef.current.signal,
       });
@@ -72,7 +72,7 @@ export function useNamespaces() {
 
   const createNamespace = useCallback(async (name, hidden = false) => {
     const normalizedName = normalizeNamespace(name);
-    const response = await fetch(`${buildApiBase()}/storage/namespaces`, {
+    const response = await fetch(`${buildStorageBase()}/storage/namespaces`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ name: normalizedName, hidden }),
@@ -88,7 +88,7 @@ export function useNamespaces() {
 
   const deleteNamespace = useCallback(async (name) => {
     const response = await fetch(
-      `${buildApiBase()}/storage/namespaces/${encodeURIComponent(name)}`,
+      `${buildStorageBase()}/storage/namespaces/${encodeURIComponent(name)}`,
       { method: "DELETE", headers: getAuthHeaders() }
     );
     if (!response.ok) {
@@ -100,7 +100,7 @@ export function useNamespaces() {
 
   const toggleNamespaceHidden = useCallback(async (name, hidden) => {
     const response = await fetch(
-      `${buildApiBase()}/storage/namespaces/${encodeURIComponent(name)}`,
+      `${buildStorageBase()}/storage/namespaces/${encodeURIComponent(name)}`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { buildApiBase } from "@/lib/api";
+import { buildHealthBase } from "@/lib/api";
 
 export function useHealth(user, enabled = false) {
   const [health, setHealth] = useState({ cluster_ok: false, nodes: [] });
@@ -36,7 +36,7 @@ export function useHealth(user, enabled = false) {
       setLoading(true);
       setError("");
 
-      eventSource = new EventSource(`${buildApiBase()}/sse/health`);
+      eventSource = new EventSource(`${buildHealthBase()}/sse/health`);
 
       eventSource.onopen = () => {
         setLoading(false);
