@@ -72,6 +72,8 @@ func (db *DB) migrate() error {
 		// Protocol access through gateway (SSH and HTTPS only, no HTTP)
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS ssh_enabled BOOLEAN DEFAULT false`,
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS https_enabled BOOLEAN DEFAULT false`,
+		// Database separation: store owner_username to avoid cross-DB JOINs
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_username TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, m := range migrations {

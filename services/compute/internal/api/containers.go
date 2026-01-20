@@ -78,7 +78,7 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, username, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -144,6 +144,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 	container := &db.Container{
 		ID:         containerID,
 		UserID:     userID,
+		Owner:      username,
 		Name:       req.Name,
 		Namespace:  namespace,
 		Status:     "pending",

@@ -25,9 +25,9 @@ type Container struct {
 
 func (db *DB) CreateContainer(c *Container) error {
 	_, err := db.Exec(`
-		INSERT INTO containers (id, user_id, name, namespace, status, memory_mb, storage_gb, image, ssh_enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		c.ID, c.UserID, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.SSHEnabled,
+		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, ssh_enabled)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.SSHEnabled,
 	)
 	if err != nil {
 		return fmt.Errorf("insert container: %w", err)
@@ -77,12 +77,11 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 
 func (db *DB) ListAllContainers() ([]*Container, error) {
 	rows, err := db.Query(`
-		SELECT c.id, c.user_id, COALESCE(u.username, ''), c.name, c.namespace, c.status, c.external_ip,
-		       c.memory_mb, c.storage_gb, c.image, c.created_at, c.stopped_at,
-		       COALESCE(c.ssh_enabled, false), COALESCE(c.https_enabled, false)
-		FROM containers c
-		LEFT JOIN users u ON c.user_id = u.id
-		ORDER BY c.created_at DESC`,
+		SELECT id, user_id, COALESCE(owner_username, ''), name, namespace, status, external_ip,
+		       memory_mb, storage_gb, image, created_at, stopped_at,
+		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
+		FROM containers
+		ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query containers: %w", err)
