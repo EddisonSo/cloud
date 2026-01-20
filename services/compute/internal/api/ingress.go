@@ -115,9 +115,17 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	enabledPorts := h.getEnabledPorts(containerID)
+
 	// Update NetworkPolicy in Kubernetes
-	if err := h.k8s.UpdateNetworkPolicy(r.Context(), container.Namespace, h.getEnabledPorts(containerID)); err != nil {
+	if err := h.k8s.UpdateNetworkPolicy(r.Context(), container.Namespace, enabledPorts); err != nil {
 		slog.Error("failed to update network policy", "error", err)
+		// Don't fail the request, the DB is updated
+	}
+
+	// Update LoadBalancer service to expose the new port
+	if err := h.k8s.UpdateLoadBalancerPorts(r.Context(), container.Namespace, h.getTargetPorts(containerID)); err != nil {
+		slog.Error("failed to update load balancer ports", "error", err)
 		// Don't fail the request, the DB is updated
 	}
 
@@ -164,9 +172,17 @@ func (h *Handler) RemoveIngressRule(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	enabledPorts := h.getEnabledPorts(containerID)
+
 	// Update NetworkPolicy in Kubernetes
-	if err := h.k8s.UpdateNetworkPolicy(r.Context(), container.Namespace, h.getEnabledPorts(containerID)); err != nil {
+	if err := h.k8s.UpdateNetworkPolicy(r.Context(), container.Namespace, enabledPorts); err != nil {
 		slog.Error("failed to update network policy", "error", err)
+		// Don't fail the request, the DB is updated
+	}
+
+	// Update LoadBalancer service to remove the port
+	if err := h.k8s.UpdateLoadBalancerPorts(r.Context(), container.Namespace, h.getTargetPorts(containerID)); err != nil {
+		slog.Error("failed to update load balancer ports", "error", err)
 		// Don't fail the request, the DB is updated
 	}
 
@@ -181,6 +197,18 @@ func (h *Handler) getEnabledPorts(containerID string) []int {
 	var ports []int
 	for _, rule := range rules {
 		ports = append(ports, rule.Port)
+	}
+	return ports
+}
+
+func (h *Handler) getTargetPorts(containerID string) []int {
+	rules, err := h.db.ListIngressRules(containerID)
+	if err != nil {
+		return nil
+	}
+	var ports []int
+	for _, rule := range rules {
+		ports = append(ports, rule.TargetPort)
 	}
 	return ports
 }

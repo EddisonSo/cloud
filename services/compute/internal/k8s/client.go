@@ -326,6 +326,42 @@ func (c *Client) CreateLoadBalancer(ctx context.Context, namespace string) error
 	return nil
 }
 
+// UpdateLoadBalancerPorts updates the LoadBalancer service to include the specified ports
+func (c *Client) UpdateLoadBalancerPorts(ctx context.Context, namespace string, ports []int) error {
+	svc, err := c.clientset.CoreV1().Services(namespace).Get(ctx, "lb", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("get service: %w", err)
+	}
+
+	// Build new ports list: keep base ports (22, 80, 443) and add user-defined ports
+	basePorts := map[int]bool{22: true, 80: true, 443: true}
+	newPorts := []corev1.ServicePort{
+		{Name: "ssh", Port: 22, TargetPort: intOrString{IntVal: 22}, Protocol: corev1.ProtocolTCP},
+		{Name: "http", Port: 80, TargetPort: intOrString{IntVal: 80}, Protocol: corev1.ProtocolTCP},
+		{Name: "https", Port: 443, TargetPort: intOrString{IntVal: 443}, Protocol: corev1.ProtocolTCP},
+	}
+
+	// Add user-defined ports
+	for _, port := range ports {
+		if basePorts[port] {
+			continue // Skip base ports
+		}
+		newPorts = append(newPorts, corev1.ServicePort{
+			Name:       fmt.Sprintf("port-%d", port),
+			Port:       int32(port),
+			TargetPort: intOrString{IntVal: int32(port)},
+			Protocol:   corev1.ProtocolTCP,
+		})
+	}
+
+	svc.Spec.Ports = newPorts
+	_, err = c.clientset.CoreV1().Services(namespace).Update(ctx, svc, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("update service: %w", err)
+	}
+	return nil
+}
+
 // GetServiceExternalIP gets the external IP of a LoadBalancer service
 func (c *Client) GetServiceExternalIP(ctx context.Context, namespace string) (string, error) {
 	svc, err := c.clientset.CoreV1().Services(namespace).Get(ctx, "lb", metav1.GetOptions{})
