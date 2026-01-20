@@ -155,7 +155,6 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
 	if err != nil {
 		slog.Warn("no ingress rule for container port", "sni", sni, "port", ingressPort, "error", err)
-		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n\r\nNo ingress rule for this port\r\n"))
 		tlsConn.Close()
 		return
 	}
