@@ -10,7 +10,7 @@ sidebar_position: 2
 flowchart TB
     Internet[Internet]
 
-    Internet --> Gateway[Gateway<br/>TLS + SSH + Routing]
+    Internet --> Gateway[Gateway<br/>HTTP + TLS + SSH]
 
     Gateway --> Frontend[Frontend<br/>React]
     Gateway --> Storage[Storage API<br/>SFS Backend]
