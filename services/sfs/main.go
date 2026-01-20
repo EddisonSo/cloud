@@ -403,21 +403,6 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 		nsMap[entry.Name] = entry
 	}
 
-	// Add default namespace if not present
-	if _, ok := nsMap[defaultNamespace]; !ok {
-		count, err := s.countNamespaceFiles(ctx, defaultNamespace)
-		if err != nil {
-			http.Error(w, "failed to list namespace files", http.StatusBadGateway)
-			return
-		}
-		nsMap[defaultNamespace] = namespaceInfo{
-			Name:       defaultNamespace,
-			Count:      count,
-			Hidden:     false,
-			Visibility: visibilityPublic,
-		}
-	}
-
 	resp := make([]namespaceInfo, 0, len(nsMap))
 	for _, ns := range nsMap {
 		resp = append(resp, ns)
