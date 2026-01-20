@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { resolveApiHost, getAuthToken } from "@/lib/api";
+import { resolveServiceHost, getAuthToken } from "@/lib/api";
 
 export function useTerminal() {
   const [container, setContainer] = useState(null);
@@ -75,7 +75,7 @@ export function useTerminal() {
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const token = getAuthToken();
-    let wsUrl = `${wsProtocol}//${resolveApiHost()}/compute/containers/${container.id}/terminal`;
+    let wsUrl = `${wsProtocol}//${resolveServiceHost("compute")}/compute/containers/${container.id}/terminal`;
     if (token) {
       wsUrl += `?token=${encodeURIComponent(token)}`;
     }
