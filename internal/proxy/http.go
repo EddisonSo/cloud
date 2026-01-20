@@ -72,7 +72,9 @@ func (s *Server) handleHTTP(conn net.Conn) {
 		ingressPort = addr.Port
 	}
 	// Normalize internal ports to external ports
-	if ingressPort == 8080 {
+	// HTTP listener uses port 18080 internally for external port 80
+	// (keeping 8000-8999 free for container ingress traffic)
+	if ingressPort == 18080 {
 		ingressPort = 80
 	}
 

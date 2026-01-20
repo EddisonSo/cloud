@@ -57,7 +57,7 @@ spec:
             - -ssh-port
             - "2222"
             - -http-port
-            - "8080"
+            - "18080"
             - -https-port
             - "8443"
             - -fallback
@@ -79,7 +79,7 @@ spec:
               containerPort: 2222
               protocol: TCP
             - name: http
-              containerPort: 8080
+              containerPort: 18080
               protocol: TCP
             - name: https
               containerPort: 8443
@@ -139,7 +139,7 @@ spec:
       protocol: TCP
     - name: http
       port: 80
-      targetPort: 8080
+      targetPort: 18080
       protocol: TCP
     - name: https
       port: 443
