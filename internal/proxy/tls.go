@@ -68,12 +68,18 @@ func (s *Server) handleTLS(conn net.Conn) {
 	// Container domains have a subdomain before "compute.cloud."
 	isContainerDomain := strings.Contains(sni, ".compute.cloud.")
 
-	// Check if we should terminate TLS (have cert + have static routes for this host)
-	if s.tlsConfig != nil && !isContainerDomain {
+	// Check if we should terminate TLS
+	if s.tlsConfig != nil {
 		// If SNI is an IP address, terminate TLS and send redirect
 		if ip := net.ParseIP(sni); ip != nil {
 			slog.Debug("IP-based SNI, terminating TLS and redirecting", "ip", sni, "client", clientAddr)
 			s.handleIPRedirect(conn, header, payload, sni, clientAddr)
+			return
+		}
+
+		// Container domains - terminate TLS and route to container
+		if isContainerDomain {
+			s.handleContainerTLSTermination(conn, header, payload, sni, ingressPort, clientAddr)
 			return
 		}
 
@@ -85,27 +91,14 @@ func (s *Server) handleTLS(conn net.Conn) {
 		}
 	}
 
-	// TLS passthrough for containers or fallback
-	var backendAddr string
-
-	if isContainerDomain {
-		container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
-		if err != nil {
-			slog.Warn("no ingress rule for port", "sni", sni, "port", ingressPort, "error", err)
-			conn.Close()
-			return
-		}
-		backendAddr = fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-		slog.Info("TLS passthrough to container", "sni", sni, "port", ingressPort, "target", targetPort)
-	} else {
-		if s.fallbackAddr == "" {
-			slog.Warn("no fallback configured", "sni", sni)
-			conn.Close()
-			return
-		}
-		slog.Debug("TLS passthrough to fallback", "sni", sni, "fallback", s.fallbackAddr)
-		backendAddr = fmt.Sprintf("%s:%d", s.fallbackAddr, ingressPort)
+	// TLS passthrough to fallback only (no TLS termination configured or no route)
+	if s.fallbackAddr == "" {
+		slog.Warn("no fallback configured", "sni", sni)
+		conn.Close()
+		return
 	}
+	slog.Debug("TLS passthrough to fallback", "sni", sni, "fallback", s.fallbackAddr)
+	backendAddr := fmt.Sprintf("%s:%d", s.fallbackAddr, ingressPort)
 
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
@@ -138,6 +131,48 @@ func (s *Server) handleTLSTermination(rawConn net.Conn, header, payload []byte, 
 
 	// Now handle the decrypted connection as HTTP
 	s.handleTerminatedHTTP(tlsConn, sni)
+}
+
+// handleContainerTLSTermination terminates TLS for container domains and routes to the container.
+func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload []byte, sni string, ingressPort int, clientAddr string) {
+	// Create a connection that replays the already-read ClientHello
+	replayConn := &replayConn{
+		Conn:   rawConn,
+		replay: append(header, payload...),
+	}
+
+	// Wrap with TLS server
+	tlsConn := tls.Server(replayConn, s.tlsConfig)
+	if err := tlsConn.Handshake(); err != nil {
+		slog.Warn("TLS handshake failed for container", "sni", sni, "error", err, "client", clientAddr)
+		rawConn.Close()
+		return
+	}
+
+	slog.Info("TLS terminated for container", "sni", sni, "port", ingressPort, "client", clientAddr)
+
+	// Resolve container and target port
+	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
+	if err != nil {
+		slog.Warn("no ingress rule for container port", "sni", sni, "port", ingressPort, "error", err)
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n\r\nNo ingress rule for this port\r\n"))
+		tlsConn.Close()
+		return
+	}
+
+	backendAddr := fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
+	slog.Info("container TLS terminated, routing to backend", "sni", sni, "port", ingressPort, "target", backendAddr)
+
+	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
+	if err != nil {
+		slog.Error("failed to connect to container backend", "sni", sni, "addr", backendAddr, "error", err)
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+		tlsConn.Close()
+		return
+	}
+
+	// Proxy the decrypted connection to the backend
+	proxy(tlsConn, backend, nil)
 }
 
 // handleIPRedirect terminates TLS for IP-based SNI and sends an HTTP redirect.
