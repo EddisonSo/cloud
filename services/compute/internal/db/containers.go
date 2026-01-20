@@ -9,6 +9,7 @@ import (
 type Container struct {
 	ID           string
 	UserID       int64
+	Owner        string // Username of the owner
 	Name         string
 	Namespace    string
 	Status       string
@@ -76,9 +77,12 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 
 func (db *DB) ListAllContainers() ([]*Container, error) {
 	rows, err := db.Query(`
-		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image, created_at, stopped_at,
-		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
-		FROM containers ORDER BY created_at DESC`,
+		SELECT c.id, c.user_id, COALESCE(u.username, ''), c.name, c.namespace, c.status, c.external_ip,
+		       c.memory_mb, c.storage_gb, c.image, c.created_at, c.stopped_at,
+		       COALESCE(c.ssh_enabled, false), COALESCE(c.https_enabled, false)
+		FROM containers c
+		LEFT JOIN users u ON c.user_id = u.id
+		ORDER BY c.created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query containers: %w", err)
@@ -88,7 +92,7 @@ func (db *DB) ListAllContainers() ([]*Container, error) {
 	var containers []*Container
 	for rows.Next() {
 		c := &Container{}
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image, &c.CreatedAt, &c.StoppedAt,
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Owner, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image, &c.CreatedAt, &c.StoppedAt,
 			&c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
 		}

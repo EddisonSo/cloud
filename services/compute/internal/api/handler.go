@@ -104,7 +104,9 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 	type containerResponse struct {
 		ID            string   `json:"id"`
 		UserID        int64    `json:"user_id"`
+		Owner         string   `json:"owner"`
 		Name          string   `json:"name"`
+		Hostname      string   `json:"hostname"`
 		Status        string   `json:"status"`
 		ExternalIP    string   `json:"external_ip,omitempty"`
 		MemoryMB      int      `json:"memory_mb"`
@@ -122,10 +124,14 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 		if c.ExternalIP.Valid {
 			ip = c.ExternalIP.String
 		}
+		// Construct hostname from container ID
+		hostname := c.ID[:8] + ".cloud.eddisonso.com"
 		cr := containerResponse{
 			ID:           c.ID,
 			UserID:       c.UserID,
+			Owner:        c.Owner,
 			Name:         c.Name,
+			Hostname:     hostname,
 			Status:       c.Status,
 			ExternalIP:   ip,
 			MemoryMB:     c.MemoryMB,
