@@ -446,11 +446,6 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 		visibility = visibilityPrivate
 	}
 
-	if name == hiddenNamespace && visibility != visibilityPrivate {
-		http.Error(w, "hidden namespace must be private", http.StatusBadRequest)
-		return
-	}
-
 	if exists, err := s.namespaceExists(name); err != nil {
 		http.Error(w, "failed to check namespace", http.StatusInternalServerError)
 		return
@@ -560,11 +555,6 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 		visibility = visibilityPrivate
 	}
 
-	if name == hiddenNamespace && visibility != visibilityPrivate {
-		http.Error(w, "hidden namespace must be private", http.StatusBadRequest)
-		return
-	}
-
 	if err := s.updateNamespaceVisibility(name, visibility); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -656,11 +646,6 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 		}
 	} else if payload.Hidden {
 		visibility = visibilityPrivate
-	}
-
-	if name == hiddenNamespace && visibility != visibilityPrivate {
-		http.Error(w, "hidden namespace must be private", http.StatusBadRequest)
-		return
 	}
 
 	if err := s.updateNamespaceVisibility(name, visibility); err != nil {
