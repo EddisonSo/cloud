@@ -4,316 +4,167 @@ sidebar_position: 2
 
 # Architecture
 
-## What is Edd-Cloud?
-
-Edd-Cloud is a self-hosted cloud platform running on a Raspberry Pi cluster. It provides:
-
-- **File Storage**: A distributed file system (GFS) for storing and sharing files with configurable visibility
-- **Container Compute**: Run Docker containers with SSH access and custom ingress routing
-- **User Management**: Multi-user authentication with namespaced resources
-
-The platform is designed as a microservices architecture, with each service owning its data and communicating via events.
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React + TypeScript + Vite |
-| **API Gateway** | Custom Go gateway (edd-gateway) |
-| **Backend Services** | Go |
-| **Container Orchestration** | Kubernetes (K3s) |
-| **Distributed Storage** | Custom GFS implementation |
-| **Database** | PostgreSQL |
-| **Message Broker** | NATS JetStream |
-| **TLS Certificates** | cert-manager + Let's Encrypt |
-| **Load Balancer** | MetalLB |
-
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                      INTERNET                                        │
-│                        Users access via cloud.eddisonso.com                          │
-└─────────────────────────────────────┬───────────────────────────────────────────────┘
-                                      │
-                                      │ HTTPS (443) / SSH (2222)
-                                      ▼
-                        ┌─────────────────────────────┐
-                        │      edd-cloud-gateway      │
-                        │  ┌───────────────────────┐  │
-                        │  │ TLS Termination       │  │
-                        │  │ Host-based Routing    │  │
-                        │  │ SSH Multiplexing      │  │
-                        │  │ Dynamic Route Config  │  │
-                        │  └───────────────────────┘  │
-                        └─────────────┬───────────────┘
-                                      │
-        ┌─────────────────────────────┼─────────────────────────────┐
-        │                             │                             │
-        ▼                             ▼                             ▼
-┌───────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
-│     Frontend      │     │     Storage API     │     │    Compute API      │
-│  ┌─────────────┐  │     │  ┌───────────────┐  │     │  ┌───────────────┐  │
-│  │ React SPA   │  │     │  │ File CRUD     │  │     │  │ Container Mgmt│  │
-│  │ Dashboard   │  │     │  │ Namespace Mgmt│  │     │  │ SSH Key Mgmt  │  │
-│  │ File Browser│  │     │  │ User Auth     │  │     │  │ Ingress Rules │  │
-│  └─────────────┘  │     │  └───────────────┘  │     │  └───────────────┘  │
-└───────────────────┘     └──────────┬──────────┘     └──────────┬──────────┘
-                                     │                           │
-                                     ▼                           │
-                        ┌─────────────────────┐                  │
-                        │      GFS Master     │                  │
-                        │  ┌───────────────┐  │                  │
-                        │  │ Metadata Mgmt │  │                  │
-                        │  │ Chunk Alloc   │  │                  │
-                        │  │ Replication   │  │                  │
-                        │  │ WAL Logging   │  │                  │
-                        │  └───────────────┘  │                  │
-                        └──────────┬──────────┘                  │
-                                   │                             │
-          ┌────────────────────────┼────────────────────────┐    │
-          │                        │                        │    │
-          ▼                        ▼                        ▼    │
-    ┌───────────┐            ┌───────────┐            ┌───────────┐
-    │Chunkserver│            │Chunkserver│            │Chunkserver│
-    │   (rp1)   │            │   (rp2)   │            │   (rp3)   │
-    │  ┌─────┐  │            │  ┌─────┐  │            │  ┌─────┐  │
-    │  │64MB │  │            │  │64MB │  │            │  │64MB │  │
-    │  │Chunks│  │            │  │Chunks│  │            │  │Chunks│  │
-    │  └─────┘  │            │  └─────┘  │            │  └─────┘  │
-    └───────────┘            └───────────┘            └───────────┘
-                                                                 │
-                                   ┌─────────────────────────────┘
-                                   ▼
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                              Supporting Services                                   │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │
-│  │ PostgreSQL  │  │    NATS     │  │ Log Service │  │   Cluster Monitor       │   │
-│  │ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────────────────┐ │   │
-│  │ │ users   │ │  │ │JetStream│ │  │ │  gRPC   │ │  │ │ Pod Metrics (SSE)   │ │   │
-│  │ │sessions │ │  │ │ Streams │ │  │ │ Log Agg │ │  │ │ Node Health (SSE)   │ │   │
-│  │ │containers│ │  │ │ Events  │ │  │ │  Query  │ │  │ │ Real-time Dashboard │ │   │
-│  │ │namespaces│ │  │ └─────────┘ │  │ └─────────┘ │  │ └─────────────────────┘ │   │
-│  │ └─────────┘ │  └─────────────┘  └─────────────┘  └─────────────────────────┘   │
-│  └─────────────┘                                                                   │
-└───────────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                                    INTERNET                                   │
+└───────────────────────────────────────┬───────────────────────────────────────┘
+                                        │
+                          ┌─────────────▼─────────────┐
+                          │          Gateway          │
+                          │   (TLS + SSH + Routing)   │
+                          └─────────────┬─────────────┘
+                                        │
+        ┌───────────────────────────────┼───────────────────────────────┐
+        │                               │                               │
+        ▼                               ▼                               ▼
+┌───────────────┐             ┌─────────────────┐             ┌─────────────────┐
+│   Frontend    │             │   Storage API   │             │   Compute API   │
+│    (React)    │             │  (SFS Backend)  │             │  (edd-compute)  │
+└───────────────┘             └────────┬────────┘             └─────────────────┘
+                                       │
+                                       ▼
+                          ┌─────────────────────┐
+                          │     GFS Master      │
+                          └──────────┬──────────┘
+                                     │
+            ┌────────────────────────┼────────────────────────┐
+            │                        │                        │
+            ▼                        ▼                        ▼
+      ┌──────────┐            ┌──────────┐            ┌──────────┐
+      │ Chunk 1  │            │ Chunk 2  │            │ Chunk 3  │
+      │  (rp1)   │            │  (rp2)   │            │  (rp3)   │
+      └──────────┘            └──────────┘            └──────────┘
 ```
 
-## Core Components
+## Request Flow
 
-### Gateway (edd-gateway)
+### Storage Request Flow
 
-The gateway is the single entry point for all external traffic. Unlike typical setups using Traefik or nginx-ingress, edd-cloud uses a custom Go gateway that provides:
+1. Client makes HTTPS request to `storage.cloud.eddisonso.com`
+2. Gateway terminates TLS and routes to Storage API
+3. Storage API authenticates via JWT
+4. For file operations:
+   - **Write**: Storage API → GFS Master (allocate chunk) → Chunkservers (2PC write)
+   - **Read**: Storage API → GFS Master (get locations) → Chunkserver (read data)
+5. Response returned to client
 
-- **TLS Termination**: Handles HTTPS with wildcard certificates from Let's Encrypt
-- **Host-based Routing**: Routes requests to backend services based on hostname
-- **SSH Multiplexing**: Proxies SSH connections to user containers on port 2222
-- **Dynamic Routes**: Routes stored in PostgreSQL, configurable at runtime
-- **Path Rewriting**: Optional prefix stripping for backend compatibility
+### Compute Request Flow
 
-Routes are configured via `routes.yaml` and loaded into the database on startup.
+1. Client makes HTTPS request to `compute.cloud.eddisonso.com`
+2. Gateway terminates TLS and routes to Compute API
+3. Compute API authenticates via JWT
+4. Compute API interacts with Kubernetes API for container operations
+5. Container status updates streamed via WebSocket
 
-### Storage API (SFS Backend)
-
-The Storage API provides file storage with namespace isolation:
-
-- **Namespaces**: Logical groupings of files with visibility controls
-  - `private` (0): Only owner can see/access
-  - `visible` (1): Not listed, but accessible via direct URL
-  - `public` (2): Listed and accessible to everyone
-- **File Operations**: Upload, download, delete with progress tracking via SSE/WebSocket
-- **Authentication**: JWT-based auth with sessions tracked in PostgreSQL
-- **GFS Integration**: Files stored in the distributed file system
-
-### Compute API (edd-compute)
-
-The Compute API manages user containers:
-
-- **Container Lifecycle**: Create, start, stop, delete containers
-- **SSH Access**: Users can SSH into their containers via the gateway
-- **Ingress Rules**: Custom subdomain routing to container ports
-- **Resource Limits**: CPU and memory constraints per container
+## Data Persistence
 
 ### GFS (Distributed File System)
 
-A custom implementation inspired by Google File System:
+- **Chunk Size**: 64MB
+- **Replication Factor**: 3
+- **Consistency**: Two-Phase Commit (2PC)
+- **Write Quorum**: 2 of 3 replicas
 
-| Property | Value |
-|----------|-------|
-| Chunk Size | 64 MB |
-| Replication Factor | 3 |
-| Consistency Model | Two-Phase Commit (2PC) |
-| Write Quorum | 2 of 3 replicas |
+#### Garbage Collection
 
-**Components:**
-- **Master**: Manages metadata, chunk allocation, and replication
-- **Chunkservers**: Store actual file data on Raspberry Pi nodes
-- **WAL**: Write-ahead log for crash recovery
+GFS implements automatic cleanup of orphaned chunks (chunks on disk not tracked by the master):
 
-**Garbage Collection**: Orphaned chunks (on disk but not in master metadata) are automatically cleaned up after a 1-hour grace period.
+1. **Chunk Reporting**: Chunkservers report all their chunks during registration and periodic heartbeats
+2. **Orphan Detection**: Master checks each reported chunk against its metadata
+3. **Grace Period**: Unknown chunks are tracked for 1 hour before deletion (prevents removing in-flight data)
+4. **Scheduled Deletion**: After grace period, chunks are added to `pendingDeletes`
+5. **Cleanup**: On next heartbeat, master returns pending deletes and chunkserver removes the files
 
-### Cluster Monitor
+This handles scenarios like:
+- Master restart losing in-memory metadata (WAL recovery may miss recent chunks)
+- Partial writes that never committed
+- Manual file deletions that didn't propagate
 
-Provides real-time cluster observability:
+### Service Databases
 
-- **Pod Metrics**: CPU, memory usage per pod via SSE
-- **Node Health**: Raspberry Pi node status and resource usage
-- **Log Streaming**: Aggregated logs from all services
+Each service owns its own database for loose coupling:
 
-## Request Flows
-
-### File Upload Flow
-
-```
-User                Frontend            Storage API         GFS Master        Chunkserver
-  │                    │                    │                   │                  │
-  │─── Select file ───▶│                    │                   │                  │
-  │                    │── POST /upload ───▶│                   │                  │
-  │                    │                    │── CreateFile ────▶│                  │
-  │                    │                    │◀── ChunkHandle ───│                  │
-  │                    │                    │                   │                  │
-  │                    │                    │───────── Write data (2PC) ─────────▶│
-  │                    │                    │                   │                  │
-  │◀─── SSE progress ──│◀── SSE progress ──│                   │                  │
-  │                    │                    │                   │                  │
-  │                    │◀─── 200 OK ────────│                   │                  │
-  │◀─── Upload done ───│                    │                   │                  │
-```
-
-### Container SSH Flow
-
-```
-User                  Gateway              Compute API         Container
-  │                      │                      │                  │
-  │── ssh -p 2222 ──────▶│                      │                  │
-  │   user@container     │                      │                  │
-  │                      │── Lookup container ─▶│                  │
-  │                      │◀── Container IP ─────│                  │
-  │                      │                      │                  │
-  │◀──────────────── SSH tunnel ──────────────────────────────────▶│
-```
-
-### Event-Driven User Deletion
-
-```
-Admin                Auth Service           NATS              SFS           Compute
-  │                      │                   │                 │               │
-  │── DELETE user ──────▶│                   │                 │               │
-  │                      │── auth.user.X.deleted ─▶            │               │
-  │                      │                   │                 │               │
-  │                      │                   │── Event ───────▶│               │
-  │                      │                   │                 │── Delete      │
-  │                      │                   │                 │   namespaces  │
-  │                      │                   │                 │               │
-  │                      │                   │── Event ────────────────────────▶│
-  │                      │                   │                 │               │
-  │                      │                   │                 │   Delete      │
-  │                      │                   │                 │   containers ◀│
-  │◀─── 200 OK ─────────│                   │                 │               │
-```
-
-## Data Ownership
-
-Each service owns its data and exposes it via APIs:
-
-| Service | Database | Tables Owned |
-|---------|----------|--------------|
-| **SFS** | PostgreSQL | `users`, `sessions`, `namespaces` |
-| **Compute** | PostgreSQL | `containers`, `ssh_keys`, `ingress_rules` |
-| **Gateway** | PostgreSQL | `static_routes` |
-| **GFS Master** | WAL + Memory | File metadata, chunk locations |
-
-Services communicate about shared concepts (like users) via NATS events rather than shared database access.
-
-## Hardware Topology
-
-The cluster runs on Raspberry Pi nodes:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Raspberry Pi Cluster                      │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │     rp1      │  │     rp2      │  │     rp3      │           │
-│  │  (Master)    │  │   (Worker)   │  │   (Worker)   │           │
-│  │              │  │              │  │              │           │
-│  │ K3s Server   │  │ K3s Agent    │  │ K3s Agent    │           │
-│  │ GFS Chunk    │  │ GFS Chunk    │  │ GFS Chunk    │           │
-│  │ PostgreSQL   │  │              │  │              │           │
-│  │ NATS         │  │              │  │              │           │
-│  └──────────────┘  └──────────────┘  └──────────────┘           │
-│                                                                  │
-│  Node Selector Labels:                                           │
-│  - size: mini (resource-constrained workloads)                   │
-│  - size: large (resource-intensive workloads)                    │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Service | Database | Data Stored |
+|---------|----------|-------------|
+| **Auth** | `auth_db` | Users, sessions |
+| **SFS** | `sfs_db` | Namespaces, file metadata |
+| **Compute** | `compute_db` | Containers, SSH keys, ingress rules |
+| **Gateway** | `gateway_db` | Static routes |
 
 ## Network Architecture
 
 ### External Domains
 
-| Domain | Service | Purpose |
-|--------|---------|---------|
-| `cloud.eddisonso.com` | Frontend | Main dashboard and file browser |
-| `storage.cloud.eddisonso.com` | SFS Backend | Storage API (alternative route) |
-| `compute.cloud.eddisonso.com` | edd-compute | Container management API |
-| `health.cloud.eddisonso.com` | cluster-monitor | Real-time metrics and logs |
-| `docs.cloud.eddisonso.com` | Docusaurus | This documentation |
-| `*.eddisonso.com` | Gateway | User container ingress |
+| Domain | Purpose |
+|--------|---------|
+| `cloud.eddisonso.com` | Main dashboard |
+| `storage.cloud.eddisonso.com` | Storage API |
+| `compute.cloud.eddisonso.com` | Compute API |
+| `health.cloud.eddisonso.com` | Health/Monitoring API |
+| `docs.cloud.eddisonso.com` | Documentation |
 
 ### Internal Services
 
-All services communicate via Kubernetes DNS (`<service>.default.svc.cluster.local`):
+| Service | Port | Protocol |
+|---------|------|----------|
+| gateway | 8080/8443/2222 | HTTP/HTTPS/SSH |
+| auth-service | 80 | HTTP |
+| simple-file-share-backend | 80 | HTTP |
+| simple-file-share-frontend | 80 | HTTP |
+| edd-compute | 80 | HTTP |
+| cluster-monitor | 80 | HTTP |
+| log-service | 50051/80 | gRPC/HTTP |
+| gfs-master | 9000 | gRPC |
+| gfs-chunkserver-N | 8080/8081 | TCP/gRPC |
+| postgres | 5432 | PostgreSQL |
+| nats | 4222/8222 | NATS/HTTP |
 
-| Service | Ports | Protocol | Purpose |
-|---------|-------|----------|---------|
-| gateway | 8080, 8443, 2222 | HTTP, HTTPS, SSH | External entry point |
-| simple-file-share-backend | 80 | HTTP | Storage API |
-| simple-file-share-frontend | 80 | HTTP | React frontend |
-| edd-compute | 80 | HTTP | Compute API |
-| cluster-monitor | 80 | HTTP | Metrics and logs |
-| log-service | 50051, 80 | gRPC, HTTP | Log aggregation |
-| gfs-master | 9000 | gRPC | GFS coordination |
-| gfs-chunkserver-{1,2,3} | 8080, 8081 | TCP, gRPC | Chunk storage |
-| postgres | 5432 | PostgreSQL | Metadata storage |
-| nats | 4222, 8222 | NATS, HTTP | Event messaging |
+## Event-Driven Communication
 
-## Security Model
-
-### Authentication Flow
+Services communicate asynchronously via NATS JetStream:
 
 ```
-┌────────┐         ┌─────────┐         ┌──────────┐
-│ Client │         │ Storage │         │PostgreSQL│
-│        │         │   API   │         │          │
-└───┬────┘         └────┬────┘         └────┬─────┘
-    │                   │                   │
-    │── POST /login ───▶│                   │
-    │   {user, pass}    │── Verify hash ───▶│
-    │                   │◀── User record ───│
-    │                   │                   │
-    │◀── JWT token ─────│                   │
-    │                   │                   │
-    │── GET /files ────▶│                   │
-    │   Authorization:  │                   │
-    │   Bearer <jwt>    │── Validate JWT    │
-    │                   │   (local, no DB)  │
-    │◀── File list ─────│                   │
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│    Auth     │────▶│    NATS     │◀────│   Compute   │
+└─────────────┘     │  JetStream  │     └─────────────┘
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+         ┌────────┐   ┌────────┐   ┌────────┐
+         │  SFS   │   │Gateway │   │  ...   │
+         └────────┘   └────────┘   └────────┘
 ```
 
-- **JWT Tokens**: Signed with HMAC-SHA256, contain user ID and username
-- **Token Lifetime**: 24 hours (configurable)
-- **Session Tracking**: Sessions stored in PostgreSQL for audit/revocation
+### Event Subjects
 
-### TLS Configuration
+| Subject Pattern | Description |
+|-----------------|-------------|
+| `auth.user.{id}.created` | User created |
+| `auth.user.{id}.deleted` | User deleted |
+| `compute.container.{id}.started` | Container started |
+| `compute.container.{id}.stopped` | Container stopped |
 
-- **Certificates**: Wildcard certs from Let's Encrypt via cert-manager
-- **DNS Challenge**: Cloudflare DNS-01 for wildcard validation
-- **Minimum Version**: TLS 1.2
+See [Event-Driven Architecture](/docs/infrastructure/event-driven) for details.
 
-### Authorization
+## Security
 
-- **Namespace Visibility**: Private/Visible/Public controls per namespace
-- **Ownership**: Namespaces and containers have owner_id linking to users
-- **Admin Role**: Special admin user (configured via env var) can access all resources
+### Authentication
+
+- JWT-based authentication for API requests
+- Tokens issued on login, stored in localStorage
+- Token passed via `Authorization: Bearer` header or query param for SSE/WebSocket
+
+### TLS
+
+- All external traffic encrypted with TLS 1.2+
+- Certificates managed by cert-manager with Let's Encrypt
+- Wildcard certificates for `*.eddisonso.com` and `*.cloud.eddisonso.com`
+
+### CORS
+
+- Each service implements CORS middleware
+- Origin header reflected for cross-domain requests
+- Credentials allowed for authenticated requests
