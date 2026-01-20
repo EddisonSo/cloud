@@ -51,12 +51,13 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 
 ## Container Lifecycle
 
-```
-┌─────────┐    create    ┌─────────┐    start    ┌─────────┐
-│ (none)  │ ──────────→  │ stopped │ ──────────→ │ running │
-└─────────┘              └─────────┘              └─────────┘
-                              ↑         stop          │
-                              └───────────────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> stopped: create
+    stopped --> running: start
+    running --> stopped: stop
+    stopped --> [*]: delete
+    running --> [*]: delete
 ```
 
 ## WebSocket Updates

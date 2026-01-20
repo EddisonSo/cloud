@@ -6,36 +6,21 @@ sidebar_position: 2
 
 ## System Overview
 
-```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                                    INTERNET                                   │
-└───────────────────────────────────────┬───────────────────────────────────────┘
-                                        │
-                          ┌─────────────▼─────────────┐
-                          │          Gateway          │
-                          │   (TLS + SSH + Routing)   │
-                          └─────────────┬─────────────┘
-                                        │
-        ┌───────────────────────────────┼───────────────────────────────┐
-        │                               │                               │
-        ▼                               ▼                               ▼
-┌───────────────┐             ┌─────────────────┐             ┌─────────────────┐
-│   Frontend    │             │   Storage API   │             │   Compute API   │
-│    (React)    │             │  (SFS Backend)  │             │  (edd-compute)  │
-└───────────────┘             └────────┬────────┘             └─────────────────┘
-                                       │
-                                       ▼
-                          ┌─────────────────────┐
-                          │     GFS Master      │
-                          └──────────┬──────────┘
-                                     │
-            ┌────────────────────────┼────────────────────────┐
-            │                        │                        │
-            ▼                        ▼                        ▼
-      ┌──────────┐            ┌──────────┐            ┌──────────┐
-      │ Chunk 1  │            │ Chunk 2  │            │ Chunk 3  │
-      │  (rp1)   │            │  (rp2)   │            │  (rp3)   │
-      └──────────┘            └──────────┘            └──────────┘
+```mermaid
+flowchart TB
+    Internet[Internet]
+
+    Internet --> Gateway[Gateway<br/>TLS + SSH + Routing]
+
+    Gateway --> Frontend[Frontend<br/>React]
+    Gateway --> Storage[Storage API<br/>SFS Backend]
+    Gateway --> Compute[Compute API<br/>edd-compute]
+
+    Storage --> GFSMaster[GFS Master]
+
+    GFSMaster --> Chunk1[Chunkserver<br/>rp1]
+    GFSMaster --> Chunk2[Chunkserver<br/>rp2]
+    GFSMaster --> Chunk3[Chunkserver<br/>rp3]
 ```
 
 ## Request Flow
@@ -125,17 +110,14 @@ Each service owns its own database for loose coupling:
 
 Services communicate asynchronously via NATS JetStream:
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│    Auth     │────▶│    NATS     │◀────│   Compute   │
-└─────────────┘     │  JetStream  │     └─────────────┘
-                    └──────┬──────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐   ┌────────┐   ┌────────┐
-         │  SFS   │   │Gateway │   │  ...   │
-         └────────┘   └────────┘   └────────┘
+```mermaid
+flowchart TB
+    Auth[Auth] --> NATS[NATS JetStream]
+    Compute[Compute] --> NATS
+
+    NATS --> SFS[SFS]
+    NATS --> Gateway[Gateway]
+    NATS --> Other[...]
 ```
 
 ### Event Subjects

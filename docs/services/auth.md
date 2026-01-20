@@ -15,21 +15,15 @@ The Auth service handles user authentication, session management, and JWT token 
 
 ## Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Frontend  │────▶│  Auth API   │────▶│  auth_db    │
-└─────────────┘     └──────┬──────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │    NATS     │
-                    └─────────────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐   ┌────────┐   ┌────────┐
-         │  SFS   │   │Compute │   │Gateway │
-         └────────┘   └────────┘   └────────┘
+```mermaid
+flowchart TB
+    Frontend[Frontend] --> Auth[Auth API]
+    Auth --> DB[(auth_db)]
+    Auth --> NATS[NATS]
+
+    NATS --> SFS[SFS]
+    NATS --> Compute[Compute]
+    NATS --> Gateway[Gateway]
 ```
 
 ## API Endpoints

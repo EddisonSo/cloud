@@ -14,18 +14,13 @@ sidebar_position: 10
 
 ### Distributed Gateway Architecture (Future)
 
-```
-                    ┌─────────────┐
-                    │   L4 LB     │
-                    │  (TCP/UDP)  │
-                    └──────┬──────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-         ▼                 ▼                 ▼
-   ┌───────────┐     ┌───────────┐     ┌───────────┐
-   │ Gateway 1 │     │ Gateway 2 │     │ Gateway 3 │
-   └───────────┘     └───────────┘     └───────────┘
+```mermaid
+flowchart TB
+    L4[L4 LB<br/>TCP/UDP]
+
+    L4 --> GW1[Gateway 1]
+    L4 --> GW2[Gateway 2]
+    L4 --> GW3[Gateway 3]
 ```
 
 ## Storage Improvements

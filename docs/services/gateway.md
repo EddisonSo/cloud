@@ -6,21 +6,17 @@ sidebar_position: 1
 
 The Gateway service (`edd-cloud-gateway`) is the main entry point for all external traffic. It handles TLS termination, HTTP/HTTPS routing, and SSH tunneling.
 
-:::info No Traefik
-This cluster uses a custom gateway service instead of Traefik. Traefik has been disabled in K3s configuration (`/etc/rancher/k3s/config.yaml` includes `disable: [traefik]`).
-:::
-
 ## Protocol Support
 
 | Protocol | Status | Notes |
 |----------|--------|-------|
-| **HTTP/1.1** | ✅ Supported | Plain HTTP and after TLS termination |
-| **HTTPS/TLS** | ✅ Supported | TLS 1.2+, SNI-based routing |
-| **SSH** | ✅ Supported | Username-based container routing |
-| **WebSocket** | ✅ Supported | Proxied over HTTP/1.1 |
-| **HTTP/2** | ❌ Not supported | TLS config only advertises HTTP/1.1 |
-| **gRPC** | ❌ Not supported | Requires HTTP/2 |
-| **HTTP Keep-Alive** | ❌ Not supported | Forces `Connection: close` |
+| **HTTP/1.1** | Supported | Plain HTTP and after TLS termination |
+| **HTTPS/TLS** | Supported | TLS 1.2+, SNI-based routing |
+| **SSH** | Supported | Username-based container routing |
+| **WebSocket** | Supported | Proxied over HTTP/1.1 |
+| **HTTP/2** | Not supported | TLS config only advertises HTTP/1.1 |
+| **gRPC** | Not supported | Requires HTTP/2 |
+| **HTTP Keep-Alive** | Not supported | Forces `Connection: close` |
 
 ### TLS Handling
 
@@ -46,12 +42,19 @@ The gateway auto-detects protocols on extra ports by inspecting the first bytes:
 
 ## Architecture
 
-```
-Internet → Gateway (TLS) → Internal Services
-              │
-              ├── HTTPS (8443) → Route to backend services
-              ├── HTTP (8080) → Redirect to HTTPS
-              └── SSH (2222) → Container SSH tunnels
+```mermaid
+flowchart LR
+    Internet[Internet] --> Gateway
+
+    subgraph Gateway
+        HTTPS[HTTPS :8443]
+        HTTP[HTTP :8080]
+        SSH[SSH :2222]
+    end
+
+    HTTPS --> Backend[Backend Services]
+    HTTP -->|Redirect| HTTPS
+    SSH --> Containers[Container SSH]
 ```
 
 ## Routing

@@ -8,25 +8,17 @@ GFS is a custom implementation of Google File System, providing distributed, rep
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      CLIENT APPLICATION                     │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-          ┌──────────────────┴──────────────────┐
-          │ gRPC (port 9000)                    │ Custom TCP (port 8080)
-          ▼                                     ▼
-┌───────────────┐              ┌─────────────────────────────────┐
-│    MASTER     │              │       PRIMARY CHUNKSERVER       │
-│  - Namespace  │              │  - Receives client data         │
-│  - Chunk map  │◄────────────▶│  - Coordinates 2PC              │
-│  - CS registry│   Heartbeat  │  - Reports commits to master    │
-└───────────────┘              └───────────┬───────────┬─────────┘
-                                           │           │
-                                           ▼           ▼
-                                  ┌──────────────┐  ┌──────────────┐
-                                  │  REPLICA CS2 │  │  REPLICA CS3 │
-                                  └──────────────┘  └──────────────┘
+```mermaid
+flowchart TB
+    Client[Client Application]
+
+    Client -->|gRPC :9000| Master[Master<br/>Namespace + Chunk Map]
+    Client -->|TCP :8080| Primary[Primary Chunkserver<br/>Receives data + 2PC]
+
+    Master <-->|Heartbeat| Primary
+
+    Primary --> Replica1[Replica CS2]
+    Primary --> Replica2[Replica CS3]
 ```
 
 ## Key Specifications
@@ -57,32 +49,44 @@ GFS is a custom implementation of Google File System, providing distributed, rep
 
 ## Write Flow (Two-Phase Commit)
 
-```
-Phase 1: READY (Data Replication)
-─────────────────────────────────
-1. Client → Primary: Send data via TCP
-2. Primary: Allocate offset + sequence number
-3. Primary → Replicas: Stream data via gRPC
-4. Replicas: Stage data (status=READY)
-5. Forwarders → Primary: Ready acknowledgment
-6. Primary: Wait for quorum (2/3 replicas)
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant P as Primary
+    participant R1 as Replica 1
+    participant R2 as Replica 2
+    participant M as Master
 
-Phase 2: COMMIT (Data Persistence)
-──────────────────────────────────
-7. Primary → All Replicas: SendCommit(opID)
-8. Replicas: Write to disk, respond success
-9. Primary: Write to disk locally
-10. Primary → Master: ReportCommit(handle, size)
-11. Primary → Client: Success response
+    Note over C,R2: Phase 1: READY (Data Replication)
+    C->>P: Send data via TCP
+    P->>P: Allocate offset + seq
+    P->>R1: Stream data (gRPC)
+    P->>R2: Stream data (gRPC)
+    R1-->>P: Ready ACK
+    R2-->>P: Ready ACK
+
+    Note over C,R2: Phase 2: COMMIT
+    P->>R1: SendCommit(opID)
+    P->>R2: SendCommit(opID)
+    R1-->>P: Success
+    R2-->>P: Success
+    P->>P: Write to disk
+    P->>M: ReportCommit(handle, size)
+    P->>C: Success
 ```
 
 ## Read Flow
 
-```
-1. Client → Master: GetChunkLocations(path)
-2. Master → Client: [locations with primary]
-3. Client → Chunkserver: Read data via TCP
-4. (On failure: retry with replica)
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant M as Master
+    participant CS as Chunkserver
+
+    C->>M: GetChunkLocations(path)
+    M->>C: [locations with primary]
+    C->>CS: Read data via TCP
+    Note over C,CS: On failure: retry with replica
 ```
 
 ## Sequence Numbers

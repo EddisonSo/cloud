@@ -4,10 +4,6 @@ sidebar_position: 2
 
 # Networking
 
-:::info Custom Gateway
-All traffic is routed through `edd-cloud-gateway`, not Traefik. Traefik has been disabled in K3s (`/etc/rancher/k3s/config.yaml` includes `disable: [traefik]`). No Kubernetes Ingress resources are used.
-:::
-
 ## Domain Structure
 
 ```
@@ -50,18 +46,14 @@ spec:
 
 The gateway routes requests based on host and path:
 
-```
-┌────────────────────────────────┬───────────┬────────────────┐
-│            Gateway             │   Path    │     Target     │
-├────────────────────────────────┼───────────┼────────────────┤
-│  cloud.eddisonso.com           │  /        │  frontend      │
-│  cloud-api.eddisonso.com       │  /api     │  sfs-backend   │
-│  storage.cloud.eddisonso.com   │  /        │  sfs-backend   │
-│  compute.cloud.eddisonso.com   │  /        │  edd-compute   │
-│  health.cloud.eddisonso.com    │  /        │  cluster-mon   │
-│  docs.cloud.eddisonso.com      │  /        │  docs          │
-└────────────────────────────────┴───────────┴────────────────┘
-```
+| Host | Path | Target |
+|------|------|--------|
+| `cloud.eddisonso.com` | `/` | frontend |
+| `cloud-api.eddisonso.com` | `/api` | sfs-backend |
+| `storage.cloud.eddisonso.com` | `/` | sfs-backend |
+| `compute.cloud.eddisonso.com` | `/` | edd-compute |
+| `health.cloud.eddisonso.com` | `/` | cluster-monitor |
+| `docs.cloud.eddisonso.com` | `/` | docs |
 
 ### Route Priority
 

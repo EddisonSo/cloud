@@ -15,17 +15,14 @@ NATS is used for:
 
 ## Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│    Auth     │────▶│    NATS     │◀────│   Compute   │
-└─────────────┘     │  JetStream  │     └─────────────┘
-                    └──────┬──────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐   ┌────────┐   ┌────────┐
-         │  SFS   │   │Gateway │   │  ...   │
-         └────────┘   └────────┘   └────────┘
+```mermaid
+flowchart TB
+    Auth[Auth] --> NATS[NATS JetStream]
+    Compute[Compute] --> NATS
+
+    NATS --> SFS[SFS]
+    NATS --> Gateway[Gateway]
+    NATS --> Other[...]
 ```
 
 ## JetStream Streams

@@ -28,57 +28,57 @@ Each service owns its data and publishes events for others to consume:
 
 ### User Registration
 
-```
-User registers
-      │
-      ▼
-┌─────────┐
-│  Auth   │──── auth.user.{id}.created ────▶ NATS
-└─────────┘
-                                              │
-              ┌───────────────────────────────┤
-              ▼                               ▼
-         ┌─────────┐                    ┌─────────┐
-         │   SFS   │                    │ Compute │
-         │ (cache) │                    │ (cache) │
-         └─────────┘                    └─────────┘
+```mermaid
+sequenceDiagram
+    participant User
+    participant Auth
+    participant NATS
+    participant SFS
+    participant Compute
+
+    User->>Auth: Register
+    Auth->>NATS: auth.user.{id}.created
+    NATS-->>SFS: Event
+    NATS-->>Compute: Event
+    SFS->>SFS: Update cache
+    Compute->>Compute: Update cache
 ```
 
 ### Container Creation
 
-```
-User creates container
-      │
-      ▼
-┌─────────┐
-│ Compute │──┬── compute.container.{id}.created ──▶ NATS
-└─────────┘  │
-             └── compute.ingress.{id}.requested ──▶ NATS
-                                                     │
-                                                     ▼
-                                               ┌─────────┐
-                                               │ Gateway │
-                                               │ (routes)│
-                                               └─────────┘
+```mermaid
+sequenceDiagram
+    participant User
+    participant Compute
+    participant NATS
+    participant Gateway
+
+    User->>Compute: Create container
+    Compute->>NATS: compute.container.{id}.created
+    Compute->>NATS: compute.ingress.{id}.requested
+    NATS-->>Gateway: Event
+    Gateway->>Gateway: Add routes
 ```
 
 ### User Deletion (Cascade)
 
-```
-Admin deletes user
-      │
-      ▼
-┌─────────┐
-│  Auth   │──── auth.user.{id}.deleted ────▶ NATS
-└─────────┘
-                                              │
-              ┌───────────────────────────────┼───────────────┐
-              ▼                               ▼               ▼
-         ┌─────────┐                    ┌─────────┐     ┌─────────┐
-         │   SFS   │                    │ Compute │     │ Gateway │
-         │ (delete │                    │ (delete │     │ (remove │
-         │  files) │                    │  VMs)   │     │  routes)│
-         └─────────┘                    └─────────┘     └─────────┘
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant Auth
+    participant NATS
+    participant SFS
+    participant Compute
+    participant Gateway
+
+    Admin->>Auth: Delete user
+    Auth->>NATS: auth.user.{id}.deleted
+    NATS-->>SFS: Event
+    NATS-->>Compute: Event
+    NATS-->>Gateway: Event
+    SFS->>SFS: Delete files
+    Compute->>Compute: Delete VMs
+    Gateway->>Gateway: Remove routes
 ```
 
 ## Event Subjects

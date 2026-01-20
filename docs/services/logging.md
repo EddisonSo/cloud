@@ -16,27 +16,17 @@ The Log Service provides centralized logging for all Edd Cloud services with rea
 
 ## Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Service   │     │   Service   │     │   Service   │
-│  (sfs-be)   │     │ (compute)   │     │  (gateway)  │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │
-       │    gRPC (50051)   │                   │
-       └───────────────────┼───────────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │ Log Service │
-                    │             │
-                    │  - Buffer   │
-                    │  - Stream   │
-                    │  - Store    │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │     GFS     │
-                    │  (Storage)  │
-                    └─────────────┘
+```mermaid
+flowchart TB
+    SFS[SFS Backend] -->|gRPC :50051| LogService[Log Service]
+    Compute[Compute] -->|gRPC :50051| LogService
+    Gateway[Gateway] -->|gRPC :50051| LogService
+
+    LogService --> Buffer[Buffer]
+    LogService --> Stream[Stream]
+    LogService --> Store[Store]
+
+    Store --> GFS[GFS Storage]
 ```
 
 ## Client Library

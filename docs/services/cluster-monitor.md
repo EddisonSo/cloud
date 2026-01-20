@@ -15,29 +15,23 @@ The Cluster Monitor service provides real-time metrics and health information fo
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────┐
-│                    Kubernetes API                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
-│  │  Nodes API  │  │ Metrics API │  │ Kubelet API │    │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘    │
-└─────────┼────────────────┼────────────────┼───────────┘
-          │                │                │
-          └────────────────┼────────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Cluster   │
-                    │   Monitor   │
-                    │             │
-                    │  - Cache    │
-                    │  - Workers  │
-                    │  - SSE      │
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Clients   │
-                    │  (Browser)  │
-                    └─────────────┘
+```mermaid
+flowchart TB
+    subgraph K8s[Kubernetes API]
+        Nodes[Nodes API]
+        Metrics[Metrics API]
+        Kubelet[Kubelet API]
+    end
+
+    Nodes --> CM[Cluster Monitor]
+    Metrics --> CM
+    Kubelet --> CM
+
+    CM --> Cache[Cache]
+    CM --> Workers[Workers]
+    CM --> SSE[SSE]
+
+    SSE --> Clients[Browser Clients]
 ```
 
 ## API Endpoints

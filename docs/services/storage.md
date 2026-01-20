@@ -41,18 +41,21 @@ The Storage Service (SFS - Simple File Share) provides file storage capabilities
 
 ## File Upload Flow
 
-```
-1. Client → POST /storage/upload
-   ├── Headers: X-File-Size, Authorization
-   └── Body: multipart/form-data
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend
+    participant Master as GFS Master
+    participant CS as Chunkserver
 
-2. Backend → GFS Master: AllocateChunk()
-
-3. Backend → GFS Chunkserver: Write data (2PC)
-   ├── Phase 1: Stage data on replicas
-   └── Phase 2: Commit after quorum
-
-4. Backend → Client: Success response
+    Client->>Backend: POST /storage/upload
+    Note over Client,Backend: Headers: X-File-Size, Authorization<br/>Body: multipart/form-data
+    Backend->>Master: AllocateChunk()
+    Master->>Backend: Chunk handle + locations
+    Backend->>CS: Write data (2PC)
+    Note over CS: Phase 1: Stage on replicas<br/>Phase 2: Commit after quorum
+    CS->>Backend: Success
+    Backend->>Client: Success response
 ```
 
 ## Progress Tracking
