@@ -91,11 +91,12 @@ const (
 )
 
 type namespaceInfo struct {
-	Name       string `json:"name"`
-	Count      int    `json:"count"`
-	Hidden     bool   `json:"hidden"`               // Keep for backward compat
-	Visibility int    `json:"visibility"`           // 0=private, 1=visible, 2=public
-	OwnerID    *int   `json:"owner_id,omitempty"`
+	Name          string  `json:"name"`
+	Count         int     `json:"count"`
+	Hidden        bool    `json:"hidden"`               // Keep for backward compat
+	Visibility    int     `json:"visibility"`           // 0=private, 1=visible, 2=public
+	OwnerID       *int    `json:"-"`                    // Internal use only
+	OwnerPublicID *string `json:"owner_id,omitempty"`   // Public ID for API responses
 }
 
 // getJWTSecret returns the JWT signing secret from environment variable
@@ -1354,7 +1355,11 @@ func (s *server) loadHiddenNamespaces() (map[string]bool, error) {
 }
 
 func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
-	rows, err := s.db.Query(`SELECT name, hidden, visibility, owner_id FROM namespaces`)
+	rows, err := s.db.Query(`
+		SELECT n.name, n.hidden, n.visibility, n.owner_id, u.public_id
+		FROM namespaces n
+		LEFT JOIN users u ON n.owner_id = u.id
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -1366,14 +1371,16 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 		var hiddenFlag int
 		var visibility int
 		var ownerID *int
-		if err := rows.Scan(&name, &hiddenFlag, &visibility, &ownerID); err != nil {
+		var ownerPublicID *string
+		if err := rows.Scan(&name, &hiddenFlag, &visibility, &ownerID, &ownerPublicID); err != nil {
 			return nil, err
 		}
 		namespaces = append(namespaces, namespaceInfo{
-			Name:       name,
-			Hidden:     visibility == visibilityPrivate, // Derive from visibility
-			Visibility: visibility,
-			OwnerID:    ownerID,
+			Name:          name,
+			Hidden:        visibility == visibilityPrivate, // Derive from visibility
+			Visibility:    visibility,
+			OwnerID:       ownerID,
+			OwnerPublicID: ownerPublicID,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -1966,11 +1973,11 @@ func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type adminNamespace struct {
-		Name       string `json:"name"`
-		Count      int    `json:"count"`
-		Hidden     bool   `json:"hidden"`
-		Visibility int    `json:"visibility"`
-		OwnerID    *int   `json:"owner_id"`
+		Name       string  `json:"name"`
+		Count      int     `json:"count"`
+		Hidden     bool    `json:"hidden"`
+		Visibility int     `json:"visibility"`
+		OwnerID    *string `json:"owner_id"`
 	}
 
 	result := make([]adminNamespace, 0, len(namespaces))
@@ -1981,7 +1988,7 @@ func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
 			Count:      count,
 			Hidden:     ns.Hidden,
 			Visibility: ns.Visibility,
-			OwnerID:    ns.OwnerID,
+			OwnerID:    ns.OwnerPublicID,
 		})
 	}
 
