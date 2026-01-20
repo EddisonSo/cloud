@@ -39,6 +39,21 @@ type fileInfo struct {
 	ModifiedAt int64  `json:"modified_at"`
 }
 
+// nanoid alphabet (URL-safe)
+const nanoIDAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// generateNanoID generates a random 6-character ID
+func generateNanoID() (string, error) {
+	bytes := make([]byte, 6)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	for i := range bytes {
+		bytes[i] = nanoIDAlphabet[bytes[i]%byte(len(nanoIDAlphabet))]
+	}
+	return string(bytes), nil
+}
+
 type server struct {
 	client     *gfs.Client
 	prefix     string
@@ -264,6 +279,32 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 	// hidden=1 -> visibility=0 (private), hidden=0 -> visibility=2 (public)
 	_, _ = db.Exec(`UPDATE namespaces SET visibility = CASE WHEN hidden = 1 THEN 0 ELSE 2 END WHERE visibility = 2 AND hidden = 1`)
 
+	// Migration: add public_id column to users if it doesn't exist
+	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT UNIQUE`)
+
+	// Migration: generate public_id for existing users that don't have one
+	rows, err := db.Query(`SELECT id FROM users WHERE public_id IS NULL`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				continue
+			}
+			// Generate unique public_id with collision check
+			for i := 0; i < 10; i++ {
+				publicID, err := generateNanoID()
+				if err != nil {
+					break
+				}
+				_, err = db.Exec(`UPDATE users SET public_id = $1 WHERE id = $2`, publicID, id)
+				if err == nil {
+					break
+				}
+			}
+		}
+	}
+
 	var count int
 	if err := db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
 		return err
@@ -273,11 +314,16 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		if err != nil {
 			return err
 		}
+		publicID, err := generateNanoID()
+		if err != nil {
+			return err
+		}
 		if _, err := db.Exec(
-			`INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)`,
+			`INSERT INTO users (username, password_hash, display_name, public_id) VALUES ($1, $2, $3, $4)`,
 			username,
 			string(hash),
 			username, // Default display_name to username
+			publicID,
 		); err != nil {
 			return err
 		}
@@ -1964,12 +2010,13 @@ func (s *server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 
 type adminUser struct {
 	ID          int64  `json:"id"`
+	PublicID    string `json:"public_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 }
 
 func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(`SELECT id, username, COALESCE(display_name, username) FROM users ORDER BY id`)
+	rows, err := s.db.Query(`SELECT id, COALESCE(public_id, ''), username, COALESCE(display_name, username) FROM users ORDER BY id`)
 	if err != nil {
 		http.Error(w, "failed to list users", http.StatusInternalServerError)
 		return
@@ -1979,7 +2026,7 @@ func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
 	users := make([]adminUser, 0)
 	for rows.Next() {
 		var u adminUser
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName); err != nil {
+		if err := rows.Scan(&u.ID, &u.PublicID, &u.Username, &u.DisplayName); err != nil {
 			http.Error(w, "failed to scan user", http.StatusInternalServerError)
 			return
 		}
@@ -2022,23 +2069,41 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Generate public_id with collision check (retry up to 10 times)
 	var id int64
-	err = s.db.QueryRow(
-		`INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id`,
-		payload.Username,
-		string(hash),
-		payload.DisplayName,
-	).Scan(&id)
-	if err != nil {
-		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "UNIQUE") {
+	var publicID string
+	for i := 0; i < 10; i++ {
+		publicID, err = generateNanoID()
+		if err != nil {
+			http.Error(w, "failed to generate public id", http.StatusInternalServerError)
+			return
+		}
+		err = s.db.QueryRow(
+			`INSERT INTO users (username, password_hash, display_name, public_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+			payload.Username,
+			string(hash),
+			payload.DisplayName,
+			publicID,
+		).Scan(&id)
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "username") {
 			http.Error(w, "username already exists", http.StatusConflict)
 			return
 		}
-		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		// If public_id collision, retry
+		if !strings.Contains(err.Error(), "public_id") {
+			http.Error(w, "failed to create user", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err != nil {
+		http.Error(w, "failed to generate unique public id", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, adminUser{ID: id, Username: payload.Username, DisplayName: payload.DisplayName})
+	writeJSON(w, adminUser{ID: id, PublicID: publicID, Username: payload.Username, DisplayName: payload.DisplayName})
 }
 
 func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) {
