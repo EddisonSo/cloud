@@ -147,7 +147,7 @@ Services communicate asynchronously via NATS JetStream:
 | `compute.container.{id}.started` | Container started |
 | `compute.container.{id}.stopped` | Container stopped |
 
-See [Event-Driven Architecture](/docs/infrastructure/event-driven) for details.
+See [Event-Driven Architecture](./infrastructure/event-driven) for details.
 
 ## Security
 
