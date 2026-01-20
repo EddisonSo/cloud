@@ -52,7 +52,7 @@ spec:
         size: medium
       containers:
         - name: gateway
-          image: eddisonso/edd-gateway:021a13e
+          image: docker.io/eddisonso/ecloud-gateway:020ac558277acdf1c33f98f3833f3fc2a0278677
           args:
             - -ssh-port
             - "2222"
@@ -91,6 +91,10 @@ spec:
             - name: tls-cert
               mountPath: /tls
               readOnly: true
+            - name: routes
+              mountPath: /routes.yaml
+              subPath: routes.yaml
+              readOnly: true
           resources:
             requests:
               memory: "64Mi"
@@ -114,6 +118,9 @@ spec:
         - name: tls-cert
           secret:
             secretName: eddisonso-wildcard-tls
+        - name: routes
+          configMap:
+            name: gateway-routes
 ---
 apiVersion: v1
 kind: Service
