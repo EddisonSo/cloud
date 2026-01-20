@@ -99,7 +99,7 @@ Expose container ports to the internet:
 }
 ```
 
-This creates an ingress rule routing `container.eddisonso.com:443` to the container's port 8080.
+This creates an ingress rule routing `<container-id>.compute.cloud.eddisonso.com:443` to the container's port 8080.
 
 ## Database Schema
 
