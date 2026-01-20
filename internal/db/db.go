@@ -1,0 +1,101 @@
+package db
+
+import (
+	"crypto/rand"
+	"database/sql"
+	"fmt"
+
+	_ "github.com/lib/pq"
+)
+
+// nanoid alphabet (URL-safe)
+const nanoIDAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// GenerateNanoID generates a random 6-character ID
+func GenerateNanoID() (string, error) {
+	bytes := make([]byte, 6)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	for i := range bytes {
+		bytes[i] = nanoIDAlphabet[bytes[i]%byte(len(nanoIDAlphabet))]
+	}
+	return string(bytes), nil
+}
+
+type DB struct {
+	*sql.DB
+}
+
+func Open(connStr string) (*DB, error) {
+	sqlDB, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	if err := sqlDB.Ping(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+
+	db := &DB{sqlDB}
+	if err := db.migrate(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+
+	return db, nil
+}
+
+func (db *DB) migrate() error {
+	migrations := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+			id SERIAL PRIMARY KEY,
+			username TEXT NOT NULL UNIQUE,
+			password_hash TEXT NOT NULL,
+			display_name TEXT NOT NULL DEFAULT '',
+			public_id TEXT UNIQUE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			token TEXT NOT NULL UNIQUE,
+			expires_at BIGINT NOT NULL,
+			created_at BIGINT NOT NULL DEFAULT 0,
+			ip_address TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_public_id ON users(public_id)`,
+	}
+
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			return fmt.Errorf("execute migration: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// InitDefaultUser creates the default admin user if it doesn't exist
+func (db *DB) InitDefaultUser(username, passwordHash string) error {
+	// Generate public_id for default user
+	publicID, err := GenerateNanoID()
+	if err != nil {
+		return fmt.Errorf("generate public_id: %w", err)
+	}
+
+	_, err = db.Exec(`
+		INSERT INTO users (username, password_hash, display_name, public_id)
+		VALUES ($1, $2, $1, $3)
+		ON CONFLICT (username) DO NOTHING
+	`, username, passwordHash, publicID)
+	if err != nil {
+		return fmt.Errorf("insert default user: %w", err)
+	}
+
+	return nil
+}

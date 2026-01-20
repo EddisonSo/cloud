@@ -1,0 +1,70 @@
+name: Build and Push Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  AUTH_IMAGE: docker.io/eddisonso/ecloud-auth
+  NS: default
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -t ${AUTH_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
+  create-manifest:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Create multi-arch manifest
+        run: |
+          docker manifest create ${AUTH_IMAGE}:${GITHUB_SHA} \
+            ${AUTH_IMAGE}:${GITHUB_SHA}-arm64 \
+            ${AUTH_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${AUTH_IMAGE}:latest \
+            ${AUTH_IMAGE}:${GITHUB_SHA}-arm64 \
+            ${AUTH_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest push ${AUTH_IMAGE}:${GITHUB_SHA}
+          docker manifest push ${AUTH_IMAGE}:latest
+
+  deploy:
+    needs: create-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure kubectl
+        env:
+          GFS_CI_KUBECONFIG_B64: ${{ secrets.GFS_CI_KUBECONFIG_B64 }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$GFS_CI_KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+      - name: Deploy auth service
+        run: |
+          kubectl -n $NS set image deployment/auth-service auth-service=${AUTH_IMAGE}:${GITHUB_SHA} || true
