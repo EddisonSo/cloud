@@ -52,7 +52,7 @@ spec:
         size: medium
       containers:
         - name: gateway
-          image: docker.io/eddisonso/ecloud-gateway:020ac558277acdf1c33f98f3833f3fc2a0278677
+          image: docker.io/eddisonso/ecloud-gateway:e3899d9
           args:
             - -ssh-port
             - "2222"
