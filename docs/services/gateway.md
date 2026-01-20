@@ -4,7 +4,11 @@ sidebar_position: 1
 
 # Gateway
 
-The Gateway service is the main entry point for all external traffic. It handles TLS termination, HTTP/HTTPS routing, and SSH tunneling.
+The Gateway service (`edd-cloud-gateway`) is the main entry point for all external traffic. It handles TLS termination, HTTP/HTTPS routing, and SSH tunneling.
+
+:::info No Traefik
+This cluster uses a custom gateway service instead of Traefik. Traefik has been disabled in K3s configuration (`/etc/rancher/k3s/config.yaml` includes `disable: [traefik]`).
+:::
 
 ## Protocol Support
 
@@ -113,8 +117,54 @@ SSH keys are managed through the Compute API and stored in PostgreSQL.
 | `-tls-key` | TLS private key path | - |
 | `-fallback` | Fallback IP for unmatched routes | - |
 
+## Route Configuration
+
+Routes can be configured via a `routes.yaml` file mounted as a ConfigMap:
+
+```yaml
+routes:
+  - host: cloud-api.eddisonso.com
+    path: /compute
+    target: edd-compute:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /sse/cluster-info
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud.eddisonso.com
+    path: /
+    target: simple-file-share-frontend:80
+    strip_prefix: false
+```
+
+### Updating Routes
+
+1. Edit `edd-gateway/routes.yaml`
+2. Apply the ConfigMap:
+   ```bash
+   kubectl create configmap gateway-routes \
+     --from-file=routes.yaml \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
+3. Restart the gateway:
+   ```bash
+   kubectl rollout restart deployment/gateway
+   ```
+
+### Route Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `host` | Domain to match (e.g., `cloud-api.eddisonso.com`) |
+| `path` | Path prefix to match (e.g., `/compute`) |
+| `target` | Backend service and port (e.g., `edd-compute:80`) |
+| `strip_prefix` | If `true`, removes the path prefix before forwarding |
+
 ## Health Check
 
 ```
-GET /health → 200 OK
+GET /healthz → 200 OK
+GET /readyz → 200 OK
 ```

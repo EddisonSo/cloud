@@ -4,6 +4,10 @@ sidebar_position: 2
 
 # Networking
 
+:::info Custom Gateway
+All traffic is routed through `edd-cloud-gateway`, not Traefik. Traefik has been disabled in K3s (`/etc/rancher/k3s/config.yaml` includes `disable: [traefik]`). No Kubernetes Ingress resources are used.
+:::
+
 ## Domain Structure
 
 ```

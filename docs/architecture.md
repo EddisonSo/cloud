@@ -115,6 +115,7 @@ Stores metadata for:
 | Service | Port | Protocol |
 |---------|------|----------|
 | gateway | 8080/8443/2222 | HTTP/HTTPS/SSH |
+| auth-service | 80 | HTTP |
 | simple-file-share-backend | 80 | HTTP |
 | simple-file-share-frontend | 80 | HTTP |
 | edd-compute | 80 | HTTP |
@@ -123,6 +124,35 @@ Stores metadata for:
 | gfs-master | 9000 | gRPC |
 | gfs-chunkserver-N | 8080/8081 | TCP/gRPC |
 | postgres | 5432 | PostgreSQL |
+| nats | 4222/8222 | NATS/HTTP |
+
+## Event-Driven Communication
+
+Services communicate asynchronously via NATS JetStream:
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│    Auth     │────▶│    NATS     │◀────│   Compute   │
+└─────────────┘     │  JetStream  │     └─────────────┘
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+         ┌────────┐   ┌────────┐   ┌────────┐
+         │  SFS   │   │Gateway │   │  ...   │
+         └────────┘   └────────┘   └────────┘
+```
+
+### Event Subjects
+
+| Subject Pattern | Description |
+|-----------------|-------------|
+| `auth.user.{id}.created` | User created |
+| `auth.user.{id}.deleted` | User deleted |
+| `compute.container.{id}.started` | Container started |
+| `compute.container.{id}.stopped` | Container stopped |
+
+See [Event-Driven Architecture](/docs/infrastructure/event-driven) for details.
 
 ## Security
 
