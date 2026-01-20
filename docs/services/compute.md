@@ -94,12 +94,12 @@ Expose container ports to the internet:
 
 ```json
 {
-  "port": 443,
+  "port": 8080,
   "target_port": 8080
 }
 ```
 
-This creates an ingress rule routing `<container-id>.compute.cloud.eddisonso.com:443` to the container's port 8080.
+This creates an ingress rule routing `<container-id>.compute.cloud.eddisonso.com:<port>` to the container's target port.
 
 ## Database Schema
 
