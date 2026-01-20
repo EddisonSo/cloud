@@ -64,8 +64,12 @@ func (s *Server) handleTLS(conn net.Conn) {
 
 	slog.Info("TLS connection", "sni", sni, "port", ingressPort, "client", clientAddr)
 
+	// Check if this is a container domain (pattern: <id>.compute.cloud.eddisonso.com)
+	// Container domains have a subdomain before "compute.cloud."
+	isContainerDomain := strings.Contains(sni, ".compute.cloud.")
+
 	// Check if we should terminate TLS (have cert + have static routes for this host)
-	if s.tlsConfig != nil && !strings.Contains(sni, ".compute.") {
+	if s.tlsConfig != nil && !isContainerDomain {
 		// If SNI is an IP address, terminate TLS and send redirect
 		if ip := net.ParseIP(sni); ip != nil {
 			slog.Debug("IP-based SNI, terminating TLS and redirecting", "ip", sni, "client", clientAddr)
@@ -84,7 +88,7 @@ func (s *Server) handleTLS(conn net.Conn) {
 	// TLS passthrough for containers or fallback
 	var backendAddr string
 
-	if strings.Contains(sni, ".compute.") {
+	if isContainerDomain {
 		container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
 		if err != nil {
 			slog.Warn("no ingress rule for port", "sni", sni, "port", ingressPort, "error", err)
