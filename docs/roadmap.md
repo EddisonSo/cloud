@@ -31,8 +31,7 @@ sidebar_position: 10
 ## Storage Improvements
 
 - [x] **Chunk garbage collection** - Clean up orphaned chunks (1-hour grace period, via heartbeat)
-- [ ] **Namespace visibility levels** - Private (owner only), visible (discoverable), public (read-only access)
-- [ ] **Namespace access control** - Enforce permissions based on visibility level
+- [x] **Namespace visibility levels** - Private (owner only), visible (discoverable), public (read-only access)
 - [ ] **Chunk corruption recovery** - Detect corrupted chunks via checksums and re-replicate from healthy replicas
 - [ ] **Tiered storage** - Hot/cold data separation
 - [ ] **Storage load balancing** - Distribute chunks based on capacity, I/O load, memory, and CPU heuristics
