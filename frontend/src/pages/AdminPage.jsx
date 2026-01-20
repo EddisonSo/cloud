@@ -192,28 +192,28 @@ export function AdminPage() {
           ) : (
             <div className="space-y-2">
               {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-[1fr_2fr_2fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">ID</div>
-                <div className="text-center">Display Name</div>
+              <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">Username</div>
+                <div className="text-center">Display Name</div>
+                <div className="text-center">ID</div>
                 <div className="text-center">Actions</div>
               </div>
               {users.map((u) => (
                 <div
                   key={u.id}
-                  className="flex flex-col sm:grid sm:grid-cols-[1fr_2fr_2fr_80px] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
+                  className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
-                  <div className="flex justify-between sm:justify-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
-                    <CopyableText text={String(u.id)} mono />
+                  <div className="flex justify-between sm:block sm:text-center">
+                    <span className="text-xs text-muted-foreground sm:hidden">Username:</span>
+                    <span className="text-muted-foreground truncate">{u.username}</span>
                   </div>
                   <div className="flex justify-between sm:block sm:text-center">
                     <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
                     <span className="font-medium truncate">{u.display_name || u.username}</span>
                   </div>
-                  <div className="flex justify-between sm:block sm:text-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">Username:</span>
-                    <span className="text-muted-foreground truncate">{u.username}</span>
+                  <div className="flex justify-between sm:justify-center">
+                    <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
+                    <CopyableText text={u.public_id || String(u.id)} mono />
                   </div>
                   <div className="flex justify-center">
                     <Button
