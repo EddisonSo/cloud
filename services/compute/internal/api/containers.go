@@ -556,3 +556,114 @@ func containerToResponse(c *db.Container) containerResponse {
 
 	return resp
 }
+
+// GetMountPaths returns the persistent mount paths for a container
+func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := getUserFromContext(r.Context())
+	if !ok {
+		writeError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	containerID := r.PathValue("id")
+	container, err := h.db.GetContainer(containerID)
+	if err != nil {
+		slog.Error("failed to get container", "error", err)
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if container == nil || container.UserID != userID {
+		writeError(w, "container not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, map[string]any{"mount_paths": container.MountPaths})
+}
+
+// UpdateMountPaths updates the persistent mount paths and restarts the container
+func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := getUserFromContext(r.Context())
+	if !ok {
+		writeError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	containerID := r.PathValue("id")
+	container, err := h.db.GetContainer(containerID)
+	if err != nil {
+		slog.Error("failed to get container", "error", err)
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if container == nil || container.UserID != userID {
+		writeError(w, "container not found", http.StatusNotFound)
+		return
+	}
+
+	var req struct {
+		MountPaths []string `json:"mount_paths"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate mount paths
+	if len(req.MountPaths) == 0 {
+		writeError(w, "at least one mount path is required", http.StatusBadRequest)
+		return
+	}
+	for _, path := range req.MountPaths {
+		if !strings.HasPrefix(path, "/") {
+			writeError(w, "mount paths must be absolute (start with /)", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Update in database
+	if err := h.db.UpdateMountPaths(containerID, req.MountPaths); err != nil {
+		slog.Error("failed to update mount paths", "error", err)
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Update container struct for restart
+	container.MountPaths = req.MountPaths
+
+	// Restart container to apply new mounts (delete pod, recreate with new mounts)
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	wasRunning := container.Status == "running" || container.Status == "initializing"
+
+	if wasRunning {
+		// Delete existing pod
+		if err := h.k8s.DeletePod(ctx, container.Namespace); err != nil {
+			slog.Error("failed to delete pod for mount update", "error", err)
+			writeError(w, "failed to restart container", http.StatusInternalServerError)
+			return
+		}
+
+		// Update status
+		h.db.UpdateContainerStatus(containerID, "pending")
+		GetHub().SendContainerStatus(container.UserID, container.ID, "pending", nil)
+
+		// Recreate pod with new mounts
+		spec := instanceTypes[container.InstanceType]
+		if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
+			slog.Error("failed to create pod with new mounts", "error", err)
+			h.db.UpdateContainerStatus(containerID, "failed")
+			GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
+			writeError(w, "failed to restart container", http.StatusInternalServerError)
+			return
+		}
+
+		// Poll for container to become ready
+		go h.pollContainerReady(container)
+	}
+
+	writeJSON(w, map[string]any{
+		"mount_paths": req.MountPaths,
+		"restarted":   wasRunning,
+	})
+}

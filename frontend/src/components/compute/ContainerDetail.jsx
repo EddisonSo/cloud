@@ -19,6 +19,7 @@ export function ContainerDetail({
 }) {
   const [newPort, setNewPort] = useState("");
   const [newTargetPort, setNewTargetPort] = useState("");
+  const [newMountPath, setNewMountPath] = useState("");
 
   const action = actions?.[container.id];
   const isRunning = container.status === "running";
@@ -32,6 +33,20 @@ export function ContainerDetail({
     await access.addIngressRule(port, targetPort);
     setNewPort("");
     setNewTargetPort("");
+  };
+
+  const handleAddMountPath = async (e) => {
+    e.preventDefault();
+    if (!newMountPath) return;
+    const path = newMountPath.startsWith("/") ? newMountPath : "/" + newMountPath;
+    if (access.mountPaths.includes(path)) return;
+    await access.updateMountPaths([...access.mountPaths, path]);
+    setNewMountPath("");
+  };
+
+  const handleRemoveMountPath = async (path) => {
+    const updated = access.mountPaths.filter((p) => p !== path);
+    await access.updateMountPaths(updated);
   };
 
   return (
@@ -215,6 +230,62 @@ export function ContainerDetail({
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Persistent Storage Section */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-sm">Persistent Storage</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-3">
+            Directories to persist across container restarts. Changes require a container restart.
+          </p>
+
+          {/* Add Mount Path */}
+          <form onSubmit={handleAddMountPath} className="flex items-center gap-2 mb-4">
+            <Input
+              type="text"
+              placeholder="/path/to/persist"
+              value={newMountPath}
+              onChange={(e) => setNewMountPath(e.target.value)}
+              className="flex-1"
+            />
+            <Button type="submit" size="sm" disabled={!newMountPath || access.savingMounts}>
+              <Plus className="w-4 h-4 mr-1" />
+              Add
+            </Button>
+          </form>
+
+          {/* Mount Paths List */}
+          <div className="space-y-2">
+            {access.mountPaths.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No persistent paths configured</p>
+            ) : (
+              access.mountPaths.map((path) => (
+                <div
+                  key={path}
+                  className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                >
+                  <span className="font-mono text-sm">{path}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => handleRemoveMountPath(path)}
+                    disabled={access.savingMounts || access.mountPaths.length <= 1}
+                    title={access.mountPaths.length <= 1 ? "At least one path required" : "Remove path"}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          {access.savingMounts && (
+            <p className="text-xs text-muted-foreground mt-3">Updating and restarting container...</p>
+          )}
         </CardContent>
       </Card>
     </div>

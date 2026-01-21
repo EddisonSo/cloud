@@ -60,6 +60,10 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.AddIngressRule))
 	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.RemoveIngressRule))
 
+	// Persistent storage mount paths
+	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.GetMountPaths))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.UpdateMountPaths))
+
 	// Admin endpoints
 	h.mux.HandleFunc("GET /compute/admin/containers", h.adminMiddleware(h.AdminListContainers))
 

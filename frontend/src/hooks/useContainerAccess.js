@@ -8,6 +8,8 @@ export function useContainerAccess() {
   const [savingSSH, setSavingSSH] = useState(false);
   const [ingressRules, setIngressRules] = useState([]);
   const [addingRule, setAddingRule] = useState(false);
+  const [mountPaths, setMountPaths] = useState([]);
+  const [savingMounts, setSavingMounts] = useState(false);
   const abortControllerRef = useRef(null);
 
   // Cleanup abort controller on unmount
@@ -24,6 +26,7 @@ export function useContainerAccess() {
     setLoading(true);
     setSshEnabled(containerData.ssh_enabled || false);
     setIngressRules([]);
+    setMountPaths([]);
 
     // Abort any in-flight request
     if (abortControllerRef.current) {
@@ -32,12 +35,16 @@ export function useContainerAccess() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const [sshRes, ingressRes] = await Promise.all([
+      const [sshRes, ingressRes, mountsRes] = await Promise.all([
         fetch(`${buildComputeBase()}/compute/containers/${containerData.id}/ssh`, {
           headers: getAuthHeaders(),
           signal: abortControllerRef.current.signal,
         }),
         fetch(`${buildComputeBase()}/compute/containers/${containerData.id}/ingress`, {
+          headers: getAuthHeaders(),
+          signal: abortControllerRef.current.signal,
+        }),
+        fetch(`${buildComputeBase()}/compute/containers/${containerData.id}/mounts`, {
           headers: getAuthHeaders(),
           signal: abortControllerRef.current.signal,
         }),
@@ -49,6 +56,10 @@ export function useContainerAccess() {
       if (ingressRes.ok) {
         const data = await ingressRes.json();
         setIngressRules(data.rules || []);
+      }
+      if (mountsRes.ok) {
+        const data = await mountsRes.json();
+        setMountPaths(data.mount_paths || []);
       }
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -62,6 +73,7 @@ export function useContainerAccess() {
     setContainer(null);
     setSshEnabled(false);
     setIngressRules([]);
+    setMountPaths([]);
   }, []);
 
   const toggleSSH = useCallback(async (updateContainers) => {
@@ -135,6 +147,28 @@ export function useContainerAccess() {
     }
   }, [container]);
 
+  const updateMountPaths = useCallback(async (newPaths) => {
+    if (!container || savingMounts) return;
+    setSavingMounts(true);
+    try {
+      const response = await fetch(
+        `${buildComputeBase()}/compute/containers/${container.id}/mounts`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ mount_paths: newPaths }),
+        }
+      );
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || "Failed to update mount paths");
+      }
+      setMountPaths(newPaths);
+    } finally {
+      setSavingMounts(false);
+    }
+  }, [container, savingMounts]);
+
   return {
     container,
     loading,
@@ -142,10 +176,13 @@ export function useContainerAccess() {
     savingSSH,
     ingressRules,
     addingRule,
+    mountPaths,
+    savingMounts,
     openAccess,
     closeAccess,
     toggleSSH,
     addIngressRule,
     removeIngressRule,
+    updateMountPaths,
   };
 }

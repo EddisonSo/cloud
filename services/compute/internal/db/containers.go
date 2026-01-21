@@ -172,6 +172,18 @@ func (db *DB) UpdateSSHEnabled(id string, enabled bool) error {
 	return nil
 }
 
+func (db *DB) UpdateMountPaths(id string, paths []string) error {
+	pathsJSON, err := json.Marshal(paths)
+	if err != nil {
+		return fmt.Errorf("marshal mount paths: %w", err)
+	}
+	_, err = db.Exec(`UPDATE containers SET mount_paths = $1 WHERE id = $2`, string(pathsJSON), id)
+	if err != nil {
+		return fmt.Errorf("update mount paths: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) UpdateHTTPSEnabled(id string, enabled bool) error {
 	_, err := db.Exec(`UPDATE containers SET https_enabled = $1 WHERE id = $2`, enabled, id)
 	if err != nil {
