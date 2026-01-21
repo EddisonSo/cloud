@@ -21,12 +21,12 @@ const (
 )
 
 type containerRequest struct {
-	Name       string  `json:"name"`
-	MemoryMB   int     `json:"memory_mb"`
-	StorageGB  int     `json:"storage_gb"`
-	Arch       string  `json:"arch"` // arm64 or amd64
-	SSHKeyIDs  []int64 `json:"ssh_key_ids"`
-	SSHEnabled bool    `json:"ssh_enabled"`
+	Name         string  `json:"name"`
+	MemoryMB     int     `json:"memory_mb"`
+	StorageGB    int     `json:"storage_gb"`
+	InstanceType string  `json:"instance_type"` // nano/micro/mini (arm64) or tiny/small/medium (amd64)
+	SSHKeyIDs    []int64 `json:"ssh_key_ids"`
+	SSHEnabled   bool    `json:"ssh_enabled"`
 }
 
 type containerResponse struct {
@@ -39,10 +39,28 @@ type containerResponse struct {
 	MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
 	StorageGB     int      `json:"storage_gb"`
 	StorageUsedGB *float64 `json:"storage_used_gb,omitempty"`
-	Arch          string   `json:"arch"`
+	InstanceType  string   `json:"instance_type"`
 	CreatedAt     string   `json:"created_at"`
 	SSHEnabled    bool     `json:"ssh_enabled"`
 	HTTPSEnabled  bool     `json:"https_enabled"`
+}
+
+// InstanceTypeSpec defines the resources for an instance type
+type InstanceTypeSpec struct {
+	Arch     string // kubernetes.io/arch value
+	CPUCores string // CPU cores (e.g., "500m" for 0.5, "1" for 1, "2" for 2)
+}
+
+// Instance type specifications
+var instanceTypes = map[string]InstanceTypeSpec{
+	// ARM64 (Raspberry Pi) - 0.5, 1, 2 cores
+	"nano":  {Arch: "arm64", CPUCores: "500m"},
+	"micro": {Arch: "arm64", CPUCores: "1"},
+	"mini":  {Arch: "arm64", CPUCores: "2"},
+	// AMD64 (x86-64) - 1, 2, 4 cores
+	"tiny":   {Arch: "amd64", CPUCores: "1"},
+	"small":  {Arch: "amd64", CPUCores: "2"},
+	"medium": {Arch: "amd64", CPUCores: "4"},
 }
 
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
@@ -138,13 +156,13 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		storageGB = defaultStorageGB
 	}
 
-	// Validate and set architecture (default to arm64)
-	arch := req.Arch
-	if arch == "" {
-		arch = "arm64"
+	// Validate instance type (default to nano)
+	instanceType := req.InstanceType
+	if instanceType == "" {
+		instanceType = "nano"
 	}
-	if arch != "arm64" && arch != "amd64" {
-		writeError(w, "arch must be 'arm64' or 'amd64'", http.StatusBadRequest)
+	if _, ok := instanceTypes[instanceType]; !ok {
+		writeError(w, "instance_type must be one of: nano, micro, mini, tiny, small, medium", http.StatusBadRequest)
 		return
 	}
 
@@ -154,17 +172,17 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 
 	// Create container record
 	container := &db.Container{
-		ID:         containerID,
-		UserID:     userID,
-		Owner:      username,
-		Name:       req.Name,
-		Namespace:  namespace,
-		Status:     "pending",
-		MemoryMB:   memoryMB,
-		StorageGB:  storageGB,
-		Image:      defaultImage,
-		Arch:       arch,
-		SSHEnabled: req.SSHEnabled,
+		ID:           containerID,
+		UserID:       userID,
+		Owner:        username,
+		Name:         req.Name,
+		Namespace:    namespace,
+		Status:       "pending",
+		MemoryMB:     memoryMB,
+		StorageGB:    storageGB,
+		Image:        defaultImage,
+		InstanceType: instanceType,
+		SSHEnabled:   req.SSHEnabled,
 	}
 
 	if err := h.db.CreateContainer(container); err != nil {
@@ -231,8 +249,9 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 		return
 	}
 
-	// Create Pod
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, container.Arch); err != nil {
+	// Create Pod with instance type spec
+	spec := instanceTypes[container.InstanceType]
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores); err != nil {
 		slog.Error("failed to create pod", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
 		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
@@ -474,7 +493,8 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, container.Arch); err != nil {
+	spec := instanceTypes[container.InstanceType]
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores); err != nil {
 		slog.Error("failed to create pod", "error", err)
 		writeError(w, "failed to start container", http.StatusInternalServerError)
 		return
@@ -509,7 +529,7 @@ func containerToResponse(c *db.Container) containerResponse {
 		Hostname:     hostname,
 		MemoryMB:     c.MemoryMB,
 		StorageGB:    c.StorageGB,
-		Arch:         c.Arch,
+		InstanceType: c.InstanceType,
 		CreatedAt:    c.CreatedAt.Format(time.RFC3339),
 		SSHEnabled:   c.SSHEnabled,
 		HTTPSEnabled: c.HTTPSEnabled,

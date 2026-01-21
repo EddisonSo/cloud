@@ -228,7 +228,7 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 }
 
 // CreatePod creates the container pod
-func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string) error {
+func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string) error {
 	defaultMode := int32(0600)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -250,9 +250,11 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceMemory: parseQuantity(fmt.Sprintf("%dMi", memoryMB)),
+							corev1.ResourceCPU:    parseQuantity(cpuCores),
 						},
 						Limits: corev1.ResourceList{
 							corev1.ResourceMemory: parseQuantity(fmt.Sprintf("%dMi", memoryMB)),
+							corev1.ResourceCPU:    parseQuantity(cpuCores),
 						},
 					},
 					Ports: []corev1.ContainerPort{

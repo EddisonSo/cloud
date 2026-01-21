@@ -16,7 +16,7 @@ export function CreateContainerForm({
   const [name, setName] = useState("");
   const [memoryMb, setMemoryMb] = useState(512);
   const [storageGb, setStorageGb] = useState(5);
-  const [arch, setArch] = useState("arm64");
+  const [instanceType, setInstanceType] = useState("nano");
   const [selectedKeyIds, setSelectedKeyIds] = useState([]);
   const [enableSsh, setEnableSsh] = useState(true);
   const [ingressRules, setIngressRules] = useState([]);
@@ -39,7 +39,7 @@ export function CreateContainerForm({
       name: name.trim(),
       memory_mb: memoryMb,
       storage_gb: storageGb,
-      arch: arch,
+      instance_type: instanceType,
       ssh_key_ids: selectedKeyIds,
       enable_ssh: enableSsh,
       ingress_rules: ingressRules,
@@ -116,14 +116,18 @@ export function CreateContainerForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="c-arch">CPU Architecture</Label>
-            <Select value={arch} onValueChange={setArch}>
-              <SelectTrigger id="c-arch" className="w-full">
-                <SelectValue placeholder="Select architecture" />
+            <Label htmlFor="c-instance-type">Instance Type</Label>
+            <Select value={instanceType} onValueChange={setInstanceType}>
+              <SelectTrigger id="c-instance-type" className="w-full">
+                <SelectValue placeholder="Select instance type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="arm64">ARM64 (Raspberry Pi)</SelectItem>
-                <SelectItem value="amd64">AMD64 (x86-64)</SelectItem>
+                <SelectItem value="nano">Nano (ARM64, 0.5 CPU)</SelectItem>
+                <SelectItem value="micro">Micro (ARM64, 1 CPU)</SelectItem>
+                <SelectItem value="mini">Mini (ARM64, 2 CPU)</SelectItem>
+                <SelectItem value="tiny">Tiny (AMD64, 1 CPU)</SelectItem>
+                <SelectItem value="small">Small (AMD64, 2 CPU)</SelectItem>
+                <SelectItem value="medium">Medium (AMD64, 4 CPU)</SelectItem>
               </SelectContent>
             </Select>
           </div>
