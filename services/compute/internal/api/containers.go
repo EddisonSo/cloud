@@ -179,9 +179,9 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate container ID and namespace
+	// Generate container ID and namespace (lowercase for K8s compatibility)
 	containerID := uuid.New().String()[:8]
-	namespace := fmt.Sprintf("compute-%s-%s", userID, containerID)
+	namespace := strings.ToLower(fmt.Sprintf("compute-%s-%s", userID, containerID))
 
 	// Create container record
 	container := &db.Container{
