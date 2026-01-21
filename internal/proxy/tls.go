@@ -155,7 +155,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
 	if err != nil {
 		slog.Warn("no ingress rule for container port", "sni", sni, "port", ingressPort, "error", err)
-		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo ingress rule configured for this port\r\n"))
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\nNo ingress rule configured for this port\r\n"))
 		tlsConn.Close()
 		return
 	}
@@ -166,7 +166,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
 		slog.Error("failed to connect to container backend", "sni", sni, "addr", backendAddr, "error", err)
-		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
 		tlsConn.Close()
 		return
 	}
@@ -271,8 +271,10 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 	// Add X-Forwarded-Proto header for TLS-terminated requests
 	headers = addHeader(headers, "X-Forwarded-Proto", "https")
-	// Force connection close - gateway doesn't support HTTP keep-alive yet
-	headers = addHeader(headers, "Connection", "close")
+	// Force connection close for regular requests, but keep alive for SSE/WebSocket
+	if !strings.HasPrefix(path, "/sse/") && !strings.HasPrefix(path, "/ws/") {
+		headers = addHeader(headers, "Connection", "close")
+	}
 
 	// Get buffered data and proxy
 	buffered := make([]byte, reader.Buffered())
