@@ -231,6 +231,17 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string, mountPaths []string) error {
 	defaultMode := int32(0600)
 
+	// Build subpath names for each mount path
+	var subPaths []string
+	for i, path := range mountPaths {
+		subPath := strings.TrimPrefix(path, "/")
+		subPath = strings.ReplaceAll(subPath, "/", "-")
+		if subPath == "" {
+			subPath = fmt.Sprintf("mount-%d", i)
+		}
+		subPaths = append(subPaths, subPath)
+	}
+
 	// Build volume mounts for each user-specified path using subpaths
 	volumeMounts := []corev1.VolumeMount{
 		{
@@ -240,18 +251,17 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 		},
 	}
 	for i, path := range mountPaths {
-		// Use subPath to isolate each mount within the PVC
-		// e.g., /root -> subPath "root", /var/data -> subPath "var-data"
-		subPath := strings.TrimPrefix(path, "/")
-		subPath = strings.ReplaceAll(subPath, "/", "-")
-		if subPath == "" {
-			subPath = fmt.Sprintf("mount-%d", i)
-		}
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "storage",
 			MountPath: path,
-			SubPath:   subPath,
+			SubPath:   subPaths[i],
 		})
+	}
+
+	// Build mkdir command for init container to create subpath directories
+	mkdirCmd := "cd /mnt/storage"
+	for _, sp := range subPaths {
+		mkdirCmd += fmt.Sprintf(" && mkdir -p %s", sp)
 	}
 
 	pod := &corev1.Pod{
@@ -266,6 +276,19 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 			NodeSelector: map[string]string{
 				"compute-schedulable": "true",
 				"kubernetes.io/arch":  arch,
+			},
+			InitContainers: []corev1.Container{
+				{
+					Name:    "init-storage",
+					Image:   "busybox:latest",
+					Command: []string{"/bin/sh", "-c", mkdirCmd},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "storage",
+							MountPath: "/mnt/storage",
+						},
+					},
+				},
 			},
 			Containers: []corev1.Container{
 				{
