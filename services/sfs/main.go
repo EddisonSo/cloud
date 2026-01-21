@@ -75,6 +75,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      int64  `json:"user_id"`
+	PublicID    string `json:"public_id"`
 	jwt.RegisteredClaims
 }
 
@@ -1122,9 +1123,10 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		userID      int64
 		hash        string
 		displayName string
+		publicID    string
 	)
-	err := s.db.QueryRow(`SELECT id, password_hash, COALESCE(display_name, username) FROM users WHERE username = $1`, payload.Username).
-		Scan(&userID, &hash, &displayName)
+	err := s.db.QueryRow(`SELECT id, password_hash, COALESCE(display_name, username), COALESCE(public_id, '') FROM users WHERE username = $1`, payload.Username).
+		Scan(&userID, &hash, &displayName, &publicID)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -1144,6 +1146,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Username:    payload.Username,
 		DisplayName: displayName,
 		UserID:      userID,
+		PublicID:    publicID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -1283,6 +1286,18 @@ func (s *server) currentUserID(r *http.Request) (int, bool) {
 		return 0, false
 	}
 	return int(claims.UserID), true
+}
+
+func (s *server) currentUserPublicID(r *http.Request) (string, bool) {
+	token := s.sessionToken(r)
+	if token == "" {
+		return "", false
+	}
+	claims, ok := s.parseJWT(token)
+	if !ok {
+		return "", false
+	}
+	return claims.PublicID, true
 }
 
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {

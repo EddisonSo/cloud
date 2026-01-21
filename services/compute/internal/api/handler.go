@@ -77,14 +77,14 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := auth.GetSessionToken(r)
 		if token != "" {
-			username, err := h.validator.ValidateSession(token)
+			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
 				slog.Error("session validation failed", "error", err)
 				http.Error(w, "authentication error", http.StatusInternalServerError)
 				return
 			}
-			if adminUsername != "" && username == adminUsername {
-				r = r.WithContext(setUserContext(r.Context(), 1, username))
+			if claims != nil && adminUsername != "" && claims.Username == adminUsername {
+				r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.PublicID, claims.Username))
 				next(w, r)
 				return
 			}
@@ -172,16 +172,14 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := auth.GetSessionToken(r)
 		if token != "" {
-			username, err := h.validator.ValidateSession(token)
+			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
 				slog.Error("session validation failed", "error", err)
 				http.Error(w, "authentication error", http.StatusInternalServerError)
 				return
 			}
-			if username != "" {
-				// For now, use username as user ID (simplified)
-				// In production, would lookup user ID from username
-				r = r.WithContext(setUserContext(r.Context(), 1, username))
+			if claims != nil {
+				r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.PublicID, claims.Username))
 				next(w, r)
 				return
 			}

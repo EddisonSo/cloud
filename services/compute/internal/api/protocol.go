@@ -11,7 +11,7 @@ type sshAccessResponse struct {
 }
 
 func (h *Handler) GetSSHAccess(w http.ResponseWriter, r *http.Request) {
-	userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership
@@ -35,7 +35,7 @@ type updateSSHAccessRequest struct {
 }
 
 func (h *Handler) UpdateSSHAccess(w http.ResponseWriter, r *http.Request) {
-	userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership

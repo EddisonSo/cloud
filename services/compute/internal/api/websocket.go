@@ -112,7 +112,7 @@ func (h *WSHub) SendContainerStatus(userID int64, containerID string, status str
 
 // HandleWebSocket handles WebSocket connections
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

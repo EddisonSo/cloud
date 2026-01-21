@@ -65,7 +65,7 @@ var instanceTypes = map[string]InstanceTypeSpec{
 }
 
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -99,7 +99,7 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
-	userID, username, ok := getUserFromContext(r.Context())
+	userID, _, username, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -358,7 +358,7 @@ func (h *Handler) pollContainerReady(container *db.Container) {
 }
 
 func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -410,7 +410,7 @@ func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -448,7 +448,7 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -486,7 +486,7 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -559,7 +559,7 @@ func containerToResponse(c *db.Container) containerResponse {
 
 // GetMountPaths returns the persistent mount paths for a container
 func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -582,7 +582,7 @@ func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
 
 // UpdateMountPaths updates the persistent mount paths and restarts the container
 func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
-	userID, _, ok := getUserFromContext(r.Context())
+	userID, _, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return

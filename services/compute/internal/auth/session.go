@@ -16,6 +16,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      int64  `json:"user_id"`
+	PublicID    string `json:"public_id"`
 	jwt.RegisteredClaims
 }
 
@@ -44,8 +45,8 @@ func getJWTSecret() []byte {
 }
 
 // ValidateSession validates a JWT token
-// Returns the username if valid, empty string if invalid
-func (v *SessionValidator) ValidateSession(tokenString string) (string, error) {
+// Returns the full claims if valid, nil if invalid
+func (v *SessionValidator) ValidateSession(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -53,13 +54,13 @@ func (v *SessionValidator) ValidateSession(tokenString string) (string, error) {
 		return v.jwtSecret, nil
 	})
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 	claims, ok := token.Claims.(*JWTClaims)
 	if !ok || !token.Valid {
-		return "", nil
+		return nil, fmt.Errorf("invalid token")
 	}
-	return claims.Username, nil
+	return claims, nil
 }
 
 // GetSessionToken extracts the JWT token from Authorization header or query parameter

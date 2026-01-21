@@ -32,7 +32,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _, _ := getUserFromContext(r.Context())
 
 	// Verify user owns container
 	container, err := h.db.GetContainer(containerID)
