@@ -74,8 +74,7 @@ type server struct {
 type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
-	UserID      int64  `json:"user_id"`
-	PublicID    string `json:"public_id"`
+	UserID      string `json:"user_id"` // nanoid
 	jwt.RegisteredClaims
 }
 
@@ -423,7 +422,7 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	currentUserID, isLoggedIn := s.currentUserID(r)
+	currentUserPublicID, isLoggedIn := s.currentUserPublicID(r)
 	namespaceRows, err := s.loadAllNamespaces()
 	if err != nil {
 		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
@@ -438,9 +437,7 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 		// - Visible (1): only show to owner (not advertised, but accessible via URL)
 		// - Public (2): show to everyone
 		if entry.Visibility == visibilityPrivate || entry.Visibility == visibilityVisible {
-			if !isLoggedIn || entry.OwnerID == nil || *entry.OwnerID != currentUserID {
-				log.Printf("DEBUG: filtering namespace %q: visibility=%d, isLoggedIn=%v, ownerID=%v, currentUserID=%d",
-					entry.Name, entry.Visibility, isLoggedIn, entry.OwnerID, currentUserID)
+			if !isLoggedIn || entry.OwnerPublicID == nil || *entry.OwnerPublicID != currentUserPublicID {
 				continue
 			}
 		}
@@ -1145,8 +1142,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := JWTClaims{
 		Username:    payload.Username,
 		DisplayName: displayName,
-		UserID:      userID,
-		PublicID:    publicID,
+		UserID:      publicID, // nanoid
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -1285,7 +1281,13 @@ func (s *server) currentUserID(r *http.Request) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	return int(claims.UserID), true
+	// Lookup internal DB ID from nanoid
+	var userID int
+	err := s.db.QueryRow(`SELECT id FROM users WHERE public_id = $1`, claims.UserID).Scan(&userID)
+	if err != nil {
+		return 0, false
+	}
+	return userID, true
 }
 
 func (s *server) currentUserPublicID(r *http.Request) (string, bool) {
@@ -1297,7 +1299,7 @@ func (s *server) currentUserPublicID(r *http.Request) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return claims.PublicID, true
+	return claims.UserID, true // UserID is now the nanoid
 }
 
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {

@@ -34,6 +34,16 @@ func Open(connStr string) (*DB, error) {
 	return db, nil
 }
 
+// GetUserIDByPublicID looks up the internal user ID from their public nanoid
+func (db *DB) GetUserIDByPublicID(publicID string) (int64, error) {
+	var userID int64
+	err := db.QueryRow(`SELECT id FROM users WHERE public_id = $1`, publicID).Scan(&userID)
+	if err != nil {
+		return 0, fmt.Errorf("lookup user by public_id: %w", err)
+	}
+	return userID, nil
+}
+
 func (db *DB) migrate() error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS containers (

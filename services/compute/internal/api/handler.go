@@ -84,7 +84,14 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 			if claims != nil && adminUsername != "" && claims.Username == adminUsername {
-				r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.PublicID, claims.Username))
+				// Lookup internal DB ID from nanoid
+				internalID, err := h.db.GetUserIDByPublicID(claims.UserID)
+				if err != nil {
+					slog.Error("failed to lookup user", "error", err, "user_id", claims.UserID)
+					http.Error(w, "authentication error", http.StatusInternalServerError)
+					return
+				}
+				r = r.WithContext(setUserContext(r.Context(), internalID, claims.UserID, claims.Username))
 				next(w, r)
 				return
 			}
@@ -179,7 +186,14 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 			if claims != nil {
-				r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.PublicID, claims.Username))
+				// Lookup internal DB ID from nanoid
+				internalID, err := h.db.GetUserIDByPublicID(claims.UserID)
+				if err != nil {
+					slog.Error("failed to lookup user", "error", err, "user_id", claims.UserID)
+					http.Error(w, "authentication error", http.StatusInternalServerError)
+					return
+				}
+				r = r.WithContext(setUserContext(r.Context(), internalID, claims.UserID, claims.Username))
 				next(w, r)
 				return
 			}
