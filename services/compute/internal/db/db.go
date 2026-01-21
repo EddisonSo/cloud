@@ -88,6 +88,9 @@ func (db *DB) migrate() error {
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS instance_type TEXT NOT NULL DEFAULT 'nano'`,
 		// Persistent mount paths (JSON array of absolute paths)
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS mount_paths TEXT NOT NULL DEFAULT '["/root"]'`,
+		// Owner public ID (nanoid) for ownership queries without cross-DB lookups
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_public_id TEXT NOT NULL DEFAULT ''`,
+		`CREATE INDEX IF NOT EXISTS idx_containers_owner_public_id ON containers(owner_public_id)`,
 	}
 
 	for _, m := range migrations {

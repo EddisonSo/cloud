@@ -32,7 +32,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, _, _, _ := getUserFromContext(r.Context())
+	_, userID, _, _ := getUserFromContext(r.Context())
 
 	// Verify user owns container
 	container, err := h.db.GetContainer(containerID)
@@ -42,7 +42,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if container.UserID != userID {
+	if container.OwnerPublicID != userID {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -84,9 +84,8 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 
 	// Inject public key into container
 	keyID := fmt.Sprintf("terminal-%d", time.Now().UnixNano())
-	namespace := fmt.Sprintf("compute-%d-%s", container.UserID, container.ID)
 
-	if err := h.k8s.InjectTempKey(r.Context(), namespace, pubKey, keyID); err != nil {
+	if err := h.k8s.InjectTempKey(r.Context(), container.Namespace, pubKey, keyID); err != nil {
 		slog.Error("failed to inject temp key", "error", err, "container", containerID)
 		ws.WriteMessage(websocket.TextMessage, []byte("error: failed to setup terminal"))
 		return
@@ -96,7 +95,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Use K8s service DNS for reliable cross-node connectivity
-	sshHost := fmt.Sprintf("lb.%s.svc.cluster.local", namespace)
+	sshHost := fmt.Sprintf("lb.%s.svc.cluster.local", container.Namespace)
 
 	// Connect to container via SSH using K8s service DNS
 	sshClient, err := dialSSH(sshHost, 22, "root", privKey)

@@ -65,7 +65,7 @@ var instanceTypes = map[string]InstanceTypeSpec{
 }
 
 func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -99,7 +99,7 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, username, ok := getUserFromContext(r.Context())
+	internalID, userID, username, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -136,7 +136,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sshKeys, err := h.db.GetSSHKeysByIDs(userID, req.SSHKeyIDs)
+	sshKeys, err := h.db.GetSSHKeysByIDs(internalID, req.SSHKeyIDs)
 	if err != nil {
 		slog.Error("failed to get ssh keys", "error", err)
 		writeError(w, "internal error", http.StatusInternalServerError)
@@ -181,22 +181,23 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 
 	// Generate container ID and namespace
 	containerID := uuid.New().String()[:8]
-	namespace := fmt.Sprintf("compute-%d-%s", userID, containerID)
+	namespace := fmt.Sprintf("compute-%s-%s", userID, containerID)
 
 	// Create container record
 	container := &db.Container{
-		ID:           containerID,
-		UserID:       userID,
-		Owner:        username,
-		Name:         req.Name,
-		Namespace:    namespace,
-		Status:       "pending",
-		MemoryMB:     memoryMB,
-		StorageGB:    storageGB,
-		Image:        defaultImage,
-		InstanceType: instanceType,
-		MountPaths:   mountPaths,
-		SSHEnabled:   req.SSHEnabled,
+		ID:            containerID,
+		UserID:        internalID,
+		Owner:         username,
+		OwnerPublicID: userID,
+		Name:          req.Name,
+		Namespace:     namespace,
+		Status:        "pending",
+		MemoryMB:      memoryMB,
+		StorageGB:     storageGB,
+		Image:         defaultImage,
+		InstanceType:  instanceType,
+		MountPaths:    mountPaths,
+		SSHEnabled:    req.SSHEnabled,
 	}
 
 	if err := h.db.CreateContainer(container); err != nil {
@@ -358,7 +359,7 @@ func (h *Handler) pollContainerReady(container *db.Container) {
 }
 
 func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -371,7 +372,7 @@ func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
@@ -410,7 +411,7 @@ func (h *Handler) GetContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -423,7 +424,7 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
@@ -448,7 +449,7 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -461,7 +462,7 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
@@ -486,7 +487,7 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -499,7 +500,7 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
@@ -559,7 +560,7 @@ func containerToResponse(c *db.Container) containerResponse {
 
 // GetMountPaths returns the persistent mount paths for a container
 func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -572,7 +573,7 @@ func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
@@ -582,7 +583,7 @@ func (h *Handler) GetMountPaths(w http.ResponseWriter, r *http.Request) {
 
 // UpdateMountPaths updates the persistent mount paths and restarts the container
 func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	_, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -595,7 +596,7 @@ func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if container == nil || container.UserID != userID {
+	if container == nil || container.OwnerPublicID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}

@@ -112,7 +112,7 @@ func (h *WSHub) SendContainerStatus(userID int64, containerID string, status str
 
 // HandleWebSocket handles WebSocket connections
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	internalID, userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -125,7 +125,7 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hub := GetHub()
-	hub.Register(userID, conn)
+	hub.Register(internalID, conn)
 
 	// Send initial container list
 	containers, err := h.db.ListContainersByUser(userID)
@@ -168,12 +168,12 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-done:
-			hub.Unregister(userID, conn)
+			hub.Unregister(internalID, conn)
 			conn.Close()
 			return
 		case <-ticker.C:
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				hub.Unregister(userID, conn)
+				hub.Unregister(internalID, conn)
 				conn.Close()
 				return
 			}

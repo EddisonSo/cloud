@@ -8,22 +8,23 @@ import (
 )
 
 type Container struct {
-	ID           string
-	UserID       int64
-	Owner        string // Username of the owner
-	Name         string
-	Namespace    string
-	Status       string
-	ExternalIP   sql.NullString
-	MemoryMB     int
-	StorageGB    int
-	Image        string
-	InstanceType string   // nano/micro/mini (arm64) or tiny/small/medium (amd64)
-	MountPaths   []string // directories to persist
-	CreatedAt    time.Time
-	StoppedAt    sql.NullTime
-	SSHEnabled   bool
-	HTTPSEnabled bool
+	ID            string
+	UserID        int64
+	Owner         string // Username of the owner
+	OwnerPublicID string // nanoid of the owner for ownership queries
+	Name          string
+	Namespace     string
+	Status        string
+	ExternalIP    sql.NullString
+	MemoryMB      int
+	StorageGB     int
+	Image         string
+	InstanceType  string   // nano/micro/mini (arm64) or tiny/small/medium (amd64)
+	MountPaths    []string // directories to persist
+	CreatedAt     time.Time
+	StoppedAt     sql.NullTime
+	SSHEnabled    bool
+	HTTPSEnabled  bool
 }
 
 func (db *DB) CreateContainer(c *Container) error {
@@ -34,9 +35,9 @@ func (db *DB) CreateContainer(c *Container) error {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled, mount_paths)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled, string(mountPathsJSON),
+		INSERT INTO containers (id, user_id, owner_username, owner_public_id, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled, mount_paths)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		c.ID, c.UserID, c.Owner, c.OwnerPublicID, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled, string(mountPathsJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("insert container: %w", err)
@@ -48,11 +49,11 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 	c := &Container{}
 	var mountPathsJSON string
 	err := db.QueryRow(`
-		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
+		SELECT id, user_id, COALESCE(owner_public_id, ''), name, namespace, status, external_ip, memory_mb, storage_gb, image,
 		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
 		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
 		FROM containers WHERE id = $1`, id,
-	).Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
+	).Scan(&c.ID, &c.UserID, &c.OwnerPublicID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
 		&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -66,12 +67,12 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 	return c, nil
 }
 
-func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
+func (db *DB) ListContainersByUser(ownerPublicID string) ([]*Container, error) {
 	rows, err := db.Query(`
-		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
+		SELECT id, user_id, COALESCE(owner_public_id, ''), name, namespace, status, external_ip, memory_mb, storage_gb, image,
 		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
 		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
-		FROM containers WHERE user_id = $1 ORDER BY created_at DESC`, userID,
+		FROM containers WHERE owner_public_id = $1 ORDER BY created_at DESC`, ownerPublicID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query containers: %w", err)
@@ -82,7 +83,7 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 	for rows.Next() {
 		c := &Container{}
 		var mountPathsJSON string
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
+		if err := rows.Scan(&c.ID, &c.UserID, &c.OwnerPublicID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
 			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
 		}
@@ -96,7 +97,7 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 
 func (db *DB) ListAllContainers() ([]*Container, error) {
 	rows, err := db.Query(`
-		SELECT id, user_id, COALESCE(owner_username, ''), name, namespace, status, external_ip,
+		SELECT id, user_id, COALESCE(owner_username, ''), COALESCE(owner_public_id, ''), name, namespace, status, external_ip,
 		       memory_mb, storage_gb, image, COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'),
 		       created_at, stopped_at, COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
 		FROM containers
@@ -111,7 +112,7 @@ func (db *DB) ListAllContainers() ([]*Container, error) {
 	for rows.Next() {
 		c := &Container{}
 		var mountPathsJSON string
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Owner, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Owner, &c.OwnerPublicID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
 			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
 		}
@@ -155,9 +156,9 @@ func (db *DB) DeleteContainer(id string) error {
 	return nil
 }
 
-func (db *DB) CountContainersByUser(userID int64) (int, error) {
+func (db *DB) CountContainersByUser(ownerPublicID string) (int, error) {
 	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM containers WHERE user_id = $1 AND status != 'deleted'`, userID).Scan(&count)
+	err := db.QueryRow(`SELECT COUNT(*) FROM containers WHERE owner_public_id = $1 AND status != 'deleted'`, ownerPublicID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count containers: %w", err)
 	}
