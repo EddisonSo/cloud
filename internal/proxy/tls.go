@@ -135,14 +135,6 @@ func (s *Server) handleTLSTermination(rawConn net.Conn, header, payload []byte, 
 
 // handleContainerTLSTermination terminates TLS for container domains and routes to the container.
 func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload []byte, sni string, ingressPort int, clientAddr string) {
-	// Check for ingress rule BEFORE TLS handshake - refuse connection if no rule exists
-	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
-	if err != nil {
-		slog.Warn("no ingress rule for container port, refusing TLS", "sni", sni, "port", ingressPort, "error", err)
-		rawConn.Close()
-		return
-	}
-
 	// Create a connection that replays the already-read ClientHello
 	replayConn := &replayConn{
 		Conn:   rawConn,
@@ -158,6 +150,15 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	}
 
 	slog.Info("TLS terminated for container", "sni", sni, "port", ingressPort, "client", clientAddr)
+
+	// Check for ingress rule after TLS handshake - return HTTP error if no rule
+	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
+	if err != nil {
+		slog.Warn("no ingress rule for container port", "sni", sni, "port", ingressPort, "error", err)
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo ingress rule configured for this port\r\n"))
+		tlsConn.Close()
+		return
+	}
 
 	backendAddr := fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
 	slog.Info("container TLS terminated, routing to backend", "sni", sni, "port", ingressPort, "target", backendAddr)
