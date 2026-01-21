@@ -263,7 +263,7 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "storage",
-							MountPath: "/home/dev",
+							MountPath: "/root",
 						},
 						{
 							Name:      "ssh-keys",
@@ -522,7 +522,7 @@ func (c *Client) GetResourceUsage(ctx context.Context, namespace string) (*Resou
 	}
 
 	// Get disk usage by exec'ing df command
-	cmd := []string{"/bin/sh", "-c", "df -B1 /home/dev 2>/dev/null | tail -1 | awk '{print $3}'"}
+	cmd := []string{"/bin/sh", "-c", "df -B1 /root 2>/dev/null | tail -1 | awk '{print $3}'"}
 	req := c.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name("container").
