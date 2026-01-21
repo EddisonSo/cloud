@@ -56,8 +56,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := JWTClaims{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		UserID:      user.ID,
-		PublicID:    user.PublicID,
+		UserID:      user.PublicID, // nanoid
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -95,13 +94,6 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.validateToken(r)
-	if ok && h.publisher != nil {
-		// Publish session invalidated event
-		token := h.extractToken(r)
-		h.publisher.PublishSessionInvalidated(token, claims.UserID)
-	}
-
 	// With JWT, logout is handled client-side by removing the token
 	writeJSON(w, map[string]string{"status": "ok"})
 }
@@ -116,7 +108,7 @@ func (h *Handler) handleSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sessionResponse{
 		Username:    claims.Username,
 		DisplayName: claims.DisplayName,
-		UserID:      claims.PublicID,
+		UserID:      claims.UserID,
 		IsAdmin:     h.isAdmin(claims.Username),
 	})
 }
