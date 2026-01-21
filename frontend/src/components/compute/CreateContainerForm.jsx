@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { X, Plus, Trash2 } from "lucide-react";
 
 export function CreateContainerForm({
@@ -117,18 +117,18 @@ export function CreateContainerForm({
 
           <div className="space-y-2">
             <Label htmlFor="c-instance-type">Instance Type</Label>
-            <Select value={instanceType} onValueChange={setInstanceType}>
-              <SelectTrigger id="c-instance-type" className="w-full">
-                <SelectValue placeholder="Select instance type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nano">Nano (ARM64, 0.5 CPU)</SelectItem>
-                <SelectItem value="micro">Micro (ARM64, 1 CPU)</SelectItem>
-                <SelectItem value="mini">Mini (ARM64, 2 CPU)</SelectItem>
-                <SelectItem value="tiny">Tiny (AMD64, 1 CPU)</SelectItem>
-                <SelectItem value="small">Small (AMD64, 2 CPU)</SelectItem>
-                <SelectItem value="medium">Medium (AMD64, 4 CPU)</SelectItem>
-              </SelectContent>
+            <Select
+              id="c-instance-type"
+              value={instanceType}
+              onChange={(e) => setInstanceType(e.target.value)}
+              className="w-full"
+            >
+              <option value="nano">Nano (ARM64, 0.5 CPU)</option>
+              <option value="micro">Micro (ARM64, 1 CPU)</option>
+              <option value="mini">Mini (ARM64, 2 CPU)</option>
+              <option value="tiny">Tiny (AMD64, 1 CPU)</option>
+              <option value="small">Small (AMD64, 2 CPU)</option>
+              <option value="medium">Medium (AMD64, 4 CPU)</option>
             </Select>
           </div>
 
