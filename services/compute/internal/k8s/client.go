@@ -228,7 +228,7 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 }
 
 // CreatePod creates the container pod
-func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int) error {
+func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string) error {
 	defaultMode := int32(0600)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -241,6 +241,7 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 		Spec: corev1.PodSpec{
 			NodeSelector: map[string]string{
 				"compute-schedulable": "true",
+				"kubernetes.io/arch":  arch,
 			},
 			Containers: []corev1.Container{
 				{

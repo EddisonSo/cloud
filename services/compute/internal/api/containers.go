@@ -24,6 +24,7 @@ type containerRequest struct {
 	Name       string  `json:"name"`
 	MemoryMB   int     `json:"memory_mb"`
 	StorageGB  int     `json:"storage_gb"`
+	Arch       string  `json:"arch"` // arm64 or amd64
 	SSHKeyIDs  []int64 `json:"ssh_key_ids"`
 	SSHEnabled bool    `json:"ssh_enabled"`
 }
@@ -38,6 +39,7 @@ type containerResponse struct {
 	MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
 	StorageGB     int      `json:"storage_gb"`
 	StorageUsedGB *float64 `json:"storage_used_gb,omitempty"`
+	Arch          string   `json:"arch"`
 	CreatedAt     string   `json:"created_at"`
 	SSHEnabled    bool     `json:"ssh_enabled"`
 	HTTPSEnabled  bool     `json:"https_enabled"`
@@ -136,6 +138,16 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		storageGB = defaultStorageGB
 	}
 
+	// Validate and set architecture (default to arm64)
+	arch := req.Arch
+	if arch == "" {
+		arch = "arm64"
+	}
+	if arch != "arm64" && arch != "amd64" {
+		writeError(w, "arch must be 'arm64' or 'amd64'", http.StatusBadRequest)
+		return
+	}
+
 	// Generate container ID and namespace
 	containerID := uuid.New().String()[:8]
 	namespace := fmt.Sprintf("compute-%d-%s", userID, containerID)
@@ -151,6 +163,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		MemoryMB:   memoryMB,
 		StorageGB:  storageGB,
 		Image:      defaultImage,
+		Arch:       arch,
 		SSHEnabled: req.SSHEnabled,
 	}
 
@@ -219,7 +232,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 	}
 
 	// Create Pod
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, container.Arch); err != nil {
 		slog.Error("failed to create pod", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
 		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
@@ -461,7 +474,7 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, container.Arch); err != nil {
 		slog.Error("failed to create pod", "error", err)
 		writeError(w, "failed to start container", http.StatusInternalServerError)
 		return
@@ -496,6 +509,7 @@ func containerToResponse(c *db.Container) containerResponse {
 		Hostname:     hostname,
 		MemoryMB:     c.MemoryMB,
 		StorageGB:    c.StorageGB,
+		Arch:         c.Arch,
 		CreatedAt:    c.CreatedAt.Format(time.RFC3339),
 		SSHEnabled:   c.SSHEnabled,
 		HTTPSEnabled: c.HTTPSEnabled,

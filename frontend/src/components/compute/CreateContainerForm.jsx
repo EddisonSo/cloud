@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Plus, Trash2 } from "lucide-react";
 
 export function CreateContainerForm({
@@ -15,6 +16,7 @@ export function CreateContainerForm({
   const [name, setName] = useState("");
   const [memoryMb, setMemoryMb] = useState(512);
   const [storageGb, setStorageGb] = useState(5);
+  const [arch, setArch] = useState("arm64");
   const [selectedKeyIds, setSelectedKeyIds] = useState([]);
   const [enableSsh, setEnableSsh] = useState(true);
   const [ingressRules, setIngressRules] = useState([]);
@@ -37,6 +39,7 @@ export function CreateContainerForm({
       name: name.trim(),
       memory_mb: memoryMb,
       storage_gb: storageGb,
+      arch: arch,
       ssh_key_ids: selectedKeyIds,
       enable_ssh: enableSsh,
       ingress_rules: ingressRules,
@@ -110,6 +113,19 @@ export function CreateContainerForm({
                 max={100}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="c-arch">CPU Architecture</Label>
+            <Select value={arch} onValueChange={setArch}>
+              <SelectTrigger id="c-arch" className="w-full">
+                <SelectValue placeholder="Select architecture" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="arm64">ARM64 (Raspberry Pi)</SelectItem>
+                <SelectItem value="amd64">AMD64 (x86-64)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

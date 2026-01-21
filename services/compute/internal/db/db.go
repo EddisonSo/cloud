@@ -74,6 +74,8 @@ func (db *DB) migrate() error {
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS https_enabled BOOLEAN DEFAULT false`,
 		// Database separation: store owner_username to avoid cross-DB JOINs
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_username TEXT NOT NULL DEFAULT ''`,
+		// CPU architecture selection (arm64 or amd64)
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS arch TEXT NOT NULL DEFAULT 'arm64'`,
 	}
 
 	for _, m := range migrations {
