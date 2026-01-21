@@ -40,6 +40,10 @@ export function buildApiBase() {
   return `${window.location.protocol}//${resolveApiHost()}`;
 }
 
+export function buildAuthBase() {
+  return buildServiceBase("auth");
+}
+
 export function buildServiceBase(service) {
   return `${window.location.protocol}//${resolveServiceHost(service)}`;
 }

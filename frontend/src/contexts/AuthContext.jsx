@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { buildApiBase, getAuthToken, setAuthToken, clearAuthToken } from "@/lib/api";
+import { buildAuthBase, getAuthToken, setAuthToken, clearAuthToken } from "@/lib/api";
 import { clearAllCaches } from "@/lib/cache";
 
 const AuthContext = createContext();
@@ -55,7 +55,7 @@ export function AuthProvider({ children }) {
 
     // Then verify with server in background (for is_admin and fresh data)
     try {
-      const response = await fetch(`${buildApiBase()}/api/session`, {
+      const response = await fetch(`${buildAuthBase()}/api/session`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.status === 401) {
@@ -84,7 +84,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (username, password) => {
-    const response = await fetch(`${buildApiBase()}/api/login`, {
+    const response = await fetch(`${buildAuthBase()}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -106,7 +106,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     const token = getAuthToken();
     try {
-      await fetch(`${buildApiBase()}/api/logout`, {
+      await fetch(`${buildAuthBase()}/api/logout`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
