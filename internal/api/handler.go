@@ -60,6 +60,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      int64  `json:"user_id"`
+	PublicID    string `json:"public_id"`
 	jwt.RegisteredClaims
 }
 

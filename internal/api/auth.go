@@ -18,7 +18,7 @@ type loginRequest struct {
 type sessionResponse struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
-	UserID      int64  `json:"user_id"`
+	UserID      string `json:"user_id"` // public_id (nanoid)
 	IsAdmin     bool   `json:"is_admin"`
 	Token       string `json:"token,omitempty"`
 }
@@ -57,6 +57,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		UserID:      user.ID,
+		PublicID:    user.PublicID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -87,7 +88,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sessionResponse{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		UserID:      user.ID,
+		UserID:      user.PublicID,
 		IsAdmin:     h.isAdmin(user.Username),
 		Token:       tokenString,
 	})
@@ -115,7 +116,7 @@ func (h *Handler) handleSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sessionResponse{
 		Username:    claims.Username,
 		DisplayName: claims.DisplayName,
-		UserID:      claims.UserID,
+		UserID:      claims.PublicID,
 		IsAdmin:     h.isAdmin(claims.Username),
 	})
 }
