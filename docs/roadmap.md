@@ -39,7 +39,7 @@ flowchart TB
 - [ ] **Container networking** - Private networks between user containers
 - [ ] **Persistent volumes** - User-attached storage volumes
 - [ ] **True VMs** - Full virtual machines via Type 1 hypervisor (KVM) for stronger isolation
-- [ ] **Multi-architecture support** - Provision compute on different architectures (amd64, arm64)
+- [x] **Multi-architecture support** - Provision compute on different architectures (amd64, arm64)
 
 ## Infrastructure
 
@@ -61,3 +61,4 @@ flowchart TB
 
 - [ ] **Message Queue** - Pub/sub messaging for async communication between services
 - [ ] **Datastore** - NoSQL database for flexible document/key-value storage
+- [ ] **Image Artifactory** - Container image registry for storing and distributing user container images
