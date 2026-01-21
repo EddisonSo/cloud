@@ -239,6 +239,9 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 			},
 		},
 		Spec: corev1.PodSpec{
+			NodeSelector: map[string]string{
+				"compute-schedulable": "true",
+			},
 			Containers: []corev1.Container{
 				{
 					Name:  "main",
