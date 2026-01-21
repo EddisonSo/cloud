@@ -227,9 +227,33 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 	return nil
 }
 
-// CreatePod creates the container pod
-func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string) error {
+// CreatePod creates the container pod with user-specified mount paths
+func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string, mountPaths []string) error {
 	defaultMode := int32(0600)
+
+	// Build volume mounts for each user-specified path using subpaths
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "ssh-keys",
+			MountPath: "/etc/ssh/keys",
+			ReadOnly:  true,
+		},
+	}
+	for i, path := range mountPaths {
+		// Use subPath to isolate each mount within the PVC
+		// e.g., /root -> subPath "root", /var/data -> subPath "var-data"
+		subPath := strings.TrimPrefix(path, "/")
+		subPath = strings.ReplaceAll(subPath, "/", "-")
+		if subPath == "" {
+			subPath = fmt.Sprintf("mount-%d", i)
+		}
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "storage",
+			MountPath: path,
+			SubPath:   subPath,
+		})
+	}
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "container",
@@ -260,17 +284,7 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 					Ports: []corev1.ContainerPort{
 						{ContainerPort: 22, Name: "ssh"},
 					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "storage",
-							MountPath: "/root",
-						},
-						{
-							Name:      "ssh-keys",
-							MountPath: "/etc/ssh/keys",
-							ReadOnly:  true,
-						},
-					},
+					VolumeMounts: volumeMounts,
 				},
 			},
 			Volumes: []corev1.Volume{

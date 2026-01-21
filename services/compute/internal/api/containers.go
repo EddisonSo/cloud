@@ -21,12 +21,13 @@ const (
 )
 
 type containerRequest struct {
-	Name         string  `json:"name"`
-	MemoryMB     int     `json:"memory_mb"`
-	StorageGB    int     `json:"storage_gb"`
-	InstanceType string  `json:"instance_type"` // nano/micro/mini (arm64) or tiny/small/medium (amd64)
-	SSHKeyIDs    []int64 `json:"ssh_key_ids"`
-	SSHEnabled   bool    `json:"ssh_enabled"`
+	Name         string   `json:"name"`
+	MemoryMB     int      `json:"memory_mb"`
+	StorageGB    int      `json:"storage_gb"`
+	InstanceType string   `json:"instance_type"` // nano/micro/mini (arm64) or tiny/small/medium (amd64)
+	SSHKeyIDs    []int64  `json:"ssh_key_ids"`
+	SSHEnabled   bool     `json:"ssh_enabled"`
+	MountPaths   []string `json:"mount_paths"` // directories to persist (e.g., ["/root", "/var/data"])
 }
 
 type containerResponse struct {
@@ -166,6 +167,18 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate mount paths (default to /root)
+	mountPaths := req.MountPaths
+	if len(mountPaths) == 0 {
+		mountPaths = []string{"/root"}
+	}
+	for _, path := range mountPaths {
+		if !strings.HasPrefix(path, "/") {
+			writeError(w, "mount paths must be absolute (start with /)", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Generate container ID and namespace
 	containerID := uuid.New().String()[:8]
 	namespace := fmt.Sprintf("compute-%d-%s", userID, containerID)
@@ -182,6 +195,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		StorageGB:    storageGB,
 		Image:        defaultImage,
 		InstanceType: instanceType,
+		MountPaths:   mountPaths,
 		SSHEnabled:   req.SSHEnabled,
 	}
 
@@ -249,9 +263,9 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 		return
 	}
 
-	// Create Pod with instance type spec
+	// Create Pod with instance type spec and mount paths
 	spec := instanceTypes[container.InstanceType]
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
 		slog.Error("failed to create pod", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
 		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
@@ -494,7 +508,7 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	spec := instanceTypes[container.InstanceType]
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
 		slog.Error("failed to create pod", "error", err)
 		writeError(w, "failed to start container", http.StatusInternalServerError)
 		return

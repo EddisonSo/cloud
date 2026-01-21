@@ -76,6 +76,8 @@ func (db *DB) migrate() error {
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_username TEXT NOT NULL DEFAULT ''`,
 		// Instance type selection (nano/micro/mini for arm64, tiny/small/medium for amd64)
 		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS instance_type TEXT NOT NULL DEFAULT 'nano'`,
+		// Persistent mount paths (JSON array of absolute paths)
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS mount_paths TEXT NOT NULL DEFAULT '["/root"]'`,
 	}
 
 	for _, m := range migrations {

@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -17,7 +18,8 @@ type Container struct {
 	MemoryMB     int
 	StorageGB    int
 	Image        string
-	InstanceType string // nano/micro/mini (arm64) or tiny/small/medium (amd64)
+	InstanceType string   // nano/micro/mini (arm64) or tiny/small/medium (amd64)
+	MountPaths   []string // directories to persist
 	CreatedAt    time.Time
 	StoppedAt    sql.NullTime
 	SSHEnabled   bool
@@ -25,10 +27,16 @@ type Container struct {
 }
 
 func (db *DB) CreateContainer(c *Container) error {
-	_, err := db.Exec(`
-		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled,
+	// Serialize mount paths to JSON
+	mountPathsJSON, err := json.Marshal(c.MountPaths)
+	if err != nil {
+		return fmt.Errorf("marshal mount paths: %w", err)
+	}
+
+	_, err = db.Exec(`
+		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled, mount_paths)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled, string(mountPathsJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("insert container: %w", err)
@@ -38,18 +46,22 @@ func (db *DB) CreateContainer(c *Container) error {
 
 func (db *DB) GetContainer(id string) (*Container, error) {
 	c := &Container{}
+	var mountPathsJSON string
 	err := db.QueryRow(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
-		       COALESCE(instance_type, 'nano'), created_at, stopped_at,
+		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
 		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
 		FROM containers WHERE id = $1`, id,
 	).Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-		&c.InstanceType, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled)
+		&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query container: %w", err)
+	}
+	if err := json.Unmarshal([]byte(mountPathsJSON), &c.MountPaths); err != nil {
+		c.MountPaths = []string{"/root"} // fallback
 	}
 	return c, nil
 }
@@ -57,7 +69,7 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
-		       COALESCE(instance_type, 'nano'), created_at, stopped_at,
+		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
 		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
 		FROM containers WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
@@ -69,9 +81,13 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 	var containers []*Container
 	for rows.Next() {
 		c := &Container{}
+		var mountPathsJSON string
 		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-			&c.InstanceType, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
+			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
+		}
+		if err := json.Unmarshal([]byte(mountPathsJSON), &c.MountPaths); err != nil {
+			c.MountPaths = []string{"/root"}
 		}
 		containers = append(containers, c)
 	}
@@ -81,8 +97,8 @@ func (db *DB) ListContainersByUser(userID int64) ([]*Container, error) {
 func (db *DB) ListAllContainers() ([]*Container, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, COALESCE(owner_username, ''), name, namespace, status, external_ip,
-		       memory_mb, storage_gb, image, COALESCE(instance_type, 'nano'), created_at, stopped_at,
-		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
+		       memory_mb, storage_gb, image, COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'),
+		       created_at, stopped_at, COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
 		FROM containers
 		ORDER BY created_at DESC`,
 	)
@@ -94,9 +110,13 @@ func (db *DB) ListAllContainers() ([]*Container, error) {
 	var containers []*Container
 	for rows.Next() {
 		c := &Container{}
+		var mountPathsJSON string
 		if err := rows.Scan(&c.ID, &c.UserID, &c.Owner, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-			&c.InstanceType, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
+			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
+		}
+		if err := json.Unmarshal([]byte(mountPathsJSON), &c.MountPaths); err != nil {
+			c.MountPaths = []string{"/root"}
 		}
 		containers = append(containers, c)
 	}

@@ -22,6 +22,8 @@ export function CreateContainerForm({
   const [ingressRules, setIngressRules] = useState([]);
   const [newPort, setNewPort] = useState("");
   const [newTargetPort, setNewTargetPort] = useState("");
+  const [mountPaths, setMountPaths] = useState(["/root"]);
+  const [newMountPath, setNewMountPath] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
@@ -43,6 +45,7 @@ export function CreateContainerForm({
       ssh_key_ids: selectedKeyIds,
       enable_ssh: enableSsh,
       ingress_rules: ingressRules,
+      mount_paths: mountPaths,
     });
   };
 
@@ -69,6 +72,27 @@ export function CreateContainerForm({
 
   const handleRemoveRule = (port) => {
     setIngressRules((prev) => prev.filter((r) => r.port !== port));
+  };
+
+  const handleAddMountPath = (e) => {
+    e.preventDefault();
+    if (!newMountPath) return;
+    const path = newMountPath.trim();
+    if (!path.startsWith("/")) {
+      setError("Mount path must be absolute (start with /)");
+      return;
+    }
+    if (mountPaths.includes(path)) {
+      setError(`Path ${path} already added`);
+      return;
+    }
+    setMountPaths((prev) => [...prev, path]);
+    setNewMountPath("");
+    setError("");
+  };
+
+  const handleRemoveMountPath = (path) => {
+    setMountPaths((prev) => prev.filter((p) => p !== path));
   };
 
   return (
@@ -158,6 +182,54 @@ export function CreateContainerForm({
                       {key.fingerprint}
                     </span>
                   </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Persistent Storage */}
+          <div className="space-y-3">
+            <Label>Persistent Storage</Label>
+            <p className="text-xs text-muted-foreground">
+              Directories that persist across container restarts. Data outside these paths is lost on restart.
+            </p>
+
+            {/* Add Mount Path */}
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="/path/to/persist"
+                value={newMountPath}
+                onChange={(e) => setNewMountPath(e.target.value)}
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" size="sm" onClick={handleAddMountPath} disabled={!newMountPath}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </div>
+
+            {/* Mount Paths List */}
+            <div className="space-y-2">
+              {mountPaths.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-1">No persistent paths configured</p>
+              ) : (
+                mountPaths.map((path) => (
+                  <div
+                    key={path}
+                    className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                  >
+                    <span className="font-mono text-sm">{path}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleRemoveMountPath(path)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 ))
               )}
             </div>
