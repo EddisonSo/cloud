@@ -438,6 +438,8 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 		// - Public (2): show to everyone
 		if entry.Visibility == visibilityPrivate || entry.Visibility == visibilityVisible {
 			if !isLoggedIn || entry.OwnerID == nil || *entry.OwnerID != currentUserID {
+				log.Printf("DEBUG: filtering namespace %q: visibility=%d, isLoggedIn=%v, ownerID=%v, currentUserID=%d",
+					entry.Name, entry.Visibility, isLoggedIn, entry.OwnerID, currentUserID)
 				continue
 			}
 		}
