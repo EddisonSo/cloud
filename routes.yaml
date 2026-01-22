@@ -76,3 +76,28 @@ routes:
     path: /
     target: simple-file-share-frontend:80
     strip_prefix: false
+
+  # Service-specific subdomains
+  # Auth service
+  - host: auth.cloud.eddisonso.com
+    path: /
+    target: auth-service:80
+    strip_prefix: false
+
+  # Compute service
+  - host: compute.cloud.eddisonso.com
+    path: /
+    target: edd-compute:80
+    strip_prefix: false
+
+  # Storage service (simple-file-share)
+  - host: storage.cloud.eddisonso.com
+    path: /
+    target: simple-file-share-backend:80
+    strip_prefix: false
+
+  # Health/cluster monitoring service
+  - host: health.cloud.eddisonso.com
+    path: /
+    target: cluster-monitor:80
+    strip_prefix: false

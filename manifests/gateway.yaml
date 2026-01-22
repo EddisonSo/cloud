@@ -60,8 +60,6 @@ spec:
             - "18080"
             - -https-port
             - "8443"
-            - -fallback
-            - "192.168.3.150"
             - -log-service
             - log-service:50051
             - -tls-cert
