@@ -34,12 +34,12 @@ type ContainerStatusUpdate struct {
 // WSHub manages WebSocket connections per user
 type WSHub struct {
 	mu    sync.RWMutex
-	conns map[int64]map[*websocket.Conn]bool // userID -> connections
+	conns map[string]map[*websocket.Conn]bool // userID -> connections
 }
 
 // Global hub instance
 var hub = &WSHub{
-	conns: make(map[int64]map[*websocket.Conn]bool),
+	conns: make(map[string]map[*websocket.Conn]bool),
 }
 
 // GetHub returns the global WebSocket hub
@@ -48,7 +48,7 @@ func GetHub() *WSHub {
 }
 
 // Register adds a connection for a user
-func (h *WSHub) Register(userID int64, conn *websocket.Conn) {
+func (h *WSHub) Register(userID string, conn *websocket.Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -60,7 +60,7 @@ func (h *WSHub) Register(userID int64, conn *websocket.Conn) {
 }
 
 // Unregister removes a connection
-func (h *WSHub) Unregister(userID int64, conn *websocket.Conn) {
+func (h *WSHub) Unregister(userID string, conn *websocket.Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -74,7 +74,7 @@ func (h *WSHub) Unregister(userID int64, conn *websocket.Conn) {
 }
 
 // BroadcastToUser sends a message to all connections for a user
-func (h *WSHub) BroadcastToUser(userID int64, msg WSMessage) {
+func (h *WSHub) BroadcastToUser(userID string, msg WSMessage) {
 	h.mu.RLock()
 	conns := h.conns[userID]
 	h.mu.RUnlock()
@@ -99,7 +99,7 @@ func (h *WSHub) BroadcastToUser(userID int64, msg WSMessage) {
 }
 
 // SendContainerStatus broadcasts a container status update to a user
-func (h *WSHub) SendContainerStatus(userID int64, containerID string, status string, externalIP *string) {
+func (h *WSHub) SendContainerStatus(userID string, containerID string, status string, externalIP *string) {
 	h.BroadcastToUser(userID, WSMessage{
 		Type: "container_status",
 		Data: ContainerStatusUpdate{
@@ -112,7 +112,7 @@ func (h *WSHub) SendContainerStatus(userID int64, containerID string, status str
 
 // HandleWebSocket handles WebSocket connections
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	internalID, userID, _, ok := getUserFromContext(r.Context())
+	userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -125,7 +125,7 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hub := GetHub()
-	hub.Register(internalID, conn)
+	hub.Register(userID, conn)
 
 	// Send initial container list
 	containers, err := h.db.ListContainersByUser(userID)
@@ -168,12 +168,12 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-done:
-			hub.Unregister(internalID, conn)
+			hub.Unregister(userID, conn)
 			conn.Close()
 			return
 		case <-ticker.C:
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				hub.Unregister(internalID, conn)
+				hub.Unregister(userID, conn)
 				conn.Close()
 				return
 			}

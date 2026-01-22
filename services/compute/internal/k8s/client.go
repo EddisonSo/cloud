@@ -36,13 +36,13 @@ func NewClient() (*Client, error) {
 }
 
 // CreateNamespace creates a namespace for a container
-func (c *Client) CreateNamespace(ctx context.Context, name string, userID int64, containerID string) error {
+func (c *Client) CreateNamespace(ctx context.Context, name string, userID string, containerID string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
 				"edd-compute":  "true",
-				"user-id":      fmt.Sprintf("%d", userID),
+				"user-id":      userID,
 				"container-id": containerID,
 			},
 		},

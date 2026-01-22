@@ -29,7 +29,7 @@ type sshKeyResponse struct {
 }
 
 func (h *Handler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -51,7 +51,7 @@ func (h *Handler) ListSSHKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddSSHKey(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -112,7 +112,7 @@ func (h *Handler) AddSSHKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteSSHKey(w http.ResponseWriter, r *http.Request) {
-	userID, _, _, ok := getUserFromContext(r.Context())
+	userID, _, ok := getUserFromContext(r.Context())
 	if !ok {
 		writeError(w, "unauthorized", http.StatusUnauthorized)
 		return

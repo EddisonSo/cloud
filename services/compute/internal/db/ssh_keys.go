@@ -8,7 +8,7 @@ import (
 
 type SSHKey struct {
 	ID          int64
-	UserID      int64
+	UserID      string
 	Name        string
 	PublicKey   string
 	Fingerprint string
@@ -43,7 +43,7 @@ func (db *DB) GetSSHKey(id int64) (*SSHKey, error) {
 	return key, nil
 }
 
-func (db *DB) ListSSHKeysByUser(userID int64) ([]*SSHKey, error) {
+func (db *DB) ListSSHKeysByUser(userID string) ([]*SSHKey, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, name, public_key, fingerprint, created_at
 		FROM ssh_keys WHERE user_id = $1 ORDER BY created_at DESC`, userID,
@@ -64,7 +64,7 @@ func (db *DB) ListSSHKeysByUser(userID int64) ([]*SSHKey, error) {
 	return keys, nil
 }
 
-func (db *DB) GetSSHKeysByIDs(userID int64, ids []int64) ([]*SSHKey, error) {
+func (db *DB) GetSSHKeysByIDs(userID string, ids []int64) ([]*SSHKey, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -99,7 +99,7 @@ func (db *DB) GetSSHKeysByIDs(userID int64, ids []int64) ([]*SSHKey, error) {
 	return keys, nil
 }
 
-func (db *DB) DeleteSSHKey(id int64, userID int64) error {
+func (db *DB) DeleteSSHKey(id int64, userID string) error {
 	result, err := db.Exec(`DELETE FROM ssh_keys WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
 		return fmt.Errorf("delete ssh key: %w", err)
@@ -111,7 +111,7 @@ func (db *DB) DeleteSSHKey(id int64, userID int64) error {
 	return nil
 }
 
-func (db *DB) CountSSHKeysByUser(userID int64) (int, error) {
+func (db *DB) CountSSHKeysByUser(userID string) (int, error) {
 	var count int
 	err := db.QueryRow(`SELECT COUNT(*) FROM ssh_keys WHERE user_id = $1`, userID).Scan(&count)
 	if err != nil {

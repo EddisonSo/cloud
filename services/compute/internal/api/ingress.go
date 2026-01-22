@@ -21,7 +21,7 @@ type ingressResponse struct {
 }
 
 func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
-	_, userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership
@@ -30,7 +30,7 @@ func (h *Handler) ListIngressRules(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
-	if container.OwnerPublicID != userID {
+	if container.UserID != userID {
 		writeError(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -63,7 +63,7 @@ type addIngressRequest struct {
 }
 
 func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
-	_, userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership
@@ -72,7 +72,7 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
-	if container.OwnerPublicID != userID {
+	if container.UserID != userID {
 		writeError(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -138,7 +138,7 @@ func (h *Handler) AddIngressRule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveIngressRule(w http.ResponseWriter, r *http.Request) {
-	_, userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 	portStr := r.PathValue("port")
 
@@ -154,7 +154,7 @@ func (h *Handler) RemoveIngressRule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
-	if container.OwnerPublicID != userID {
+	if container.UserID != userID {
 		writeError(w, "forbidden", http.StatusForbidden)
 		return
 	}

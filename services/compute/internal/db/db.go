@@ -34,21 +34,11 @@ func Open(connStr string) (*DB, error) {
 	return db, nil
 }
 
-// GetUserIDByPublicID looks up the internal user ID from their public nanoid
-func (db *DB) GetUserIDByPublicID(publicID string) (int64, error) {
-	var userID int64
-	err := db.QueryRow(`SELECT id FROM users WHERE public_id = $1`, publicID).Scan(&userID)
-	if err != nil {
-		return 0, fmt.Errorf("lookup user by public_id: %w", err)
-	}
-	return userID, nil
-}
-
 func (db *DB) migrate() error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS containers (
 			id TEXT PRIMARY KEY,
-			user_id BIGINT NOT NULL,
+			user_id TEXT NOT NULL,
 			name TEXT NOT NULL,
 			namespace TEXT NOT NULL,
 			status TEXT DEFAULT 'pending',
@@ -57,11 +47,16 @@ func (db *DB) migrate() error {
 			storage_gb INTEGER DEFAULT 5,
 			image TEXT DEFAULT 'eddisonso/ecloud-compute-base:latest',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			stopped_at TIMESTAMP
+			stopped_at TIMESTAMP,
+			ssh_enabled BOOLEAN DEFAULT false,
+			https_enabled BOOLEAN DEFAULT false,
+			owner_username TEXT NOT NULL DEFAULT '',
+			instance_type TEXT NOT NULL DEFAULT 'nano',
+			mount_paths TEXT NOT NULL DEFAULT '["/root"]'
 		)`,
 		`CREATE TABLE IF NOT EXISTS ssh_keys (
 			id SERIAL PRIMARY KEY,
-			user_id BIGINT NOT NULL,
+			user_id TEXT NOT NULL,
 			name TEXT NOT NULL,
 			public_key TEXT NOT NULL,
 			fingerprint TEXT NOT NULL,
@@ -77,20 +72,7 @@ func (db *DB) migrate() error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(container_id, port)
 		)`,
-		`ALTER TABLE ingress_rules ADD COLUMN IF NOT EXISTS target_port INTEGER DEFAULT 80`,
 		`CREATE INDEX IF NOT EXISTS idx_ingress_rules_container_id ON ingress_rules(container_id)`,
-		// Protocol access through gateway (SSH and HTTPS only, no HTTP)
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS ssh_enabled BOOLEAN DEFAULT false`,
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS https_enabled BOOLEAN DEFAULT false`,
-		// Database separation: store owner_username to avoid cross-DB JOINs
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_username TEXT NOT NULL DEFAULT ''`,
-		// Instance type selection (nano/micro/mini for arm64, tiny/small/medium for amd64)
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS instance_type TEXT NOT NULL DEFAULT 'nano'`,
-		// Persistent mount paths (JSON array of absolute paths)
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS mount_paths TEXT NOT NULL DEFAULT '["/root"]'`,
-		// Owner public ID (nanoid) for ownership queries without cross-DB lookups
-		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS owner_public_id TEXT NOT NULL DEFAULT ''`,
-		`CREATE INDEX IF NOT EXISTS idx_containers_owner_public_id ON containers(owner_public_id)`,
 	}
 
 	for _, m := range migrations {

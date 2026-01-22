@@ -11,7 +11,7 @@ type sshAccessResponse struct {
 }
 
 func (h *Handler) GetSSHAccess(w http.ResponseWriter, r *http.Request) {
-	_, userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership
@@ -20,7 +20,7 @@ func (h *Handler) GetSSHAccess(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
-	if container.OwnerPublicID != userID {
+	if container.UserID != userID {
 		writeError(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -35,7 +35,7 @@ type updateSSHAccessRequest struct {
 }
 
 func (h *Handler) UpdateSSHAccess(w http.ResponseWriter, r *http.Request) {
-	_, userID, _, _ := getUserFromContext(r.Context())
+	userID, _, _ := getUserFromContext(r.Context())
 	containerID := r.PathValue("id")
 
 	// Verify container ownership
@@ -44,7 +44,7 @@ func (h *Handler) UpdateSSHAccess(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "container not found", http.StatusNotFound)
 		return
 	}
-	if container.OwnerPublicID != userID {
+	if container.UserID != userID {
 		writeError(w, "forbidden", http.StatusForbidden)
 		return
 	}

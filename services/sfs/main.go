@@ -91,12 +91,11 @@ const (
 )
 
 type namespaceInfo struct {
-	Name          string  `json:"name"`
-	Count         int     `json:"count"`
-	Hidden        bool    `json:"hidden"`               // Keep for backward compat
-	Visibility    int     `json:"visibility"`           // 0=private, 1=visible, 2=public
-	OwnerID       *int    `json:"-"`                    // Internal use only
-	OwnerPublicID *string `json:"owner_id,omitempty"`   // Public ID for API responses
+	Name       string  `json:"name"`
+	Count      int     `json:"count"`
+	Hidden     bool    `json:"hidden"`             // Keep for backward compat
+	Visibility int     `json:"visibility"`         // 0=private, 1=visible, 2=public
+	OwnerID    *string `json:"owner_id,omitempty"` // User ID (nanoid)
 }
 
 // getJWTSecret returns the JWT signing secret from environment variable
@@ -237,72 +236,29 @@ func normalizePrefix(prefix string) string {
 func initAuthDB(db *sql.DB, username string, password string) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
+			user_id TEXT PRIMARY KEY,
 			username TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL,
 			display_name TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id SERIAL PRIMARY KEY,
-			user_id INTEGER NOT NULL,
+			user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 			token TEXT NOT NULL UNIQUE,
 			expires_at BIGINT NOT NULL,
-			CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id)
+			created_at BIGINT NOT NULL DEFAULT 0,
+			ip_address TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS namespaces (
 			name TEXT PRIMARY KEY,
 			hidden INTEGER NOT NULL DEFAULT 0,
-			owner_id INTEGER REFERENCES users(id)
+			visibility INTEGER NOT NULL DEFAULT 2,
+			owner_id TEXT REFERENCES users(user_id) ON DELETE SET NULL
 		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
 			return err
-		}
-	}
-
-	// Migration: add display_name column if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`)
-
-	// Migration: add owner_id column to namespaces if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE namespaces ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)`)
-
-	// Migration: add created_at column to sessions if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`)
-
-	// Migration: add ip_address column to sessions if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT ''`)
-
-	// Migration: add visibility column to namespaces if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE namespaces ADD COLUMN IF NOT EXISTS visibility INTEGER NOT NULL DEFAULT 2`)
-
-	// Migration: migrate existing hidden values to visibility
-	// hidden=1 -> visibility=0 (private), hidden=0 -> visibility=2 (public)
-	_, _ = db.Exec(`UPDATE namespaces SET visibility = CASE WHEN hidden = 1 THEN 0 ELSE 2 END WHERE visibility = 2 AND hidden = 1`)
-
-	// Migration: add public_id column to users if it doesn't exist
-	_, _ = db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT UNIQUE`)
-
-	// Migration: generate public_id for existing users that don't have one
-	rows, err := db.Query(`SELECT id FROM users WHERE public_id IS NULL`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				continue
-			}
-			// Generate unique public_id with collision check
-			for i := 0; i < 10; i++ {
-				publicID, err := generateNanoID()
-				if err != nil {
-					break
-				}
-				_, err = db.Exec(`UPDATE users SET public_id = $1 WHERE id = $2`, publicID, id)
-				if err == nil {
-					break
-				}
-			}
 		}
 	}
 
@@ -315,16 +271,16 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		if err != nil {
 			return err
 		}
-		publicID, err := generateNanoID()
+		userID, err := generateNanoID()
 		if err != nil {
 			return err
 		}
 		if _, err := db.Exec(
-			`INSERT INTO users (username, password_hash, display_name, public_id) VALUES ($1, $2, $3, $4)`,
+			`INSERT INTO users (user_id, username, password_hash, display_name) VALUES ($1, $2, $3, $4)`,
+			userID,
 			username,
 			string(hash),
-			username, // Default display_name to username
-			publicID,
+			username,
 		); err != nil {
 			return err
 		}
@@ -422,7 +378,7 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	currentUserPublicID, isLoggedIn := s.currentUserPublicID(r)
+	currentUserID, isLoggedIn := s.currentUserID(r)
 	namespaceRows, err := s.loadAllNamespaces()
 	if err != nil {
 		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
@@ -437,7 +393,7 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 		// - Visible (1): only show to owner (not advertised, but accessible via URL)
 		// - Public (2): show to everyone
 		if entry.Visibility == visibilityPrivate || entry.Visibility == visibilityVisible {
-			if !isLoggedIn || entry.OwnerPublicID == nil || *entry.OwnerPublicID != currentUserPublicID {
+			if !isLoggedIn || entry.OwnerID == nil || *entry.OwnerID != currentUserID {
 				continue
 			}
 		}
@@ -502,7 +458,7 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set owner for namespace
-	var ownerID *int
+	var ownerID *string
 	if uid, ok := s.currentUserID(r); ok {
 		ownerID = &uid
 	}
@@ -1117,13 +1073,12 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		userID      int64
+		userID      string
 		hash        string
 		displayName string
-		publicID    string
 	)
-	err := s.db.QueryRow(`SELECT id, password_hash, COALESCE(display_name, username), COALESCE(public_id, '') FROM users WHERE username = $1`, payload.Username).
-		Scan(&userID, &hash, &displayName, &publicID)
+	err := s.db.QueryRow(`SELECT user_id, password_hash, COALESCE(display_name, username) FROM users WHERE username = $1`, payload.Username).
+		Scan(&userID, &hash, &displayName)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
@@ -1142,7 +1097,7 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := JWTClaims{
 		Username:    payload.Username,
 		DisplayName: displayName,
-		UserID:      publicID, // nanoid
+		UserID:      userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -1272,25 +1227,7 @@ func (s *server) currentUser(r *http.Request) (string, bool) {
 	return claims.Username, true
 }
 
-func (s *server) currentUserID(r *http.Request) (int, bool) {
-	token := s.sessionToken(r)
-	if token == "" {
-		return 0, false
-	}
-	claims, ok := s.parseJWT(token)
-	if !ok {
-		return 0, false
-	}
-	// Lookup internal DB ID from nanoid
-	var userID int
-	err := s.db.QueryRow(`SELECT id FROM users WHERE public_id = $1`, claims.UserID).Scan(&userID)
-	if err != nil {
-		return 0, false
-	}
-	return userID, true
-}
-
-func (s *server) currentUserPublicID(r *http.Request) (string, bool) {
+func (s *server) currentUserID(r *http.Request) (string, bool) {
 	token := s.sessionToken(r)
 	if token == "" {
 		return "", false
@@ -1299,7 +1236,7 @@ func (s *server) currentUserPublicID(r *http.Request) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return claims.UserID, true // UserID is now the nanoid
+	return claims.UserID, true
 }
 
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {
@@ -1375,9 +1312,8 @@ func (s *server) loadHiddenNamespaces() (map[string]bool, error) {
 
 func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 	rows, err := s.db.Query(`
-		SELECT n.name, n.hidden, n.visibility, n.owner_id, u.public_id
-		FROM namespaces n
-		LEFT JOIN users u ON n.owner_id = u.id
+		SELECT name, hidden, visibility, owner_id
+		FROM namespaces
 	`)
 	if err != nil {
 		return nil, err
@@ -1389,17 +1325,15 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 		var name string
 		var hiddenFlag int
 		var visibility int
-		var ownerID *int
-		var ownerPublicID *string
-		if err := rows.Scan(&name, &hiddenFlag, &visibility, &ownerID, &ownerPublicID); err != nil {
+		var ownerID *string
+		if err := rows.Scan(&name, &hiddenFlag, &visibility, &ownerID); err != nil {
 			return nil, err
 		}
 		namespaces = append(namespaces, namespaceInfo{
-			Name:          name,
-			Hidden:        visibility == visibilityPrivate, // Derive from visibility
-			Visibility:    visibility,
-			OwnerID:       ownerID,
-			OwnerPublicID: ownerPublicID,
+			Name:       name,
+			Hidden:     visibility == visibilityPrivate,
+			Visibility: visibility,
+			OwnerID:    ownerID,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -1408,7 +1342,7 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 	return namespaces, nil
 }
 
-func (s *server) upsertNamespace(name string, visibility int, ownerID *int) error {
+func (s *server) upsertNamespace(name string, visibility int, ownerID *string) error {
 	// Map visibility to hidden for backward compatibility
 	hiddenValue := 0
 	if visibility == visibilityPrivate {
@@ -1473,7 +1407,7 @@ func (s *server) namespaceExists(name string) (bool, error) {
 func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
 	// Get namespace info
 	var visibility int
-	var ownerID *int
+	var ownerID *string
 	err := s.db.QueryRow(
 		`SELECT visibility, owner_id FROM namespaces WHERE name = $1`,
 		namespace,
@@ -2007,7 +1941,7 @@ func (s *server) handleAdminNamespaces(w http.ResponseWriter, r *http.Request) {
 			Count:      count,
 			Hidden:     ns.Hidden,
 			Visibility: ns.Visibility,
-			OwnerID:    ns.OwnerPublicID,
+			OwnerID:    ns.OwnerID,
 		})
 	}
 
@@ -2035,14 +1969,13 @@ func (s *server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 type adminUser struct {
-	ID          int64  `json:"id"`
-	PublicID    string `json:"public_id"`
+	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 }
 
 func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(`SELECT id, COALESCE(public_id, ''), username, COALESCE(display_name, username) FROM users ORDER BY id`)
+	rows, err := s.db.Query(`SELECT user_id, username, COALESCE(display_name, username) FROM users ORDER BY username`)
 	if err != nil {
 		http.Error(w, "failed to list users", http.StatusInternalServerError)
 		return
@@ -2052,7 +1985,7 @@ func (s *server) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
 	users := make([]adminUser, 0)
 	for rows.Next() {
 		var u adminUser
-		if err := rows.Scan(&u.ID, &u.PublicID, &u.Username, &u.DisplayName); err != nil {
+		if err := rows.Scan(&u.UserID, &u.Username, &u.DisplayName); err != nil {
 			http.Error(w, "failed to scan user", http.StatusInternalServerError)
 			return
 		}
@@ -2095,22 +2028,21 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Generate public_id with collision check (retry up to 10 times)
-	var id int64
-	var publicID string
+	// Generate user_id with collision check (retry up to 10 times)
+	var userID string
 	for i := 0; i < 10; i++ {
-		publicID, err = generateNanoID()
+		userID, err = generateNanoID()
 		if err != nil {
-			http.Error(w, "failed to generate public id", http.StatusInternalServerError)
+			http.Error(w, "failed to generate user id", http.StatusInternalServerError)
 			return
 		}
-		err = s.db.QueryRow(
-			`INSERT INTO users (username, password_hash, display_name, public_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+		_, err = s.db.Exec(
+			`INSERT INTO users (user_id, username, password_hash, display_name) VALUES ($1, $2, $3, $4)`,
+			userID,
 			payload.Username,
 			string(hash),
 			payload.DisplayName,
-			publicID,
-		).Scan(&id)
+		)
 		if err == nil {
 			break
 		}
@@ -2118,36 +2050,30 @@ func (s *server) handleAdminUsersCreate(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "username already exists", http.StatusConflict)
 			return
 		}
-		// If public_id collision, retry
-		if !strings.Contains(err.Error(), "public_id") {
+		// If user_id collision, retry
+		if !strings.Contains(err.Error(), "user_id") {
 			http.Error(w, "failed to create user", http.StatusInternalServerError)
 			return
 		}
 	}
 	if err != nil {
-		http.Error(w, "failed to generate unique public id", http.StatusInternalServerError)
+		http.Error(w, "failed to generate unique user id", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, adminUser{ID: id, PublicID: publicID, Username: payload.Username, DisplayName: payload.DisplayName})
+	writeJSON(w, adminUser{UserID: userID, Username: payload.Username, DisplayName: payload.DisplayName})
 }
 
 func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
+	userID := r.URL.Query().Get("id")
+	if userID == "" {
 		http.Error(w, "id required", http.StatusBadRequest)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 
 	// Check if user exists and get username
 	var targetUsername string
-	err = s.db.QueryRow(`SELECT username FROM users WHERE id = $1`, id).Scan(&targetUsername)
+	err := s.db.QueryRow(`SELECT username FROM users WHERE user_id = $1`, userID).Scan(&targetUsername)
 	if err != nil {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
@@ -2160,14 +2086,8 @@ func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Delete user's sessions first
-	_, _ = s.db.Exec(`DELETE FROM sessions WHERE user_id = $1`, id)
-
-	// Clear ownership of user's namespaces (they become inaccessible)
-	_, _ = s.db.Exec(`UPDATE namespaces SET owner_id = NULL WHERE owner_id = $1`, id)
-
-	// Delete user
-	result, err := s.db.Exec(`DELETE FROM users WHERE id = $1`, id)
+	// Delete user (sessions and namespace ownership cleared via ON DELETE CASCADE/SET NULL)
+	result, err := s.db.Exec(`DELETE FROM users WHERE user_id = $1`, userID)
 	if err != nil {
 		http.Error(w, "failed to delete user", http.StatusInternalServerError)
 		return
@@ -2183,7 +2103,7 @@ func (s *server) handleAdminUsersDelete(w http.ResponseWriter, r *http.Request) 
 }
 
 type recentSession struct {
-	UserID      int64  `json:"user_id"`
+	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	CreatedAt   int64  `json:"created_at"`
@@ -2208,7 +2128,7 @@ func (s *server) handleAdminSessions(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.db.Query(`
 		SELECT DISTINCT ON (s.user_id, s.ip_address) s.user_id, u.username, COALESCE(u.display_name, u.username), s.created_at, COALESCE(s.ip_address, '')
 		FROM sessions s
-		JOIN users u ON s.user_id = u.id
+		JOIN users u ON s.user_id = u.user_id
 		WHERE s.expires_at > $1
 		ORDER BY s.user_id, s.ip_address, s.created_at DESC
 	`, now)
