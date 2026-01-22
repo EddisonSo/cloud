@@ -200,7 +200,7 @@ export function AdminPage() {
               </div>
               {users.map((u) => (
                 <div
-                  key={u.id}
+                  key={u.user_id}
                   className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
                 >
                   <div className="flex justify-between sm:block sm:text-center">
@@ -213,14 +213,14 @@ export function AdminPage() {
                   </div>
                   <div className="flex justify-between sm:justify-center">
                     <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
-                    <CopyableText text={u.public_id || String(u.id)} mono />
+                    <CopyableText text={u.user_id} mono />
                   </div>
                   <div className="flex justify-center">
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteUser(u.id)}
+                      onClick={() => handleDeleteUser(u.user_id)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
