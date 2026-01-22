@@ -31,6 +31,7 @@ flowchart TB
 - [ ] **Tiered storage** - Hot/cold data separation
 - [ ] **Storage load balancing** - Distribute chunks based on capacity, I/O load, memory, and CPU heuristics
 - [ ] **Programmatic API** - Upload and download files via REST API for external integrations
+- [ ] **Chunkserver advertise-host flag** - Separate bind address from advertise address to enable Kubernetes deployments without hostNetwork
 
 ## Compute Improvements
 
@@ -43,8 +44,8 @@ flowchart TB
 
 ## Infrastructure
 
-- [ ] **Migrate control plane to s0** - Move K3s server from rp1 (arm64, 8GB, flash) to s0 (amd64, 16GB, SSD)
-- [ ] **Multi-master HA** - Add redundant control plane for high availability
+- [x] **Migrate control plane to s1/s2/s3** - HA control plane with embedded etcd on amd64 nodes
+- [x] **Multi-master HA** - 3-node control plane for high availability
 
 ## Monitoring
 
