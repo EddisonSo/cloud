@@ -101,3 +101,14 @@ routes:
     path: /
     target: cluster-monitor:80
     strip_prefix: false
+
+  # Log service endpoints on health subdomain
+  - host: health.cloud.eddisonso.com
+    path: /sse/logs
+    target: log-service:80
+    strip_prefix: false
+
+  - host: health.cloud.eddisonso.com
+    path: /ws/logs
+    target: log-service:80
+    strip_prefix: false
