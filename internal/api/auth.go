@@ -56,7 +56,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	claims := JWTClaims{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		UserID:      user.PublicID, // nanoid
+		UserID:      user.UserID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -73,7 +73,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Store session in database
 	clientIP := h.getClientIP(r)
-	session, err := h.db.CreateSession(user.ID, tokenString, expires, clientIP)
+	session, err := h.db.CreateSession(user.UserID, tokenString, expires, clientIP)
 	if err != nil {
 		writeError(w, "failed to create session", http.StatusInternalServerError)
 		return
@@ -81,13 +81,13 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Publish session created event
 	if h.publisher != nil {
-		h.publisher.PublishSessionCreated(session.ID, user.ID, expires)
+		h.publisher.PublishSessionCreated(session.ID, user.UserID, expires)
 	}
 
 	writeJSON(w, sessionResponse{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		UserID:      user.PublicID,
+		UserID:      user.UserID,
 		IsAdmin:     h.isAdmin(user.Username),
 		Token:       tokenString,
 	})

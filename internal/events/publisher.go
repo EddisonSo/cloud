@@ -92,14 +92,13 @@ func (p *Publisher) publish(subject string, event interface{}) error {
 	return nil
 }
 
-func (p *Publisher) PublishUserCreated(userID int64, username, displayName, publicID string) error {
-	subject := fmt.Sprintf("auth.user.%d.created", userID)
+func (p *Publisher) PublishUserCreated(userID, username, displayName string) error {
+	subject := fmt.Sprintf("auth.user.%s.created", userID)
 	event := UserCreated{
-		Metadata:    p.newMetadata(fmt.Sprintf("%d", userID)),
+		Metadata:    p.newMetadata(userID),
 		UserID:      userID,
 		Username:    username,
 		DisplayName: displayName,
-		PublicID:    publicID,
 	}
 	if err := p.publish(subject, event); err != nil {
 		slog.Error("failed to publish user.created", "error", err, "user_id", userID)
@@ -109,10 +108,10 @@ func (p *Publisher) PublishUserCreated(userID int64, username, displayName, publ
 	return nil
 }
 
-func (p *Publisher) PublishUserDeleted(userID int64, username string) error {
-	subject := fmt.Sprintf("auth.user.%d.deleted", userID)
+func (p *Publisher) PublishUserDeleted(userID, username string) error {
+	subject := fmt.Sprintf("auth.user.%s.deleted", userID)
 	event := UserDeleted{
-		Metadata: p.newMetadata(fmt.Sprintf("%d", userID)),
+		Metadata: p.newMetadata(userID),
 		UserID:   userID,
 		Username: username,
 	}
@@ -124,10 +123,10 @@ func (p *Publisher) PublishUserDeleted(userID int64, username string) error {
 	return nil
 }
 
-func (p *Publisher) PublishUserUpdated(userID int64, username, displayName string) error {
-	subject := fmt.Sprintf("auth.user.%d.updated", userID)
+func (p *Publisher) PublishUserUpdated(userID, username, displayName string) error {
+	subject := fmt.Sprintf("auth.user.%s.updated", userID)
 	event := UserUpdated{
-		Metadata:    p.newMetadata(fmt.Sprintf("%d", userID)),
+		Metadata:    p.newMetadata(userID),
 		UserID:      userID,
 		Username:    username,
 		DisplayName: displayName,
@@ -140,7 +139,7 @@ func (p *Publisher) PublishUserUpdated(userID int64, username, displayName strin
 	return nil
 }
 
-func (p *Publisher) PublishSessionCreated(sessionID, userID int64, expiresAt time.Time) error {
+func (p *Publisher) PublishSessionCreated(sessionID int64, userID string, expiresAt time.Time) error {
 	subject := fmt.Sprintf("auth.session.%d.created", sessionID)
 	event := SessionCreated{
 		Metadata:  p.newMetadata(fmt.Sprintf("%d", sessionID)),
@@ -156,8 +155,8 @@ func (p *Publisher) PublishSessionCreated(sessionID, userID int64, expiresAt tim
 	return nil
 }
 
-func (p *Publisher) PublishSessionInvalidated(sessionToken string, userID int64) error {
-	subject := fmt.Sprintf("auth.session.%d.invalidated", userID)
+func (p *Publisher) PublishSessionInvalidated(sessionToken, userID string) error {
+	subject := fmt.Sprintf("auth.session.%s.invalidated", userID)
 	event := SessionInvalidated{
 		Metadata:  p.newMetadata(sessionToken),
 		SessionID: sessionToken,

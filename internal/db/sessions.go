@@ -7,7 +7,7 @@ import (
 
 type Session struct {
 	ID        int64
-	UserID    int64
+	UserID    string
 	Token     string
 	ExpiresAt int64
 	CreatedAt int64
@@ -20,7 +20,7 @@ type SessionWithUser struct {
 	DisplayName string
 }
 
-func (db *DB) CreateSession(userID int64, token string, expiresAt time.Time, ipAddress string) (*Session, error) {
+func (db *DB) CreateSession(userID string, token string, expiresAt time.Time, ipAddress string) (*Session, error) {
 	now := time.Now().Unix()
 
 	// Delete existing session for same user+IP
@@ -66,7 +66,7 @@ func (db *DB) DeleteSession(token string) error {
 	return nil
 }
 
-func (db *DB) DeleteUserSessions(userID int64) error {
+func (db *DB) DeleteUserSessions(userID string) error {
 	_, err := db.Exec(`DELETE FROM sessions WHERE user_id = $1`, userID)
 	if err != nil {
 		return fmt.Errorf("delete user sessions: %w", err)
@@ -81,7 +81,7 @@ func (db *DB) ListActiveSessions() ([]*SessionWithUser, error) {
 			s.id, s.user_id, s.token, s.expires_at, s.created_at, COALESCE(s.ip_address, ''),
 			u.username, COALESCE(u.display_name, u.username)
 		FROM sessions s
-		JOIN users u ON s.user_id = u.id
+		JOIN users u ON s.user_id = u.user_id
 		WHERE s.expires_at > $1
 		ORDER BY s.user_id, s.ip_address, s.created_at DESC
 	`, now)

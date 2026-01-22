@@ -15,23 +15,22 @@ type EventMetadata struct {
 // UserCreated event - published when a new user registers
 type UserCreated struct {
 	Metadata    EventMetadata `json:"metadata"`
-	UserID      int64         `json:"user_id"`
+	UserID      string        `json:"user_id"`
 	Username    string        `json:"username"`
 	DisplayName string        `json:"display_name"`
-	PublicID    string        `json:"public_id"`
 }
 
 // UserDeleted event - published when a user is deleted
 type UserDeleted struct {
 	Metadata EventMetadata `json:"metadata"`
-	UserID   int64         `json:"user_id"`
+	UserID   string        `json:"user_id"`
 	Username string        `json:"username"`
 }
 
 // UserUpdated event - published when user profile is updated
 type UserUpdated struct {
 	Metadata    EventMetadata `json:"metadata"`
-	UserID      int64         `json:"user_id"`
+	UserID      string        `json:"user_id"`
 	Username    string        `json:"username"`
 	DisplayName string        `json:"display_name"`
 }
@@ -40,7 +39,7 @@ type UserUpdated struct {
 type SessionCreated struct {
 	Metadata  EventMetadata `json:"metadata"`
 	SessionID string        `json:"session_id"`
-	UserID    int64         `json:"user_id"`
+	UserID    string        `json:"user_id"`
 	ExpiresAt int64         `json:"expires_at"`
 }
 
@@ -48,5 +47,5 @@ type SessionCreated struct {
 type SessionInvalidated struct {
 	Metadata  EventMetadata `json:"metadata"`
 	SessionID string        `json:"session_id"`
-	UserID    int64         `json:"user_id"`
+	UserID    string        `json:"user_id"`
 }

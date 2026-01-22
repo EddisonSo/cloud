@@ -50,16 +50,15 @@ func Open(connStr string) (*DB, error) {
 func (db *DB) migrate() error {
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
+			user_id TEXT PRIMARY KEY,
 			username TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL,
 			display_name TEXT NOT NULL DEFAULT '',
-			public_id TEXT UNIQUE,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id SERIAL PRIMARY KEY,
-			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 			token TEXT NOT NULL UNIQUE,
 			expires_at BIGINT NOT NULL,
 			created_at BIGINT NOT NULL DEFAULT 0,
@@ -68,7 +67,6 @@ func (db *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
-		`CREATE INDEX IF NOT EXISTS idx_users_public_id ON users(public_id)`,
 	}
 
 	for _, m := range migrations {
@@ -82,17 +80,17 @@ func (db *DB) migrate() error {
 
 // InitDefaultUser creates the default admin user if it doesn't exist
 func (db *DB) InitDefaultUser(username, passwordHash string) error {
-	// Generate public_id for default user
-	publicID, err := GenerateNanoID()
+	// Generate user_id for default user
+	userID, err := GenerateNanoID()
 	if err != nil {
-		return fmt.Errorf("generate public_id: %w", err)
+		return fmt.Errorf("generate user_id: %w", err)
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO users (username, password_hash, display_name, public_id)
-		VALUES ($1, $2, $1, $3)
+		INSERT INTO users (user_id, username, password_hash, display_name)
+		VALUES ($1, $2, $3, $2)
 		ON CONFLICT (username) DO NOTHING
-	`, username, passwordHash, publicID)
+	`, userID, username, passwordHash)
 	if err != nil {
 		return fmt.Errorf("insert default user: %w", err)
 	}

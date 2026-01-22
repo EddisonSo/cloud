@@ -3,15 +3,13 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type adminUserResponse struct {
-	ID          int64  `json:"id"`
-	PublicID    string `json:"public_id"`
+	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 }
@@ -23,7 +21,7 @@ type createUserRequest struct {
 }
 
 type sessionListResponse struct {
-	UserID      int64  `json:"user_id"`
+	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	CreatedAt   int64  `json:"created_at"`
@@ -40,8 +38,7 @@ func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	resp := make([]adminUserResponse, 0, len(users))
 	for _, u := range users {
 		resp = append(resp, adminUserResponse{
-			ID:          u.ID,
-			PublicID:    u.PublicID,
+			UserID:      u.UserID,
 			Username:    u.Username,
 			DisplayName: u.DisplayName,
 		})
@@ -86,32 +83,25 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Publish user created event
 	if h.publisher != nil {
-		h.publisher.PublishUserCreated(user.ID, user.Username, user.DisplayName, user.PublicID)
+		h.publisher.PublishUserCreated(user.UserID, user.Username, user.DisplayName)
 	}
 
 	writeJSON(w, adminUserResponse{
-		ID:          user.ID,
-		PublicID:    user.PublicID,
+		UserID:      user.UserID,
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 	})
 }
 
 func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
-	if idStr == "" {
+	userID := r.URL.Query().Get("id")
+	if userID == "" {
 		writeError(w, "id required", http.StatusBadRequest)
 		return
 	}
 
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		writeError(w, "invalid id", http.StatusBadRequest)
-		return
-	}
-
 	// Get user info before deleting
-	user, err := h.db.GetUserByID(id)
+	user, err := h.db.GetUserByID(userID)
 	if err != nil {
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
@@ -128,7 +118,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.db.DeleteUser(id); err != nil {
+	if err := h.db.DeleteUser(userID); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			writeError(w, "user not found", http.StatusNotFound)
 			return
@@ -139,7 +129,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	// Publish user deleted event
 	if h.publisher != nil {
-		h.publisher.PublishUserDeleted(user.ID, user.Username)
+		h.publisher.PublishUserDeleted(user.UserID, user.Username)
 	}
 
 	writeJSON(w, map[string]string{"status": "ok"})
