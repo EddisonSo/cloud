@@ -705,7 +705,7 @@ func handleClusterInfoSSE(w http.ResponseWriter, r *http.Request, cache *Metrics
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS handled by middleware
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -740,7 +740,7 @@ func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsC
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS handled by middleware
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -781,7 +781,7 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS handled by middleware
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
