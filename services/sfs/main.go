@@ -145,7 +145,10 @@ func main() {
 	}
 
 	ctx := context.Background()
-	client, err := gfs.New(ctx, *master)
+	client, err := gfs.New(ctx, *master,
+		// Enable connection pooling to chunkservers for better throughput
+		gfs.WithConnectionPool(8, 60*time.Second),
+	)
 	if err != nil {
 		log.Fatalf("failed to connect to gfs master: %v", err)
 	}
@@ -928,6 +931,9 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
+	if total > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(total, 10))
+	}
 
 	if _, err := s.client.ReadToWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
 		reporter.Error(err)
@@ -973,6 +979,14 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
+	// Get file info for Content-Length
+	info, err := s.client.GetFileWithNamespace(ctx, file, s.gfsNamespace(namespace))
+	if err != nil {
+		serveErrorPage(w, http.StatusNotFound, "File Not Found",
+			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
+		return
+	}
+
 	// Detect content type from extension
 	ext := filepath.Ext(file)
 	contentType := mime.TypeByExtension(ext)
@@ -980,10 +994,12 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", contentType)
+	if info.Size > 0 {
+		w.Header().Set("Content-Length", strconv.FormatUint(info.Size, 10))
+	}
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
-		serveErrorPage(w, http.StatusNotFound, "File Not Found",
-			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
+		// Headers already sent, can't serve error page
 		return
 	}
 }
@@ -1023,6 +1039,14 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
+	// Get file info for Content-Length
+	info, err := s.client.GetFileWithNamespace(ctx, file, s.gfsNamespace(namespace))
+	if err != nil {
+		serveErrorPage(w, http.StatusNotFound, "File Not Found",
+			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
+		return
+	}
+
 	ext := filepath.Ext(file)
 	contentType := mime.TypeByExtension(ext)
 	if contentType == "" {
@@ -1030,10 +1054,12 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
+	if info.Size > 0 {
+		w.Header().Set("Content-Length", strconv.FormatUint(info.Size, 10))
+	}
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
-		serveErrorPage(w, http.StatusNotFound, "File Not Found",
-			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
+		// Headers already sent, can't serve error page
 		return
 	}
 }
