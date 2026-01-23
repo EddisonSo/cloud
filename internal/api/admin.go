@@ -155,3 +155,24 @@ func (h *Handler) handleListSessions(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, resp)
 }
+
+// handleGetAllUsers returns all users for service-to-service sync
+// This endpoint is used by other services during startup to populate their user caches
+func (h *Handler) handleGetAllUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.db.ListUsers()
+	if err != nil {
+		writeError(w, "failed to list users", http.StatusInternalServerError)
+		return
+	}
+
+	resp := make([]adminUserResponse, 0, len(users))
+	for _, u := range users {
+		resp = append(resp, adminUserResponse{
+			UserID:      u.UserID,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+		})
+	}
+
+	writeJSON(w, resp)
+}

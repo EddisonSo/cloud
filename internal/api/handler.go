@@ -45,6 +45,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/logout", h.handleLogout)
 	mux.HandleFunc("GET /api/session", h.handleSession)
 
+	// Service-to-service endpoint (for initial sync)
+	mux.HandleFunc("GET /api/users", h.handleGetAllUsers)
+
 	// Admin endpoints
 	mux.HandleFunc("GET /admin/users", h.adminOnly(h.handleListUsers))
 	mux.HandleFunc("POST /admin/users", h.adminOnly(h.handleCreateUser))
