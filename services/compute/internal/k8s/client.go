@@ -124,12 +124,20 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 	// Build ingress rules
 	var ingressRules []networkingv1.NetworkPolicyIngressRule
 
-	// Always allow ingress from within the cluster (for cloud terminal via internal pod IP)
+	// Allow ingress from within the cluster (for cloud terminal via internal pod IP)
+	// K3s with Flannel shows cross-node traffic as coming from node IPs, so we need both:
+	// - Pod CIDR (10.42.0.0/16) for same-node traffic
+	// - Node IP range (192.168.0.0/16) for cross-node traffic
 	ingressRules = append(ingressRules, networkingv1.NetworkPolicyIngressRule{
 		From: []networkingv1.NetworkPolicyPeer{
 			{
 				IPBlock: &networkingv1.IPBlock{
-					CIDR: "10.0.0.0/8", // Internal cluster network
+					CIDR: "10.42.0.0/16", // K3s pod CIDR (same-node)
+				},
+			},
+			{
+				IPBlock: &networkingv1.IPBlock{
+					CIDR: "192.168.0.0/16", // Node IP range (cross-node via Flannel)
 				},
 			},
 		},
