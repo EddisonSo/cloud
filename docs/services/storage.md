@@ -58,6 +58,33 @@ sequenceDiagram
     Backend->>Client: Success response
 ```
 
+## File Download Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend
+    participant Master as GFS Master
+    participant CS as Chunkserver
+
+    Client->>Backend: GET /storage/download?name=file.bin
+    Backend->>Master: GetChunkLocations()
+    Master->>Backend: Chunk locations
+
+    Note over Backend,CS: Sequential streaming (bounded memory)
+    loop For each chunk
+        Backend->>CS: Read chunk via TCP
+        CS->>Backend: Chunk data
+        Backend->>Client: Stream to response
+    end
+```
+
+Downloads use sequential streaming for memory efficiency:
+- Chunks streamed directly to HTTP response
+- No buffering of entire chunks in memory
+- Constant memory usage regardless of file size
+- Automatic failover to replicas on read errors
+
 ## Progress Tracking
 
 Progress is tracked via Server-Sent Events (SSE):

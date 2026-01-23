@@ -81,13 +81,27 @@ sequenceDiagram
 sequenceDiagram
     participant C as Client
     participant M as Master
-    participant CS as Chunkserver
+    participant CS1 as Chunkserver 1
+    participant CS2 as Chunkserver 2
 
     C->>M: GetChunkLocations(path)
-    M->>C: [locations with primary]
-    C->>CS: Read data via TCP
-    Note over C,CS: On failure: retry with replica
+    M->>C: [chunk locations]
+
+    Note over C,CS2: Sequential streaming (bounded memory)
+    C->>CS1: Read chunk 0 → stream to writer
+    C->>CS1: Read chunk 1 → stream to writer
+    C->>CS2: Read chunk 2 → stream to writer
+    Note over C,CS2: On failure: automatic failover to replica
 ```
+
+### Streaming Architecture
+
+Reads use **sequential streaming** to maintain bounded memory usage:
+
+- Chunks are read one at a time in order
+- Data streams directly to the HTTP response (no buffering)
+- Memory usage is constant regardless of file size
+- On chunk read failure, automatically retries with replica servers
 
 ## Sequence Numbers
 
@@ -102,22 +116,39 @@ Each write operation receives a monotonic sequence number to ensure ordering:
 ```go
 import gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 
-// Create client
-client, err := gfs.New(ctx, "gfs-master:9000")
+// Create client with connection pooling
+client, err := gfs.New(ctx, "gfs-master:9000",
+    gfs.WithConnectionPool(8, 60*time.Second),
+)
 defer client.Close()
 
 // Write file
 err = client.WriteFile(ctx, "/myfile.txt", []byte("hello"))
 
-// Read file
+// Read file (streams directly, no buffering)
 data, err := client.ReadFile(ctx, "/myfile.txt")
 
-// Append data
+// Stream large files directly to writer
+n, err := client.ReadTo(ctx, "/largefile.bin", responseWriter)
+
+// Append data (double-buffered for throughput)
 err = client.AppendFile(ctx, "/myfile.txt", []byte(" world"))
 
 // Delete file
 err = client.DeleteFile(ctx, "/myfile.txt")
 ```
+
+### Connection Pooling
+
+Enable TCP connection pooling to reduce connection overhead:
+
+```go
+gfs.WithConnectionPool(maxIdlePerHost, idleTimeout)
+```
+
+- Reuses connections across requests
+- Validates idle connections before reuse
+- Auto-cleanup of stale connections
 
 ## Deployment
 
