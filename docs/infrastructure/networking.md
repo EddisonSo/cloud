@@ -49,7 +49,7 @@ The gateway routes requests based on host and path:
 | Host | Path | Target |
 |------|------|--------|
 | `cloud.eddisonso.com` | `/` | frontend |
-| `cloud-api.eddisonso.com` | `/api` | sfs-backend |
+| `auth.cloud.eddisonso.com` | `/` | auth-service |
 | `storage.cloud.eddisonso.com` | `/` | sfs-backend |
 | `compute.cloud.eddisonso.com` | `/` | edd-compute |
 | `health.cloud.eddisonso.com` | `/` | cluster-monitor |

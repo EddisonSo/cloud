@@ -85,6 +85,7 @@ Each service owns its own database for loose coupling:
 | Domain | Purpose |
 |--------|---------|
 | `cloud.eddisonso.com` | Main dashboard |
+| `auth.cloud.eddisonso.com` | Authentication API |
 | `storage.cloud.eddisonso.com` | Storage API |
 | `compute.cloud.eddisonso.com` | Compute API |
 | `health.cloud.eddisonso.com` | Health/Monitoring API |

@@ -159,14 +159,19 @@ Routes can be configured via a `routes.yaml` file mounted as a ConfigMap:
 
 ```yaml
 routes:
-  - host: cloud-api.eddisonso.com
-    path: /compute
-    target: edd-compute:80
+  - host: storage.cloud.eddisonso.com
+    path: /
+    target: simple-file-share-backend:80
     strip_prefix: false
 
-  - host: cloud-api.eddisonso.com
-    path: /sse/cluster-info
-    target: cluster-monitor:80
+  - host: storage.cloud.eddisonso.com
+    path: /sse/progress
+    target: simple-file-share-backend:80
+    strip_prefix: false
+
+  - host: compute.cloud.eddisonso.com
+    path: /
+    target: edd-compute:80
     strip_prefix: false
 
   - host: cloud.eddisonso.com
@@ -193,7 +198,7 @@ routes:
 
 | Parameter | Description |
 |-----------|-------------|
-| `host` | Domain to match (e.g., `cloud-api.eddisonso.com`) |
+| `host` | Domain to match (e.g., `storage.cloud.eddisonso.com`) |
 | `path` | Path prefix to match (e.g., `/compute`) |
 | `target` | Backend service and port (e.g., `edd-compute:80`) |
 | `strip_prefix` | If `true`, removes the path prefix before forwarding |
