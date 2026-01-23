@@ -13,15 +13,31 @@ Services communicate through events published to NATS JetStream:
 - **Subscribers**: React to events from other services
 - **Persistence**: Events are stored for replay and recovery
 
+## Architecture
+
+Auth-service is the single source of truth for user data. Other services maintain a read-only `user_cache` table populated via NATS events.
+
+```
+┌─────────────┐
+│ Auth Service│ ─── auth.user.* events ───▶ NATS JetStream
+│  (auth_db)  │                                    │
+└─────────────┘                     ┌──────────────┼──────────────┐
+                                    ▼              ▼              ▼
+                              ┌──────────┐  ┌──────────┐  ┌─────────┐
+                              │   SFS    │  │ Compute  │  │ Gateway │
+                              │ (sfs_db) │  │(compute) │  │(gateway)│
+                              └──────────┘  └──────────┘  └─────────┘
+```
+
 ## Service Boundaries
 
 Each service owns its data and publishes events for others to consume:
 
 | Service | Database | Owns | Publishes | Subscribes |
 |---------|----------|------|-----------|------------|
-| **Auth** | `auth_db` | users, sessions | `auth.*` | - |
-| **SFS** | `sfs_db` | namespaces, files | `sfs.*` | `auth.user.deleted` |
-| **Compute** | `compute_db` | containers, ssh_keys | `compute.*` | `auth.user.deleted` |
+| **Auth** | `auth_db` | users, sessions | `auth.user.*` | - |
+| **SFS** | `sfs_db` | namespaces, files, user_cache | `sfs.*` | `auth.user.*` |
+| **Compute** | `compute_db` | containers, ssh_keys, user_cache | `compute.*` | `auth.user.*` |
 | **Gateway** | `gateway_db` | routes, ingress_rules | `gateway.*` | `compute.container.*` |
 
 ## Event Flow Examples
@@ -40,24 +56,8 @@ sequenceDiagram
     Auth->>NATS: auth.user.{id}.created
     NATS-->>SFS: Event
     NATS-->>Compute: Event
-    SFS->>SFS: Update cache
-    Compute->>Compute: Update cache
-```
-
-### Container Creation
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Compute
-    participant NATS
-    participant Gateway
-
-    User->>Compute: Create container
-    Compute->>NATS: compute.container.{id}.created
-    Compute->>NATS: compute.ingress.{id}.requested
-    NATS-->>Gateway: Event
-    Gateway->>Gateway: Add routes
+    SFS->>SFS: Upsert to user_cache
+    Compute->>Compute: Upsert to user_cache
 ```
 
 ### User Deletion (Cascade)
@@ -69,16 +69,29 @@ sequenceDiagram
     participant NATS
     participant SFS
     participant Compute
-    participant Gateway
 
     Admin->>Auth: Delete user
     Auth->>NATS: auth.user.{id}.deleted
     NATS-->>SFS: Event
     NATS-->>Compute: Event
-    NATS-->>Gateway: Event
-    SFS->>SFS: Delete files
-    Compute->>Compute: Delete VMs
-    Gateway->>Gateway: Remove routes
+    SFS->>SFS: Set namespace owner_id to NULL
+    Compute->>Compute: Delete containers & SSH keys
+```
+
+### Service Startup Sync
+
+On startup, services fetch all users from auth-service to populate the cache:
+
+```mermaid
+sequenceDiagram
+    participant SFS
+    participant Auth
+    participant NATS
+
+    SFS->>Auth: GET /api/users
+    Auth-->>SFS: [users]
+    SFS->>SFS: Populate user_cache
+    SFS->>NATS: Subscribe to auth.user.*
 ```
 
 ## Event Subjects
@@ -89,50 +102,119 @@ Events use a hierarchical subject pattern:
 {service}.{entity}.{id}.{action}
 ```
 
-### Examples
+### User Events
 
 | Subject | Description |
 |---------|-------------|
-| `auth.user.123.created` | User 123 was created |
-| `auth.user.123.deleted` | User 123 was deleted |
-| `compute.container.abc.started` | Container abc started |
-| `compute.container.abc.stopped` | Container abc stopped |
-| `sfs.namespace.456.created` | Namespace 456 created |
+| `auth.user.{id}.created` | New user registered |
+| `auth.user.{id}.deleted` | User was deleted |
+| `auth.user.{id}.updated` | User profile updated |
 
-## Protobuf Messages
+## JSON Message Types
 
-Events are serialized using Protocol Buffers:
+Events are serialized as JSON:
 
-```protobuf
-// proto/auth/events.proto
-message UserCreated {
-  EventMetadata metadata = 1;
-  int64 user_id = 2;
-  string username = 3;
-  string display_name = 4;
-  string public_id = 5;
-}
+### UserCreated
 
-message UserDeleted {
-  EventMetadata metadata = 1;
-  int64 user_id = 2;
-  string username = 3;
+```json
+{
+  "metadata": {
+    "event_id": "uuid-v4",
+    "entity_id": "nanoid-user-id",
+    "timestamp": 1705920000,
+    "source": "auth-service",
+    "version": 1
+  },
+  "user_id": "V1StGXR8_Z5jdHi6B-myT",
+  "username": "johndoe",
+  "display_name": "John Doe"
 }
 ```
 
-## Event Metadata
+### UserDeleted
 
-All events include standard metadata:
-
-```protobuf
-message EventMetadata {
-  string event_id = 1;      // Unique event ID (UUID)
-  string entity_id = 2;     // ID of the entity
-  Timestamp timestamp = 3;  // When event occurred
-  string source = 4;        // Service that emitted
-  int64 version = 5;        // For optimistic concurrency
+```json
+{
+  "metadata": {
+    "event_id": "uuid-v4",
+    "entity_id": "nanoid-user-id",
+    "timestamp": 1705920000,
+    "source": "auth-service"
+  },
+  "user_id": "V1StGXR8_Z5jdHi6B-myT",
+  "username": "johndoe"
 }
 ```
+
+### UserUpdated
+
+```json
+{
+  "metadata": {
+    "event_id": "uuid-v4",
+    "entity_id": "nanoid-user-id",
+    "timestamp": 1705920000,
+    "source": "auth-service"
+  },
+  "user_id": "V1StGXR8_Z5jdHi6B-myT",
+  "username": "johndoe",
+  "display_name": "John D."
+}
+```
+
+## User Cache Pattern
+
+Services maintain a local `user_cache` table:
+
+```sql
+CREATE TABLE user_cache (
+    user_id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL DEFAULT '',
+    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Event Handlers
+
+```go
+// OnUserCreated - Upsert to cache
+func (h *Handler) OnUserCreated(ctx context.Context, event events.UserCreated) error {
+    _, err := h.db.Exec(`
+        INSERT INTO user_cache (user_id, username, display_name, synced_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) DO UPDATE SET
+            username = EXCLUDED.username,
+            display_name = EXCLUDED.display_name,
+            synced_at = CURRENT_TIMESTAMP
+    `, event.UserID, event.Username, event.DisplayName)
+    return err
+}
+
+// OnUserDeleted - Remove from cache (FK cascades to owned resources)
+func (h *Handler) OnUserDeleted(ctx context.Context, event events.UserDeleted) error {
+    _, err := h.db.Exec(`DELETE FROM user_cache WHERE user_id = $1`, event.UserID)
+    return err
+}
+```
+
+## Cascade Deletion
+
+When a user is deleted:
+
+| Service | Action |
+|---------|--------|
+| **SFS** | Namespace `owner_id` set to NULL (via event handler) |
+| **Compute** | Containers deleted (K8s namespace + DB), SSH keys deleted |
+
+## Configuration
+
+Services require these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `NATS_URL` | NATS JetStream URL (e.g., `nats://nats:4222`) |
+| `AUTH_SERVICE_URL` | Auth service URL for initial sync (e.g., `http://auth-service:80`) |
 
 ## Reliability
 
@@ -144,40 +226,19 @@ message EventMetadata {
 
 ### Idempotency
 
-Handlers must be idempotent:
-- Use `event_id` for deduplication
-- Use `version` for optimistic concurrency
-- Design for messages being processed multiple times
+Handlers use upserts to be idempotent:
+- `ON CONFLICT DO UPDATE` for creates/updates
+- Delete operations are naturally idempotent
 
-### Error Handling
+### Graceful Degradation
 
-Failed messages are retried with backoff:
-
-```go
-consumerConfig := &nats.ConsumerConfig{
-    MaxDeliver: 5,
-    AckWait:    30 * time.Second,
-    BackOff:    []time.Duration{
-        1 * time.Second,
-        5 * time.Second,
-        30 * time.Second,
-    },
-}
-```
-
-### Dead Letter Queue
-
-After max retries, messages go to a DLQ:
-
-```
-auth.user.created.dlq
-compute.container.created.dlq
-```
+- Services continue working with cached data if NATS is temporarily unavailable
+- Initial sync failure logs a warning but doesn't prevent startup
 
 ## Benefits
 
-1. **Loose Coupling**: Services don't need to know about each other
-2. **Resilience**: Events are persisted if a service is down
-3. **Scalability**: Multiple consumers can process events in parallel
-4. **Auditability**: Event log provides complete history
-5. **Eventual Consistency**: Services sync via events, not shared databases
+1. **Single Source of Truth**: Auth-service owns user data
+2. **Loose Coupling**: Services don't share databases
+3. **Resilience**: Events are persisted if a service is down
+4. **Scalability**: Multiple consumers can process events in parallel
+5. **Eventual Consistency**: Services sync via events, not RPC
