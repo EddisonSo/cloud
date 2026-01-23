@@ -1,6 +1,11 @@
 #!/bin/bash
 # Container entrypoint - sets up SSH keys and starts services
 
+# Create .ssh directory with correct permissions
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+chown root:root /root/.ssh
+
 # Copy authorized_keys from mounted secret to /root/.ssh with correct permissions
 if [ -f /etc/ssh/keys/authorized_keys ]; then
     cp /etc/ssh/keys/authorized_keys /root/.ssh/authorized_keys

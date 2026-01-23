@@ -268,8 +268,12 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 
 	// Build mkdir command for init container to create subpath directories
 	mkdirCmd := "cd /mnt/storage"
-	for _, sp := range subPaths {
+	for i, sp := range subPaths {
 		mkdirCmd += fmt.Sprintf(" && mkdir -p %s", sp)
+		// If mounting /root, also create .ssh directory for SSH access
+		if mountPaths[i] == "/root" {
+			mkdirCmd += fmt.Sprintf(" && mkdir -p %s/.ssh && chmod 700 %s/.ssh", sp, sp)
+		}
 	}
 
 	pod := &corev1.Pod{
