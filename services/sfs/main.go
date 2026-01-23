@@ -918,14 +918,15 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
-	transferID := s.transferID(r)
-	var total int64
-	if transferID != "" {
-		if info, err := s.client.GetFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err == nil {
-			total = int64(info.Size)
-		}
+	// Always get file info for Content-Length header
+	info, err := s.client.GetFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("file not found: %v", err), http.StatusNotFound)
+		return
 	}
+	total := int64(info.Size)
 
+	transferID := s.transferID(r)
 	reporter := s.newReporter(transferID, "download", total)
 	counting := &countingWriter{writer: w, reporter: reporter}
 
@@ -937,7 +938,7 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := s.client.ReadToWithNamespace(ctx, fullPath, s.gfsNamespace(namespace), counting); err != nil {
 		reporter.Error(err)
-		http.Error(w, fmt.Sprintf("download failed: %v", err), http.StatusBadGateway)
+		// Headers already sent, can't return error page
 		return
 	}
 	reporter.Done()
