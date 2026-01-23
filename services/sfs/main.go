@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/events"
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"github.com/golang-jwt/jwt/v5"
@@ -55,19 +56,20 @@ func generateNanoID() (string, error) {
 }
 
 type server struct {
-	client     *gfs.Client
-	prefix     string
-	staticDir  string
-	maxUpload  int64
-	listPrefix string
-	uploadTTL  time.Duration
-	db         *sql.DB
-	jwtSecret  []byte
-	sessionTTL time.Duration
-	wsMu       sync.Mutex
-	wsConns    map[string]*websocket.Conn
-	sseMu      sync.Mutex
-	sseConns   map[string]chan progressMessage
+	client        *gfs.Client
+	prefix        string
+	staticDir     string
+	maxUpload     int64
+	listPrefix    string
+	uploadTTL     time.Duration
+	db            *sql.DB
+	jwtSecret     []byte
+	sessionTTL    time.Duration
+	wsMu          sync.Mutex
+	wsConns       map[string]*websocket.Conn
+	sseMu         sync.Mutex
+	sseConns      map[string]chan progressMessage
+	eventConsumer *events.Consumer
 }
 
 // JWTClaims represents the claims in a JWT token
@@ -190,6 +192,35 @@ func main() {
 		sseConns:   make(map[string]chan progressMessage),
 	}
 
+	// Initialize user sync from auth-service
+	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+	if authServiceURL != "" {
+		if err := syncUsersFromAuthService(db, authServiceURL); err != nil {
+			slog.Warn("initial user sync failed", "error", err)
+		}
+	}
+
+	// Initialize NATS event consumer
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		handler := newUserEventHandler(db)
+		consumer, err := events.NewConsumer(events.ConsumerConfig{
+			NatsURL:      natsURL,
+			ConsumerName: "sfs-backend",
+			Handler:      handler,
+		})
+		if err != nil {
+			slog.Warn("failed to create NATS consumer, events will not be processed", "error", err)
+		} else {
+			srv.eventConsumer = consumer
+			if err := consumer.Start(context.Background()); err != nil {
+				slog.Error("failed to start event consumer", "error", err)
+			} else {
+				slog.Info("NATS event consumer started")
+			}
+		}
+	}
+
 	mux := http.NewServeMux()
 	// Auth endpoints
 	mux.HandleFunc("/api/login", srv.handleLogin)
@@ -235,6 +266,7 @@ func normalizePrefix(prefix string) string {
 
 func initAuthDB(db *sql.DB, username string, password string) error {
 	stmts := []string{
+		// Legacy users table (kept for backward compatibility during migration)
 		`CREATE TABLE IF NOT EXISTS users (
 			user_id TEXT PRIMARY KEY,
 			username TEXT NOT NULL UNIQUE,
@@ -248,6 +280,13 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			expires_at BIGINT NOT NULL,
 			created_at BIGINT NOT NULL DEFAULT 0,
 			ip_address TEXT NOT NULL DEFAULT ''
+		)`,
+		// User cache table - populated from auth-service events
+		`CREATE TABLE IF NOT EXISTS user_cache (
+			user_id TEXT PRIMARY KEY,
+			username TEXT NOT NULL UNIQUE,
+			display_name TEXT NOT NULL DEFAULT '',
+			synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS namespaces (
 			name TEXT PRIMARY KEY,

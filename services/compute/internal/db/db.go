@@ -73,6 +73,13 @@ func (db *DB) migrate() error {
 			UNIQUE(container_id, port)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_ingress_rules_container_id ON ingress_rules(container_id)`,
+		// User cache table - populated from auth-service events
+		`CREATE TABLE IF NOT EXISTS user_cache (
+			user_id TEXT PRIMARY KEY,
+			username TEXT NOT NULL UNIQUE,
+			display_name TEXT NOT NULL DEFAULT '',
+			synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, m := range migrations {

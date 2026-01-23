@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -8,8 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"eddisonso.com/edd-cloud/pkg/events"
 	"eddisonso.com/edd-cloud/services/compute/internal/api"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
+	eventshandler "eddisonso.com/edd-cloud/services/compute/internal/events"
 	"eddisonso.com/edd-cloud/services/compute/internal/k8s"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 )
@@ -65,9 +68,39 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize user sync from auth-service
+	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+	if authServiceURL != "" {
+		if err := eventshandler.SyncUsersFromAuthService(database, authServiceURL); err != nil {
+			slog.Warn("initial user sync failed", "error", err)
+		}
+	}
+
+	// Initialize NATS event consumer
+	natsURL := os.Getenv("NATS_URL")
+	var eventConsumer *events.Consumer
+	if natsURL != "" {
+		eventHandler := eventshandler.NewHandler(database, k8sClient)
+		consumer, err := events.NewConsumer(events.ConsumerConfig{
+			NatsURL:      natsURL,
+			ConsumerName: "edd-compute",
+			Handler:      eventHandler,
+		})
+		if err != nil {
+			slog.Warn("failed to create NATS consumer, events will not be processed", "error", err)
+		} else {
+			eventConsumer = consumer
+			if err := consumer.Start(context.Background()); err != nil {
+				slog.Error("failed to start event consumer", "error", err)
+			} else {
+				slog.Info("NATS event consumer started")
+			}
+		}
+	}
+
 	// HTTP server with CORS
-	handler := api.NewHandler(database, k8sClient)
-	server := &http.Server{Addr: *addr, Handler: corsMiddleware(handler)}
+	apiHandler := api.NewHandler(database, k8sClient)
+	server := &http.Server{Addr: *addr, Handler: corsMiddleware(apiHandler)}
 
 	// Graceful shutdown
 	go func() {
@@ -75,6 +108,9 @@ func main() {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 		slog.Info("shutting down")
+		if eventConsumer != nil {
+			eventConsumer.Stop()
+		}
 		server.Close()
 	}()
 
