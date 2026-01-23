@@ -105,6 +105,27 @@ export function useFiles() {
       setUploadProgress({ bytes: 0, total: file.size, active: true });
       setStatus("Uploading...");
 
+      // Wait for SSE connection before starting upload to avoid race condition
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          eventSource.close();
+          reject(new Error("SSE connection timeout"));
+        }, 5000);
+
+        eventSource.onopen = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        eventSource.onerror = () => {
+          clearTimeout(timeout);
+          // If we haven't connected yet, reject
+          if (eventSource.readyState === EventSource.CONNECTING) {
+            reject(new Error("SSE connection failed"));
+          }
+        };
+      });
+
       eventSource.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -128,7 +149,6 @@ export function useFiles() {
         eventSource.close();
       };
 
-      // Start fetch immediately - browser can prepare upload while SSE connects
       const url = `${buildStorageBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
       const response = await fetch(url, {
         method: "POST",
