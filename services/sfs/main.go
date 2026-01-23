@@ -295,7 +295,7 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			name TEXT PRIMARY KEY,
 			hidden INTEGER NOT NULL DEFAULT 0,
 			visibility INTEGER NOT NULL DEFAULT 2,
-			owner_id TEXT REFERENCES users(user_id) ON DELETE SET NULL
+			owner_id TEXT
 		)`,
 	}
 	for _, stmt := range stmts {
@@ -529,9 +529,9 @@ func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership for hidden namespaces
-	if !s.canAccessNamespace(r, name) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	// Only namespace owner can delete namespace
+	if !s.isNamespaceOwner(r, name) {
+		http.Error(w, "forbidden: only namespace owner can delete namespace", http.StatusForbidden)
 		return
 	}
 
@@ -582,9 +582,9 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership for hidden namespaces
-	if !s.canAccessNamespace(r, name) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	// Only namespace owner can modify visibility
+	if !s.isNamespaceOwner(r, name) {
+		http.Error(w, "forbidden: only namespace owner can modify visibility", http.StatusForbidden)
 		return
 	}
 
@@ -624,9 +624,9 @@ func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Check ownership for hidden namespaces
-	if !s.canAccessNamespace(r, name) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	// Only namespace owner can delete namespace
+	if !s.isNamespaceOwner(r, name) {
+		http.Error(w, "forbidden: only namespace owner can delete namespace", http.StatusForbidden)
 		return
 	}
 
@@ -666,9 +666,9 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Check ownership for hidden namespaces
-	if !s.canAccessNamespace(r, name) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	// Only namespace owner can modify visibility
+	if !s.isNamespaceOwner(r, name) {
+		http.Error(w, "forbidden: only namespace owner can modify visibility", http.StatusForbidden)
 		return
 	}
 
@@ -1494,6 +1494,31 @@ func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
 		return false
 	}
 	if ownerID == nil {
+		return false
+	}
+	return *ownerID == userID
+}
+
+// isNamespaceOwner checks if the current user owns the namespace.
+// This is used for operations that modify the namespace (update visibility, delete).
+func (s *server) isNamespaceOwner(r *http.Request, namespace string) bool {
+	userID, ok := s.currentUserID(r)
+	if !ok {
+		return false
+	}
+
+	var ownerID *string
+	err := s.db.QueryRow(
+		`SELECT owner_id FROM namespaces WHERE name = $1`,
+		namespace,
+	).Scan(&ownerID)
+	if err != nil {
+		// Namespace doesn't exist - deny ownership
+		return false
+	}
+
+	if ownerID == nil {
+		// No owner - deny modification
 		return false
 	}
 	return *ownerID == userID

@@ -30,8 +30,15 @@ func (h *userEventHandler) OnUserCreated(ctx context.Context, event events.UserC
 func (h *userEventHandler) OnUserDeleted(ctx context.Context, event events.UserDeleted) error {
 	slog.Info("user deleted event received", "user_id", event.UserID, "username", event.Username)
 
-	// Delete from user_cache (namespace owner_id will be SET NULL via FK constraint)
-	_, err := h.db.Exec(`DELETE FROM user_cache WHERE user_id = $1`, event.UserID)
+	// Set namespace owner_id to NULL for namespaces owned by this user
+	_, err := h.db.Exec(`UPDATE namespaces SET owner_id = NULL WHERE owner_id = $1`, event.UserID)
+	if err != nil {
+		slog.Error("failed to update namespace owner_id", "error", err, "user_id", event.UserID)
+		return err
+	}
+
+	// Delete from user_cache
+	_, err = h.db.Exec(`DELETE FROM user_cache WHERE user_id = $1`, event.UserID)
 	if err != nil {
 		slog.Error("failed to delete user from cache", "error", err, "user_id", event.UserID)
 		return err
