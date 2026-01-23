@@ -74,6 +74,11 @@ data:
 
       # SSE endpoints for file transfer progress
       - host: cloud-api.eddisonso.com
+        path: /sse/progress
+        target: simple-file-share-backend:80
+        strip_prefix: false
+
+      - host: cloud-api.eddisonso.com
         path: /sse
         target: simple-file-share-backend:80
         strip_prefix: false
