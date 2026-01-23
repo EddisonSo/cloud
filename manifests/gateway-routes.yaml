@@ -108,6 +108,21 @@ data:
         target: simple-file-share-backend:80
         strip_prefix: false
 
+      - host: storage.cloud.eddisonso.com
+        path: /sse/progress
+        target: simple-file-share-backend:80
+        strip_prefix: false
+
+      - host: storage.cloud.eddisonso.com
+        path: /sse
+        target: simple-file-share-backend:80
+        strip_prefix: false
+
+      - host: storage.cloud.eddisonso.com
+        path: /ws
+        target: simple-file-share-backend:80
+        strip_prefix: false
+
       # Health/cluster monitoring service
       - host: health.cloud.eddisonso.com
         path: /
