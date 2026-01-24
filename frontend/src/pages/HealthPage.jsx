@@ -103,6 +103,23 @@ export function HealthPage() {
     });
   }, [health.nodes, nodeSort]);
 
+  // Filter pods to only show user's own compute containers
+  const filteredPods = useMemo(() => {
+    if (!podMetrics.pods) return [];
+    return podMetrics.pods.filter((pod) => {
+      const ns = pod.namespace || "default";
+      // Show all pods in default namespace (core services)
+      if (ns === "default") return true;
+      // For compute-* namespaces, only show user's own containers
+      // Namespace format: compute-{user_id}-{container_id}
+      if (ns.startsWith("compute-") && user?.id) {
+        return ns.startsWith(`compute-${user.id}-`);
+      }
+      // Hide other users' compute containers
+      return false;
+    });
+  }, [podMetrics.pods, user?.id]);
+
   const sortPods = (pods) => {
     // Default to sorting by name lexicographically
     if (!podSort.column) {
@@ -382,7 +399,7 @@ export function HealthPage() {
                 </div>
               ))}
             </div>
-          ) : (podMetrics.pods || []).length === 0 ? (
+          ) : filteredPods.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center">
               {user ? "No pods found" : "Log in to view pod metrics"}
             </p>
@@ -390,7 +407,7 @@ export function HealthPage() {
             <div className="space-y-4">
               {/* Group pods by node, sorted alphabetically */}
               {Object.entries(
-                (podMetrics.pods || []).reduce((acc, pod) => {
+                filteredPods.reduce((acc, pod) => {
                   const node = pod.node || "Unknown";
                   if (!acc[node]) acc[node] = [];
                   acc[node].push(pod);
