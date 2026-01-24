@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"eddisonso.com/go-gfs/pkg/gfslog"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -20,6 +21,78 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
+
+// JWTClaims represents the claims in a JWT token
+type JWTClaims struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	UserID      string `json:"user_id"`
+	jwt.RegisteredClaims
+}
+
+var jwtSecret []byte
+
+func initJWTSecret() {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		slog.Warn("JWT_SECRET not set, pod filtering will be disabled")
+		return
+	}
+	jwtSecret = []byte(secret)
+}
+
+func validateToken(tokenString string) *JWTClaims {
+	if jwtSecret == nil || tokenString == "" {
+		return nil
+	}
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return jwtSecret, nil
+	})
+	if err != nil {
+		return nil
+	}
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil
+	}
+	return claims
+}
+
+func getTokenFromRequest(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	if token := r.URL.Query().Get("token"); token != "" {
+		return token
+	}
+	return ""
+}
+
+func filterPodsForUser(pods []PodMetrics, userID string) []PodMetrics {
+	if userID == "" {
+		// No auth - only show default namespace pods
+		var filtered []PodMetrics
+		for _, pod := range pods {
+			if pod.Namespace == "default" {
+				filtered = append(filtered, pod)
+			}
+		}
+		return filtered
+	}
+	// Authenticated - show default + user's compute containers
+	var filtered []PodMetrics
+	prefix := "compute-" + userID + "-"
+	for _, pod := range pods {
+		if pod.Namespace == "default" || strings.HasPrefix(pod.Namespace, prefix) {
+			filtered = append(filtered, pod)
+		}
+	}
+	return filtered
+}
 
 type NodeMetrics struct {
 	Name           string          `json:"name"`
@@ -230,6 +303,8 @@ func main() {
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "cluster-monitor", "Log source name (e.g., pod name)")
 	flag.Parse()
+
+	initJWTSecret()
 
 	if *logServiceAddr != "" {
 		logger := gfslog.NewLogger(gfslog.Config{
@@ -817,6 +892,13 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 		return
 	}
 
+	// Extract user ID from token for pod filtering
+	var userID string
+	token := getTokenFromRequest(r)
+	if claims := validateToken(token); claims != nil {
+		userID = claims.UserID
+	}
+
 	// Subscribe to both updates
 	clusterUpdates := cache.Subscribe()
 	defer cache.Unsubscribe(clusterUpdates)
@@ -826,7 +908,14 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 	// Send current data immediately
 	clusterData, _ := json.Marshal(HealthData{Type: "cluster", Payload: cache.GetClusterInfo()})
 	fmt.Fprintf(w, "data: %s\n\n", clusterData)
-	podData, _ := json.Marshal(HealthData{Type: "pods", Payload: cache.GetPodMetrics()})
+
+	// Filter pods for this user
+	podMetrics := cache.GetPodMetrics()
+	filteredPodMetrics := &PodMetricsInfo{
+		Timestamp: podMetrics.Timestamp,
+		Pods:      filterPodsForUser(podMetrics.Pods, userID),
+	}
+	podData, _ := json.Marshal(HealthData{Type: "pods", Payload: filteredPodMetrics})
 	fmt.Fprintf(w, "data: %s\n\n", podData)
 	flusher.Flush()
 
@@ -840,7 +929,12 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		case info := <-podUpdates:
-			data, _ := json.Marshal(HealthData{Type: "pods", Payload: info})
+			// Filter pods for this user
+			filteredInfo := &PodMetricsInfo{
+				Timestamp: info.Timestamp,
+				Pods:      filterPodsForUser(info.Pods, userID),
+			}
+			data, _ := json.Marshal(HealthData{Type: "pods", Payload: filteredInfo})
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		}

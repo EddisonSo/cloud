@@ -6,6 +6,7 @@ toolchain go1.24.11
 
 require (
 	eddisonso.com/go-gfs v0.0.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/websocket v1.5.3
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
