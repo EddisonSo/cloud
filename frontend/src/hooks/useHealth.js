@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { buildHealthBase } from "@/lib/api";
+import { buildHealthBase, getAuthToken } from "@/lib/api";
 
 export function useHealth(user, enabled = false) {
   const [health, setHealth] = useState({ cluster_ok: false, nodes: [] });
@@ -36,7 +36,11 @@ export function useHealth(user, enabled = false) {
       setLoading(true);
       setError("");
 
-      eventSource = new EventSource(`${buildHealthBase()}/sse/health`);
+      const token = getAuthToken();
+      const sseUrl = token
+        ? `${buildHealthBase()}/sse/health?token=${encodeURIComponent(token)}`
+        : `${buildHealthBase()}/sse/health`;
+      eventSource = new EventSource(sseUrl);
 
       eventSource.onopen = () => {
         setLoading(false);
