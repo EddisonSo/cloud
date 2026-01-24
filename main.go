@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -478,22 +479,48 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	metricsData, err := clientset.RESTClient().
-		Get().
-		AbsPath("/apis/metrics.k8s.io/v1beta1/namespaces/" + coreServicesNamespace + "/pods").
-		DoRaw(ctx)
+	// Get list of namespaces to monitor (default + compute-*)
+	namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		slog.Error("Failed to get pod metrics", "error", err)
+		slog.Error("Failed to list namespaces", "error", err)
 		return
 	}
 
+	targetNamespaces := []string{coreServicesNamespace}
+	for _, ns := range namespaces.Items {
+		if strings.HasPrefix(ns.Name, "compute-") {
+			targetNamespaces = append(targetNamespaces, ns.Name)
+		}
+	}
+
+	// Fetch metrics from all target namespaces
 	var metricsResponse metricsPodList
-	if err := json.Unmarshal(metricsData, &metricsResponse); err != nil {
-		slog.Error("Failed to parse pod metrics", "error", err)
-		return
+	for _, ns := range targetNamespaces {
+		metricsData, err := clientset.RESTClient().
+			Get().
+			AbsPath("/apis/metrics.k8s.io/v1beta1/namespaces/" + ns + "/pods").
+			DoRaw(ctx)
+		if err != nil {
+			continue // Skip namespaces with no metrics
+		}
+
+		var nsMetrics metricsPodList
+		if err := json.Unmarshal(metricsData, &nsMetrics); err != nil {
+			continue
+		}
+		metricsResponse.Items = append(metricsResponse.Items, nsMetrics.Items...)
 	}
 
-	pods, err := clientset.CoreV1().Pods(coreServicesNamespace).List(ctx, metav1.ListOptions{})
+	// List pods from all target namespaces
+	var allPods []corev1.Pod
+	for _, ns := range targetNamespaces {
+		pods, err := clientset.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			continue
+		}
+		allPods = append(allPods, pods.Items...)
+	}
+	pods := &corev1.PodList{Items: allPods}
 	if err != nil {
 		slog.Error("Failed to list pods", "error", err)
 		return
@@ -557,7 +584,8 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache) {
 			podDiskMu.Lock()
 			nodeDiskCapacity[nodeName] = stats.Node.Fs.CapacityBytes
 			for _, podStat := range stats.Pods {
-				if podStat.PodRef.Namespace != coreServicesNamespace {
+				// Include default namespace and compute-* namespaces
+				if podStat.PodRef.Namespace != coreServicesNamespace && !strings.HasPrefix(podStat.PodRef.Namespace, "compute-") {
 					continue
 				}
 				key := podStat.PodRef.Namespace + "/" + podStat.PodRef.Name
