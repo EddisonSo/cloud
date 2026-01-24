@@ -188,6 +188,7 @@ export function useFiles() {
     const fileKey = `${file.namespace || DEFAULT_NAMESPACE}:${file.name}`;
     const token = getAuthToken();
 
+    // Set up SSE for progress tracking (non-blocking)
     if (user) {
       const sseUrl = token
         ? `${buildSseUrl(transferId)}&token=${encodeURIComponent(token)}`
@@ -218,23 +219,44 @@ export function useFiles() {
 
       eventSource.onerror = () => {
         eventSource.close();
+        setDownloadProgress((prev) => ({ ...prev, [fileKey]: { ...prev[fileKey], active: false } }));
       };
     }
 
-    // For downloads, pass token as query parameter since we're using a link
-    let downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
-    if (token) {
-      downloadUrl += `&token=${encodeURIComponent(token)}`;
-    }
+    // Use fetch with blob to avoid page navigation on errors
+    const downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
 
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.rel = "noopener";
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (eventSource) eventSource.close();
+    try {
+      const response = await fetch(downloadUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Download failed: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up object URL after download starts
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      setStatus(`Download failed: ${err.message}`);
+    } finally {
+      if (eventSource) eventSource.close();
+      setDownloadProgress((prev) => ({ ...prev, [fileKey]: { ...prev[fileKey], active: false } }));
+    }
   }, []);
 
   const deleteFile = useCallback(async (file, namespace, onComplete) => {
