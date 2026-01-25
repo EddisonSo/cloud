@@ -54,7 +54,6 @@ flowchart TB
 - [ ] **GFS master WAL replication** - Replicate chunk metadata to standby masters for redundancy; current single-master design means metadata loss on node failure
 - [ ] **GFS metadata in distributed key-value store** - Store file/chunk mappings in etcd or FoundationDB instead of local storage for automatic replication and HA
 - [ ] **Automatic database failover** - Implement Patroni or similar for automatic PostgreSQL primary promotion
-- [ ] **Node health alerting** - PagerDuty/Slack alerts when nodes become NotReady
 - [ ] **Service health monitoring** - External uptime checks for critical endpoints
 - [ ] **Pod anti-affinity rules** - Spread critical service replicas across nodes
 - [x] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands

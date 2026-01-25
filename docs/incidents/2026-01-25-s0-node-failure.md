@@ -139,7 +139,6 @@ The CLAUDE.md file documented the node layout and architecture, which helped in 
 
 ### Short-term
 - [x] Create read replicas on rp2, rp3, rp4 for redundancy
-- [ ] Add node health monitoring and alerting
 - [x] Remove `|| true` from CI/CD deploy steps or add proper error handling
 
 ### Long-term
