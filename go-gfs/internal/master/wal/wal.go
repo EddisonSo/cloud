@@ -1,0 +1,355 @@
+package wal
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+)
+
+// OpType represents the type of operation in the WAL
+type OpType string
+
+const (
+	OpCreateFile      OpType = "CREATE_FILE"
+	OpDeleteFile      OpType = "DELETE_FILE"
+	OpDeleteNamespace OpType = "DELETE_NAMESPACE"
+	OpRenameFile      OpType = "RENAME_FILE"
+	OpAddChunk        OpType = "ADD_CHUNK"
+	OpCommitChunk     OpType = "COMMIT_CHUNK"
+	OpSetCounter      OpType = "SET_COUNTER"
+)
+
+// Entry represents a single WAL entry
+type Entry struct {
+	Op   OpType          `json:"op"`
+	Data json.RawMessage `json:"data"`
+}
+
+// CreateFileData represents data for CREATE_FILE operation
+type CreateFileData struct {
+	Path      string `json:"path"`
+	Namespace string `json:"namespace,omitempty"`
+	ChunkSize uint64 `json:"chunk_size"`
+}
+
+// DeleteFileData represents data for DELETE_FILE operation
+type DeleteFileData struct {
+	Path      string `json:"path"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// DeleteNamespaceData represents data for DELETE_NAMESPACE operation
+type DeleteNamespaceData struct {
+	Namespace string `json:"namespace"`
+}
+
+// RenameFileData represents data for RENAME_FILE operation
+type RenameFileData struct {
+	OldPath   string `json:"old_path"`
+	NewPath   string `json:"new_path"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// AddChunkData represents data for ADD_CHUNK operation
+type AddChunkData struct {
+	Path        string `json:"path"`
+	Namespace   string `json:"namespace,omitempty"`
+	ChunkHandle string `json:"chunk_handle"`
+}
+
+// CommitChunkData represents data for COMMIT_CHUNK operation
+type CommitChunkData struct {
+	ChunkHandle string `json:"chunk_handle"`
+	Size        uint64 `json:"size"`
+}
+
+// SetCounterData represents data for SET_COUNTER operation
+type SetCounterData struct {
+	NextChunkHandle uint64 `json:"next_chunk_handle"`
+}
+
+// WAL is a write-ahead log for master persistence
+type WAL struct {
+	file *os.File
+	mu   sync.Mutex
+	path string
+}
+
+// New creates a new WAL at the given path
+func New(path string) (*WAL, error) {
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create WAL directory: %w", err)
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open WAL file: %w", err)
+	}
+
+	return &WAL{
+		file: file,
+		path: path,
+	}, nil
+}
+
+// Close closes the WAL file
+func (w *WAL) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.file.Close()
+}
+
+// append writes an entry to the WAL
+func (w *WAL) append(entry Entry) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal WAL entry: %w", err)
+	}
+
+	data = append(data, '\n')
+	if _, err := w.file.Write(data); err != nil {
+		return fmt.Errorf("failed to write WAL entry: %w", err)
+	}
+
+	// Sync to disk for durability
+	if err := w.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync WAL: %w", err)
+	}
+
+	return nil
+}
+
+// LogCreateFile logs a CREATE_FILE operation
+func (w *WAL) LogCreateFile(path, namespace string, chunkSize uint64) error {
+	data, _ := json.Marshal(CreateFileData{Path: path, Namespace: namespace, ChunkSize: chunkSize})
+	return w.append(Entry{Op: OpCreateFile, Data: data})
+}
+
+// LogDeleteFile logs a DELETE_FILE operation
+func (w *WAL) LogDeleteFile(path, namespace string) error {
+	data, _ := json.Marshal(DeleteFileData{Path: path, Namespace: namespace})
+	return w.append(Entry{Op: OpDeleteFile, Data: data})
+}
+
+// LogDeleteNamespace logs a DELETE_NAMESPACE operation
+func (w *WAL) LogDeleteNamespace(namespace string) error {
+	data, _ := json.Marshal(DeleteNamespaceData{Namespace: namespace})
+	return w.append(Entry{Op: OpDeleteNamespace, Data: data})
+}
+
+// LogRenameFile logs a RENAME_FILE operation
+func (w *WAL) LogRenameFile(oldPath, newPath, namespace string) error {
+	data, _ := json.Marshal(RenameFileData{OldPath: oldPath, NewPath: newPath, Namespace: namespace})
+	return w.append(Entry{Op: OpRenameFile, Data: data})
+}
+
+// LogAddChunk logs an ADD_CHUNK operation
+func (w *WAL) LogAddChunk(path, namespace, chunkHandle string) error {
+	data, _ := json.Marshal(AddChunkData{Path: path, Namespace: namespace, ChunkHandle: chunkHandle})
+	return w.append(Entry{Op: OpAddChunk, Data: data})
+}
+
+// LogCommitChunk logs a COMMIT_CHUNK operation
+func (w *WAL) LogCommitChunk(chunkHandle string, size uint64) error {
+	data, _ := json.Marshal(CommitChunkData{ChunkHandle: chunkHandle, Size: size})
+	return w.append(Entry{Op: OpCommitChunk, Data: data})
+}
+
+// LogSetCounter logs the chunk handle counter
+func (w *WAL) LogSetCounter(nextChunkHandle uint64) error {
+	data, _ := json.Marshal(SetCounterData{NextChunkHandle: nextChunkHandle})
+	return w.append(Entry{Op: OpSetCounter, Data: data})
+}
+
+// Reader provides an interface for replaying WAL entries
+type Reader struct {
+	scanner *bufio.Scanner
+	file    *os.File
+}
+
+// NewReader creates a reader to replay WAL entries
+func NewReader(path string) (*Reader, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No WAL file, nothing to replay
+		}
+		return nil, fmt.Errorf("failed to open WAL for reading: %w", err)
+	}
+
+	return &Reader{
+		scanner: bufio.NewScanner(file),
+		file:    file,
+	}, nil
+}
+
+// Close closes the reader
+func (r *Reader) Close() error {
+	if r.file != nil {
+		return r.file.Close()
+	}
+	return nil
+}
+
+// ReadAll reads all entries from the WAL
+func (r *Reader) ReadAll() ([]Entry, error) {
+	if r == nil {
+		return nil, nil
+	}
+
+	var entries []Entry
+	for r.scanner.Scan() {
+		line := r.scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var entry Entry
+		if err := json.Unmarshal(line, &entry); err != nil {
+			slog.Warn("skipping malformed WAL entry", "error", err)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+
+	if err := r.scanner.Err(); err != nil && err != io.EOF {
+		return nil, fmt.Errorf("error reading WAL: %w", err)
+	}
+
+	return entries, nil
+}
+
+// Snapshot represents a point-in-time snapshot of master state
+type Snapshot struct {
+	Timestamp time.Time       `json:"timestamp"`
+	Files     []SnapshotFile  `json:"files"`
+	Chunks    []SnapshotChunk `json:"chunks"`
+}
+
+// SnapshotFile represents a file in the snapshot
+type SnapshotFile struct {
+	Path       string   `json:"path"`
+	Namespace  string   `json:"namespace"`
+	ChunkSize  uint64   `json:"chunk_size"`
+	Chunks     []string `json:"chunks"`
+	Size       uint64   `json:"size"`
+	CreatedAt  int64    `json:"created_at"`
+	ModifiedAt int64    `json:"modified_at"`
+}
+
+// SnapshotChunk represents a chunk in the snapshot
+type SnapshotChunk struct {
+	Handle    string `json:"handle"`
+	FilePath  string `json:"file_path"`
+	Namespace string `json:"namespace"`
+	Size      uint64 `json:"size"`
+	Version   uint64 `json:"version"`
+	Status    string `json:"status"`
+}
+
+// WriteSnapshot writes a snapshot to disk
+func (w *WAL) WriteSnapshot(snapshot *Snapshot) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	snapshotPath := w.path + ".snapshot"
+	tempPath := snapshotPath + ".tmp"
+
+	// Write to temp file first
+	file, err := os.Create(tempPath)
+	if err != nil {
+		return fmt.Errorf("failed to create snapshot file: %w", err)
+	}
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(snapshot); err != nil {
+		file.Close()
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to encode snapshot: %w", err)
+	}
+
+	if err := file.Sync(); err != nil {
+		file.Close()
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to sync snapshot: %w", err)
+	}
+	file.Close()
+
+	// Atomic rename
+	if err := os.Rename(tempPath, snapshotPath); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to rename snapshot: %w", err)
+	}
+
+	slog.Info("snapshot written", "path", snapshotPath, "files", len(snapshot.Files), "chunks", len(snapshot.Chunks))
+	return nil
+}
+
+// ReadSnapshot reads a snapshot from disk
+func (w *WAL) ReadSnapshot() (*Snapshot, error) {
+	snapshotPath := w.path + ".snapshot"
+
+	file, err := os.Open(snapshotPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No snapshot exists
+		}
+		return nil, fmt.Errorf("failed to open snapshot: %w", err)
+	}
+	defer file.Close()
+
+	var snapshot Snapshot
+	if err := json.NewDecoder(file).Decode(&snapshot); err != nil {
+		return nil, fmt.Errorf("failed to decode snapshot: %w", err)
+	}
+
+	slog.Info("snapshot loaded", "timestamp", snapshot.Timestamp, "files", len(snapshot.Files), "chunks", len(snapshot.Chunks))
+	return &snapshot, nil
+}
+
+// TruncateAfterSnapshot truncates the WAL after a successful snapshot
+func (w *WAL) TruncateAfterSnapshot() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Close current file
+	if err := w.file.Close(); err != nil {
+		return fmt.Errorf("failed to close WAL: %w", err)
+	}
+
+	// Truncate by recreating the file
+	file, err := os.Create(w.path)
+	if err != nil {
+		return fmt.Errorf("failed to truncate WAL: %w", err)
+	}
+	w.file = file
+
+	slog.Info("WAL truncated after snapshot")
+	return nil
+}
+
+// EntryCount returns the approximate number of entries in the WAL
+func (w *WAL) EntryCount() (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	info, err := w.file.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	// Rough estimate: ~200 bytes per entry on average
+	return int(info.Size() / 200), nil
+}

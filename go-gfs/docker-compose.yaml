@@ -1,0 +1,91 @@
+services:
+  master:
+    image: eddisonso/gfs-master:latest
+    container_name: master
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./master", "-port", "9000", "-data", "/data/master"]
+    network_mode: host
+    volumes:
+      - ./data/master:/data/master
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd/master
+        - action: rebuild
+          path: ./internal/master
+        - action: rebuild
+          path: ./proto
+
+  chunkserver1:
+    image: eddisonso/gfs-chunkserver:latest
+    container_name: chunkserver1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./chunkserver", "-p", "8080", "-r", "8081", "-h", "192.168.1.100", "-d", "/data/chunkserver1", "-id", "chunkserver1", "-master", "localhost:9000"]
+    network_mode: host
+    volumes:
+      - ./data/chunkserver1:/data/chunkserver1
+    depends_on:
+      master:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd/chunkserver
+        - action: rebuild
+          path: ./internal/chunkserver
+        - action: rebuild
+          path: ./proto
+
+  chunkserver2:
+    image: eddisonso/gfs-chunkserver:latest
+    container_name: chunkserver2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./chunkserver", "-p", "8082", "-r", "8083", "-h", "192.168.1.100", "-d", "/data/chunkserver2", "-id", "chunkserver2", "-master", "localhost:9000"]
+    network_mode: host
+    volumes:
+      - ./data/chunkserver2:/data/chunkserver2
+    depends_on:
+      master:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd/chunkserver
+        - action: rebuild
+          path: ./internal/chunkserver
+        - action: rebuild
+          path: ./proto
+
+  chunkserver3:
+    image: eddisonso/gfs-chunkserver:latest
+    container_name: chunkserver3
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./chunkserver", "-p", "8084", "-r", "8085", "-h", "192.168.1.100", "-d", "/data/chunkserver3", "-id", "chunkserver3", "-master", "localhost:9000"]
+    network_mode: host
+    volumes:
+      - ./data/chunkserver3:/data/chunkserver3
+    depends_on:
+      master:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: rebuild
+          path: ./cmd/chunkserver
+        - action: rebuild
+          path: ./internal/chunkserver
+        - action: rebuild
+          path: ./proto

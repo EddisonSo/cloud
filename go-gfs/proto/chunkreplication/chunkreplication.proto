@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package chunkreplication.v1;
+option go_package = "eddisonso.com/go-gfs/proto/chunkreplication;chunkreplication";
+
+message ReplicationMetadata {
+    string opId = 1;
+    string chunkHandle = 2;
+    uint64 length = 3;
+    uint64 epoch = 4;
+    uint64 offset = 5;
+    uint64 sequence = 6;
+}
+
+message ReplicationData {
+    bytes  data = 1;
+    uint64 seq = 2;
+}
+
+message ReplicationFrame {
+    oneof kind {
+        ReplicationMetadata meta = 1;
+	ReplicationData data = 2;
+    }
+}
+
+message ReplicationResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message Ready {
+    string opId = 1;
+    string replica = 2;
+}
+
+message Commit {
+    string opId = 1;
+}
+
+service Replicator {
+    rpc Replicate (stream ReplicationFrame) returns (ReplicationResponse);
+    rpc RecvReady (Ready) returns (ReplicationResponse);
+    rpc RecvCommit (Commit) returns (ReplicationResponse);
+}

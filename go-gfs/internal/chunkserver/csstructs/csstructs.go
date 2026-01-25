@@ -1,0 +1,58 @@
+package csstructs
+
+import (
+	"github.com/golang-jwt/jwt/v5"
+)
+
+type ChunkServerConfig struct {
+	Hostname string
+	DataPort int
+	ReplicationPort int
+	Id 	 string
+	Dir 	 string
+}
+
+type ReplicaIdentifier struct {
+	ID   string `json:"id"`
+	Hostname string `json:"hostname"`
+	DataPort int
+	ReplicationPort int
+}
+
+type DownloadRequestClaims struct {
+	ChunkHandle string              `json:"chunk_handle"`
+	Operation   string              `json:"operation"`
+	Filesize    uint64              `json:"file_size"`
+	Offset      int64               `json:"offset"` // -1 means auto-allocate (append), >= 0 means random write at offset
+	Replicas    []ReplicaIdentifier `json:"replicas"`
+	Primary     ReplicaIdentifier   `json:"primary"`
+	jwt.RegisteredClaims
+}
+
+
+
+type Action int
+const (
+	Download Action = iota
+	Upload
+)
+
+type Status int
+const (
+	READY Status = iota
+	COMMIT
+	ABORT
+)
+
+type UploadRequestClaims struct {
+	ChunkHandle string `json:"chunk_handle"`
+	Operation   string `json:"operation"`
+	jwt.RegisteredClaims
+}
+
+type ReadErrorCode uint32
+const (
+	ErrChunkNotFound ReadErrorCode = iota + 1
+	ErrReadFailure
+	ErrInvalidRequest
+)
