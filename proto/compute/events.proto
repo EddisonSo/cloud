@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package compute;
+
+import "common/types.proto";
+
+option go_package = "eddisonso.com/edd-cloud/proto/compute";
+
+// Container lifecycle events
+
+// Subject: compute.container.{container_id}.created
+message ContainerCreated {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  int64 user_id = 3;
+  string owner_username = 4;
+  string name = 5;
+  string namespace = 6;
+  int32 memory_mb = 7;
+  int32 storage_gb = 8;
+  string image = 9;
+}
+
+// Subject: compute.container.{container_id}.started
+message ContainerStarted {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  string external_ip = 3;
+}
+
+// Subject: compute.container.{container_id}.stopped
+message ContainerStopped {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+}
+
+// Subject: compute.container.{container_id}.deleted
+message ContainerDeleted {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  int64 user_id = 3;
+}
+
+// Subject: compute.container.{container_id}.ssh_toggled
+message ContainerSSHToggled {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  bool ssh_enabled = 3;
+}
+
+// Subject: compute.container.{container_id}.https_toggled
+message ContainerHTTPSToggled {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  bool https_enabled = 3;
+}
+
+// Subject: compute.container.{container_id}.ip_assigned
+message ContainerIPAssigned {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  string external_ip = 3;
+}
+
+// SSH Key events
+
+// Subject: compute.sshkey.{key_id}.created
+message SSHKeyCreated {
+  common.EventMetadata metadata = 1;
+  int64 key_id = 2;
+  int64 user_id = 3;
+  string name = 4;
+  string fingerprint = 5;
+}
+
+// Subject: compute.sshkey.{key_id}.deleted
+message SSHKeyDeleted {
+  common.EventMetadata metadata = 1;
+  int64 key_id = 2;
+  int64 user_id = 3;
+}
+
+// Ingress rule events (Compute requests Gateway to create/delete)
+
+// Subject: compute.ingress.{container_id}.requested
+message IngressRuleRequested {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  int32 port = 3;
+  int32 target_port = 4;
+}
+
+// Subject: compute.ingress.{container_id}.delete_requested
+message IngressRuleDeleteRequested {
+  common.EventMetadata metadata = 1;
+  string container_id = 2;
+  int32 port = 3;
+}

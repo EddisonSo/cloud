@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "eddisonso.com/edd-cloud/proto/common";
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+message EventMetadata {
+  string event_id = 1;        // Unique event ID (UUID)
+  string entity_id = 2;       // ID of the entity (user_id, container_id, etc.)
+  Timestamp timestamp = 3;    // When event occurred
+  string source = 4;          // Service that emitted the event
+  int64 version = 5;          // For optimistic concurrency
+}

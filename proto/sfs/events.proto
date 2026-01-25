@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package sfs;
+
+import "common/types.proto";
+
+option go_package = "eddisonso.com/edd-cloud/proto/sfs";
+
+// Namespace events
+
+// Subject: sfs.namespace.{namespace_id}.created
+message NamespaceCreated {
+  common.EventMetadata metadata = 1;
+  int64 namespace_id = 2;
+  int64 owner_id = 3;
+  string name = 4;
+  string visibility = 5;  // "private", "internal", "public"
+}
+
+// Subject: sfs.namespace.{namespace_id}.deleted
+message NamespaceDeleted {
+  common.EventMetadata metadata = 1;
+  int64 namespace_id = 2;
+  int64 owner_id = 3;
+}
+
+// Subject: sfs.namespace.{namespace_id}.visibility_changed
+message NamespaceVisibilityChanged {
+  common.EventMetadata metadata = 1;
+  int64 namespace_id = 2;
+  string old_visibility = 3;
+  string new_visibility = 4;
+}
+
+// File events (optional, for audit/analytics)
+
+// Subject: sfs.file.{namespace_id}.uploaded
+message FileUploaded {
+  common.EventMetadata metadata = 1;
+  int64 namespace_id = 2;
+  string path = 3;
+  int64 size_bytes = 4;
+  int64 uploader_id = 5;
+}
+
+// Subject: sfs.file.{namespace_id}.deleted
+message FileDeleted {
+  common.EventMetadata metadata = 1;
+  int64 namespace_id = 2;
+  string path = 3;
+  int64 deleter_id = 4;
+}

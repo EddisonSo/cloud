@@ -1,0 +1,25 @@
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-host-chunkserver
+spec:
+  order: 10
+  preDNAT: true
+  applyOnForward: true
+  selector: all()
+  types:
+  - Ingress
+  ingress:
+  - action: Allow
+    protocol: TCP
+    destination:
+      ports:
+      - 9080
+      - 9081
+  - action: Allow
+    protocol: TCP
+    destination:
+      ports:
+      - 22
+      - 6443
+      - 10250

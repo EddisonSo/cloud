@@ -1,0 +1,120 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-file-share-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simple-file-share
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: simple-file-share
+        tier: backend
+    spec:
+      nodeSelector:
+        backend: "true"
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: backend
+          image: eddisonso/ecloud-sfs:latest
+          imagePullPolicy: Always
+          command: ["/app/sfs"]
+          args:
+            - -addr
+            - 0.0.0.0:8080
+            - -master
+            - gfs-master:9000
+            - -static
+            - /app/frontend
+            - -log-service
+            - log-service:50051
+            - -log-source
+            - sfs-backend
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sfs-db-credentials
+                  key: DATABASE_URL
+            - name: ADMIN_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: edd-cloud-config
+                  key: ADMIN_USERNAME
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:80"
+          envFrom:
+            - secretRef:
+                name: edd-cloud-auth
+          ports:
+            - containerPort: 8080
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-file-share-backend
+spec:
+  type: NodePort
+  selector:
+    app: simple-file-share
+    tier: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-file-share-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simple-file-share
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: simple-file-share
+        tier: frontend
+    spec:
+      nodeSelector:
+        backend: "true"
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: frontend
+          image: eddisonso/ecloud-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-file-share-frontend
+spec:
+  type: NodePort
+  selector:
+    app: simple-file-share
+    tier: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080

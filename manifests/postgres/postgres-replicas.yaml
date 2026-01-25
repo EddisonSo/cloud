@@ -1,0 +1,570 @@
+# PostgreSQL Read Replicas for rp2, rp3, rp4
+# These replicate from the primary on rp1 (postgres-replica service)
+
+---
+# Replica 2 (rp2)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-replica-2-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-replica-2-config
+  namespace: default
+data:
+  postgresql.conf: |
+    listen_addresses = '*'
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64
+    hot_standby = on
+    primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
+  pg_hba.conf: |
+    local   all             all                                     trust
+    host    all             all             0.0.0.0/0               md5
+    host    replication     replicator      10.0.0.0/8              md5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica-2
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-replica-2
+  template:
+    metadata:
+      labels:
+        app: postgres-replica-2
+    spec:
+      nodeSelector:
+        db-role: replica-2
+      initContainers:
+        - name: pg-basebackup
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -f /var/lib/postgresql/data/PG_VERSION ]; then
+                echo "Data directory already initialized, skipping pg_basebackup"
+              else
+                echo "Running pg_basebackup to clone primary..."
+                PGPASSWORD=$(cat /secrets/password) pg_basebackup \
+                  -h postgres \
+                  -U replicator \
+                  -D /var/lib/postgresql/data \
+                  -Fp -Xs -P -R
+                touch /var/lib/postgresql/data/standby.signal
+                REPL_PASSWORD=$(cat /secrets/password)
+                sed -i "s/REPL_PASSWORD/$REPL_PASSWORD/g" /var/lib/postgresql/data/postgresql.auto.conf
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: replication-secret
+              mountPath: /secrets
+              readOnly: true
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          command:
+            - docker-entrypoint.sh
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: config
+              mountPath: /etc/postgresql
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-replica-2-data
+        - name: config
+          configMap:
+            name: postgres-replica-2-config
+        - name: replication-secret
+          secret:
+            secretName: postgres-replication-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica-2
+  namespace: default
+spec:
+  selector:
+    app: postgres-replica-2
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+# Replica 3 (rp3)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-replica-3-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-replica-3-config
+  namespace: default
+data:
+  postgresql.conf: |
+    listen_addresses = '*'
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64
+    hot_standby = on
+    primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
+  pg_hba.conf: |
+    local   all             all                                     trust
+    host    all             all             0.0.0.0/0               md5
+    host    replication     replicator      10.0.0.0/8              md5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica-3
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-replica-3
+  template:
+    metadata:
+      labels:
+        app: postgres-replica-3
+    spec:
+      nodeSelector:
+        db-role: replica-3
+      initContainers:
+        - name: pg-basebackup
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -f /var/lib/postgresql/data/PG_VERSION ]; then
+                echo "Data directory already initialized, skipping pg_basebackup"
+              else
+                echo "Running pg_basebackup to clone primary..."
+                PGPASSWORD=$(cat /secrets/password) pg_basebackup \
+                  -h postgres \
+                  -U replicator \
+                  -D /var/lib/postgresql/data \
+                  -Fp -Xs -P -R
+                touch /var/lib/postgresql/data/standby.signal
+                REPL_PASSWORD=$(cat /secrets/password)
+                sed -i "s/REPL_PASSWORD/$REPL_PASSWORD/g" /var/lib/postgresql/data/postgresql.auto.conf
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: replication-secret
+              mountPath: /secrets
+              readOnly: true
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          command:
+            - docker-entrypoint.sh
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: config
+              mountPath: /etc/postgresql
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-replica-3-data
+        - name: config
+          configMap:
+            name: postgres-replica-3-config
+        - name: replication-secret
+          secret:
+            secretName: postgres-replication-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica-3
+  namespace: default
+spec:
+  selector:
+    app: postgres-replica-3
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+# Replica 4 (rp4)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-replica-4-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-replica-4-config
+  namespace: default
+data:
+  postgresql.conf: |
+    listen_addresses = '*'
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64
+    hot_standby = on
+    primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
+  pg_hba.conf: |
+    local   all             all                                     trust
+    host    all             all             0.0.0.0/0               md5
+    host    replication     replicator      10.0.0.0/8              md5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica-4
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-replica-4
+  template:
+    metadata:
+      labels:
+        app: postgres-replica-4
+    spec:
+      nodeSelector:
+        db-role: replica-4
+      initContainers:
+        - name: pg-basebackup
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -f /var/lib/postgresql/data/PG_VERSION ]; then
+                echo "Data directory already initialized, skipping pg_basebackup"
+              else
+                echo "Running pg_basebackup to clone primary..."
+                PGPASSWORD=$(cat /secrets/password) pg_basebackup \
+                  -h postgres \
+                  -U replicator \
+                  -D /var/lib/postgresql/data \
+                  -Fp -Xs -P -R
+                touch /var/lib/postgresql/data/standby.signal
+                REPL_PASSWORD=$(cat /secrets/password)
+                sed -i "s/REPL_PASSWORD/$REPL_PASSWORD/g" /var/lib/postgresql/data/postgresql.auto.conf
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: replication-secret
+              mountPath: /secrets
+              readOnly: true
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          command:
+            - docker-entrypoint.sh
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: config
+              mountPath: /etc/postgresql
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-replica-4-data
+        - name: config
+          configMap:
+            name: postgres-replica-4-config
+        - name: replication-secret
+          secret:
+            secretName: postgres-replication-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica-4
+  namespace: default
+spec:
+  selector:
+    app: postgres-replica-4
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+# Replica s0 (backup replica on s0 for stability monitoring)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-replica-s0-data
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-replica-s0-config
+  namespace: default
+data:
+  postgresql.conf: |
+    listen_addresses = '*'
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64
+    hot_standby = on
+    primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
+  pg_hba.conf: |
+    local   all             all                                     trust
+    host    all             all             0.0.0.0/0               md5
+    host    replication     replicator      10.0.0.0/8              md5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica-s0
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-replica-s0
+  template:
+    metadata:
+      labels:
+        app: postgres-replica-s0
+    spec:
+      nodeSelector:
+        db-role: replica-s0
+      initContainers:
+        - name: pg-basebackup
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -f /var/lib/postgresql/data/PG_VERSION ]; then
+                echo "Data directory already initialized, skipping pg_basebackup"
+              else
+                echo "Running pg_basebackup to clone primary..."
+                PGPASSWORD=$(cat /secrets/password) pg_basebackup \
+                  -h postgres \
+                  -U replicator \
+                  -D /var/lib/postgresql/data \
+                  -Fp -Xs -P -R
+                touch /var/lib/postgresql/data/standby.signal
+                REPL_PASSWORD=$(cat /secrets/password)
+                sed -i "s/REPL_PASSWORD/$REPL_PASSWORD/g" /var/lib/postgresql/data/postgresql.auto.conf
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: replication-secret
+              mountPath: /secrets
+              readOnly: true
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          command:
+            - docker-entrypoint.sh
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            - -c
+            - hba_file=/etc/postgresql/pg_hba.conf
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: config
+              mountPath: /etc/postgresql
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - eddcloud
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-replica-s0-data
+        - name: config
+          configMap:
+            name: postgres-replica-s0-config
+        - name: replication-secret
+          secret:
+            secretName: postgres-replication-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica-s0
+  namespace: default
+spec:
+  selector:
+    app: postgres-replica-s0
+  ports:
+    - port: 5432
+      targetPort: 5432

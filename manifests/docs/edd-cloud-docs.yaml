@@ -1,0 +1,39 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edd-cloud-docs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edd-cloud-docs
+  template:
+    metadata:
+      labels:
+        app: edd-cloud-docs
+    spec:
+      nodeSelector:
+        backend: "true"
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: docs
+          image: eddisonso/ecloud-docs:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edd-cloud-docs
+spec:
+  type: ClusterIP
+  selector:
+    app: edd-cloud-docs
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

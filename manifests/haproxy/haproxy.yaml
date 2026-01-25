@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: default
+data:
+  haproxy.cfg: |
+    global
+        log stdout format raw local0
+        maxconn 1000
+
+    defaults
+        log global
+        mode tcp
+        timeout connect 5s
+        timeout client 30s
+        timeout server 30s
+        retries 3
+
+    frontend postgres_frontend
+        bind *:5432
+        default_backend postgres_backend
+
+    backend postgres_backend
+        option tcp-check
+        tcp-check connect
+        tcp-check send-binary 00000008
+        tcp-check send-binary 04d2162f  # SSL request (1234.5679)
+        tcp-check expect binary 4e        # 'N' response (no SSL)
+
+        # Primary server - active
+        server primary postgres:5432 check inter 3s fall 3 rise 2
+
+        # Replica server - backup (activated when primary fails)
+        server replica postgres-replica:5432 check inter 3s fall 3 rise 2 backup
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      labels:
+        app: haproxy
+    spec:
+      nodeSelector:
+        db-role: replica
+      containers:
+        - name: haproxy
+          image: haproxy:2.9-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy
+              readOnly: true
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 25m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: haproxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy
+  namespace: default
+spec:
+  selector:
+    app: haproxy
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres

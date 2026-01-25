@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package gateway;
+
+import "common/types.proto";
+
+option go_package = "eddisonso.com/edd-cloud/proto/gateway";
+
+// Published when Gateway creates an ingress rule
+// Subject: gateway.ingress.{container_id}.created
+message IngressRuleCreated {
+  common.EventMetadata metadata = 1;
+  int64 rule_id = 2;
+  string container_id = 3;
+  int32 port = 4;
+  int32 target_port = 5;
+}
+
+// Subject: gateway.ingress.{container_id}.deleted
+message IngressRuleDeleted {
+  common.EventMetadata metadata = 1;
+  int64 rule_id = 2;
+  string container_id = 3;
+  int32 port = 4;
+}
+
+// Subject: gateway.route.{route_id}.registered
+message RouteRegistered {
+  common.EventMetadata metadata = 1;
+  int64 route_id = 2;
+  string host = 3;
+  string path_prefix = 4;
+  string target = 5;
+  bool strip_prefix = 6;
+}
+
+// Subject: gateway.route.{route_id}.unregistered
+message RouteUnregistered {
+  common.EventMetadata metadata = 1;
+  int64 route_id = 2;
+  string host = 3;
+  string path_prefix = 4;
+}
+
+// Internal event when router cache is refreshed
+// Subject: gateway.router.refreshed
+message RouterRefreshed {
+  common.EventMetadata metadata = 1;
+  int32 container_count = 2;
+  int32 route_count = 3;
+}

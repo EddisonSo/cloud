@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package auth;
+
+import "common/types.proto";
+
+option go_package = "eddisonso.com/edd-cloud/proto/auth";
+
+// Published when a new user registers
+// Subject: auth.user.{user_id}.created
+message UserCreated {
+  common.EventMetadata metadata = 1;
+  int64 user_id = 2;
+  string username = 3;
+  string display_name = 4;
+  string public_id = 5;       // 6-char nanoid
+}
+
+// Published when a user is deleted
+// Subject: auth.user.{user_id}.deleted
+message UserDeleted {
+  common.EventMetadata metadata = 1;
+  int64 user_id = 2;
+  string username = 3;
+}
+
+// Published when user profile is updated
+// Subject: auth.user.{user_id}.updated
+message UserUpdated {
+  common.EventMetadata metadata = 1;
+  int64 user_id = 2;
+  string username = 3;
+  string display_name = 4;
+}
+
+// Published when a session is created (login)
+// Subject: auth.session.{session_id}.created
+message SessionCreated {
+  common.EventMetadata metadata = 1;
+  string session_id = 2;
+  int64 user_id = 3;
+  common.Timestamp expires_at = 4;
+}
+
+// Published when a session is invalidated (logout)
+// Subject: auth.session.{session_id}.invalidated
+message SessionInvalidated {
+  common.EventMetadata metadata = 1;
+  string session_id = 2;
+  int64 user_id = 3;
+}
+
+// Request/Reply for token validation
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  int64 user_id = 2;
+  string username = 3;
+  string error = 4;
+}

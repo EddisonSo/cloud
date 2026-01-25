@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edd-compute
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: edd-compute
+  template:
+    metadata:
+      labels:
+        app: edd-compute
+    spec:
+      serviceAccountName: edd-compute
+      nodeSelector:
+        backend: "true"
+      containers:
+        - name: edd-compute
+          image: eddisonso/ecloud-compute:latest
+          args:
+            - -addr
+            - :8080
+            - -log-service
+            - log-service:50051
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: compute-db-credentials
+                  key: DATABASE_URL
+            - name: ADMIN_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: edd-cloud-config
+                  key: ADMIN_USERNAME
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: edd-cloud-auth
+                  key: JWT_SECRET
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:80"
+          ports:
+            - containerPort: 8080
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      imagePullSecrets:
+        - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edd-compute
+  namespace: default
+spec:
+  selector:
+    app: edd-compute
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
