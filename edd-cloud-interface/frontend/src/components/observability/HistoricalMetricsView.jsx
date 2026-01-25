@@ -24,7 +24,7 @@ export function HistoricalMetricsView() {
                 <Skeleton className="h-5 w-24" />
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-[400px] w-full" />
               </CardContent>
             </Card>
           ))}
