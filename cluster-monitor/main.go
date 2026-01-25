@@ -304,6 +304,7 @@ func main() {
 	refreshInterval := flag.Duration("refresh", 5*time.Second, "Metrics refresh interval")
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "cluster-monitor", "Log source name (e.g., pod name)")
+	apiServer := flag.String("api-server", "", "Kubernetes API server address (e.g., https://k3s.eddisonso.com:6443)")
 	flag.Parse()
 
 	initJWTSecret()
@@ -322,6 +323,12 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to get in-cluster config", "error", err)
 		os.Exit(1)
+	}
+
+	// Override API server address if provided
+	if *apiServer != "" {
+		config.Host = *apiServer
+		slog.Info("Using custom API server", "host", *apiServer)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)

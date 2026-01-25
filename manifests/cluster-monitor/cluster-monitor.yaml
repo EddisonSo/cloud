@@ -51,6 +51,8 @@ spec:
         - name: cluster-monitor
           image: eddisonso/cluster-monitor:latest
           args:
+            - "-api-server"
+            - "https://k3s.eddisonso.com:6443"
             - "-log-service"
             - "log-service:50051"
             - "-log-source"
