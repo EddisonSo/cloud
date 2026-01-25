@@ -102,6 +102,8 @@ export function MultiMetricsChart({ data, title }) {
             className="text-xs"
             tick={{ fill: "currentColor" }}
             stroke="currentColor"
+            interval="preserveStartEnd"
+            minTickGap={80}
           />
           <YAxis
             domain={[0, 100]}
