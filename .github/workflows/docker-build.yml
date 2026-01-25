@@ -228,7 +228,7 @@ jobs:
           chmod 600 ~/.kube/config
       - name: Deploy services
         run: |
-          kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${GITHUB_SHA} || true
-          kubectl -n $NS set image deployment/log-service log-service=${LOGGING_IMAGE}:${GITHUB_SHA} || true
-          kubectl -n $NS set image deployment/edd-compute edd-compute=${COMPUTE_IMAGE}:${GITHUB_SHA} || true
-          kubectl -n $NS set image deployment/simple-file-share-frontend frontend=${FRONTEND_IMAGE}:${GITHUB_SHA} || true
+          kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/log-service log-service=${LOGGING_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/edd-compute edd-compute=${COMPUTE_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/simple-file-share-frontend frontend=${FRONTEND_IMAGE}:${GITHUB_SHA}
