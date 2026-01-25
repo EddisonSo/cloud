@@ -47,6 +47,18 @@ flowchart TB
 - [x] **Migrate control plane to s1/s2/s3** - HA control plane with embedded etcd on amd64 nodes
 - [x] **Multi-master HA** - 3-node control plane for high availability
 
+## High Availability / Disaster Recovery
+
+*Added after [2026-01-25 s0 node failure incident](/docs/incidents/2026-01-25-s0-node-failure)*
+
+- [ ] **GFS master WAL replication** - Replicate chunk metadata to standby masters for redundancy; current single-master design means metadata loss on node failure
+- [ ] **GFS metadata in PostgreSQL** - Consider storing file/chunk mappings in PostgreSQL instead of local storage for automatic replication
+- [ ] **Automatic database failover** - Implement Patroni or similar for automatic PostgreSQL primary promotion
+- [ ] **Node health alerting** - PagerDuty/Slack alerts when nodes become NotReady
+- [ ] **Service health monitoring** - External uptime checks for critical endpoints
+- [ ] **Pod anti-affinity rules** - Spread critical service replicas across nodes
+- [ ] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands
+
 ## Monitoring
 
 - [ ] **Distributed tracing** - Request tracing across services

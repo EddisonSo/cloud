@@ -84,9 +84,16 @@ The node had previously been up for ~3 days before failing.
 Critical services were concentrated on s0 with no automatic failover:
 - PostgreSQL primary (only writable database)
 - Gateway (only ingress point)
-- GFS master
+- GFS master (chunk metadata)
 
-### 2. No Alerting
+### 2. GFS Chunk Metadata Lost
+The GFS master stored all chunk metadata (file-to-chunk mappings) in memory/local storage on s0. When s0 went down:
+- All file metadata was lost
+- Chunk data still exists on chunkservers (s1, s2, s3) but is now orphaned
+- Files cannot be reconstructed without metadata
+- **This is a critical data loss scenario**
+
+### 3. No Alerting
 There was no monitoring or alerting configured to detect:
 - Node failures
 - Pod scheduling failures
@@ -94,13 +101,13 @@ There was no monitoring or alerting configured to detect:
 
 The outage went unnoticed for ~15 hours overnight.
 
-### 3. Rigid Node Selectors
+### 4. Rigid Node Selectors
 Services used strict `nodeSelector` constraints that prevented automatic rescheduling:
 - `db-role: primary` - only s0
 - `core-services: true` - only s0
 - `role: backend` - only s0
 
-### 4. GitHub Actions Deployment Failures Hidden
+### 5. GitHub Actions Deployment Failures Hidden
 The CI/CD pipeline's deploy step used `|| true` which silently ignored connection failures to the Kubernetes API, masking deployment issues.
 
 ## What Went Well
@@ -140,6 +147,8 @@ The CLAUDE.md file documented the node layout and architecture, which helped in 
 - [ ] Add pod anti-affinity rules to spread replicas
 - [ ] Implement health checks for external monitoring
 - [ ] Consider running multiple gateway replicas
+- [ ] **Implement GFS master WAL replication for metadata redundancy**
+- [ ] Consider storing GFS metadata in PostgreSQL instead of local storage
 
 ## Architecture Changes
 
