@@ -104,7 +104,7 @@ export function HistoricalMetricsView() {
           </Card>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           {nodeNames.map((nodeName) => (
             <Card
               key={nodeName}
@@ -127,7 +127,7 @@ export function HistoricalMetricsView() {
 
       <p className="text-xs text-muted-foreground">
         Resolution: {data?.resolution || "raw"} |
-        Range: {new Date(data?.start).toLocaleString()} - {new Date(data?.end).toLocaleString()}
+        Range: {data?.start ? new Date(data.start).toLocaleString() : "—"} - {data?.end ? new Date(data.end).toLocaleString() : "—"}
       </p>
     </div>
   );

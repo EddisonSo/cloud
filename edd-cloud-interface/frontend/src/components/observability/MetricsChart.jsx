@@ -16,7 +16,11 @@ const colors = {
 };
 
 function formatTimestamp(timestamp) {
-  const date = new Date(timestamp * 1000);
+  // Handle both Unix timestamps (number) and ISO strings
+  const date = typeof timestamp === "number"
+    ? new Date(timestamp * 1000)
+    : new Date(timestamp);
+  if (isNaN(date.getTime())) return "";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -80,14 +84,14 @@ export function MetricsChart({ data, title, dataKey, color, yAxisLabel = "%" }) 
 export function MultiMetricsChart({ data, title }) {
   if (!data || data.length === 0) {
     return (
-      <div className="h-56 flex items-center justify-center text-muted-foreground">
+      <div className="h-64 flex items-center justify-center text-muted-foreground">
         No data available
       </div>
     );
   }
 
   return (
-    <div className="h-56">
+    <div className="h-64">
       <h4 className="text-sm font-medium mb-2">{title}</h4>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -122,27 +126,27 @@ export function MultiMetricsChart({ data, title }) {
             dataKey="cpu"
             name="CPU"
             stroke={colors.cpu}
-            strokeWidth={2}
+            strokeWidth={1}
             dot={false}
-            activeDot={{ r: 4 }}
+            activeDot={{ r: 3 }}
           />
           <Line
             type="monotone"
             dataKey="mem"
             name="Memory"
             stroke={colors.mem}
-            strokeWidth={2}
+            strokeWidth={1}
             dot={false}
-            activeDot={{ r: 4 }}
+            activeDot={{ r: 3 }}
           />
           <Line
             type="monotone"
             dataKey="disk"
             name="Disk"
             stroke={colors.disk}
-            strokeWidth={2}
+            strokeWidth={1}
             dot={false}
-            activeDot={{ r: 4 }}
+            activeDot={{ r: 3 }}
           />
         </LineChart>
       </ResponsiveContainer>
