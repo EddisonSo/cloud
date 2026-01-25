@@ -16,7 +16,6 @@ export function useFiles() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ bytes: 0, total: 0, active: false });
-  const [downloadProgress, setDownloadProgress] = useState({});
   const [deleting, setDeleting] = useState({});
   const [status, setStatus] = useState("");
   const fileInputRef = useRef(null);
@@ -182,81 +181,24 @@ export function useFiles() {
     }
   }, [loadFiles]);
 
-  const downloadFile = useCallback(async (file, user) => {
+  const downloadFile = useCallback(async (file) => {
     const transferId = createTransferId();
-    let eventSource;
-    const fileKey = `${file.namespace || DEFAULT_NAMESPACE}:${file.name}`;
     const token = getAuthToken();
 
-    // Set up SSE for progress tracking (non-blocking)
-    if (user) {
-      const sseUrl = token
-        ? `${buildSseUrl(transferId)}&token=${encodeURIComponent(token)}`
-        : buildSseUrl(transferId);
-      eventSource = new EventSource(sseUrl, { withCredentials: true });
-      setDownloadProgress((prev) => ({
-        ...prev,
-        [fileKey]: { bytes: 0, total: file.size, active: true },
-      }));
-
-      eventSource.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload.direction !== "download") return;
-          setDownloadProgress((prev) => ({
-            ...prev,
-            [fileKey]: {
-              bytes: payload.bytes ?? prev[fileKey]?.bytes ?? 0,
-              total: payload.total ?? prev[fileKey]?.total ?? file.size,
-              active: !payload.done,
-            },
-          }));
-          if (payload.done) eventSource.close();
-        } catch (err) {
-          console.warn("Failed to parse download progress", err);
-        }
-      };
-
-      eventSource.onerror = () => {
-        eventSource.close();
-        setDownloadProgress((prev) => ({ ...prev, [fileKey]: { ...prev[fileKey], active: false } }));
-      };
+    // Build download URL with token in query string for native browser download
+    let downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    if (token) {
+      downloadUrl += `&token=${encodeURIComponent(token)}`;
     }
 
-    // Use fetch with blob to avoid page navigation on errors
-    const downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
-
-    try {
-      const response = await fetch(downloadUrl, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Download failed: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = file.name;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up object URL after download starts
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    } catch (err) {
-      console.error("Download failed:", err);
-      setStatus(`Download failed: ${err.message}`);
-    } finally {
-      if (eventSource) eventSource.close();
-      setDownloadProgress((prev) => ({ ...prev, [fileKey]: { ...prev[fileKey], active: false } }));
-    }
+    // Use direct link - browser handles download natively with progress in download manager
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = file.name;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }, []);
 
   const deleteFile = useCallback(async (file, namespace, onComplete) => {
@@ -287,7 +229,6 @@ export function useFiles() {
     loading,
     uploading,
     uploadProgress,
-    downloadProgress,
     deleting,
     status,
     setStatus,
