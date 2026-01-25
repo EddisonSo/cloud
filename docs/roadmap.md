@@ -52,7 +52,7 @@ flowchart TB
 *Added after [2026-01-25 s0 node failure incident](./incidents/2026-01-25-s0-node-failure.md)*
 
 - [ ] **GFS master WAL replication** - Replicate chunk metadata to standby masters for redundancy; current single-master design means metadata loss on node failure
-- [ ] **GFS metadata in PostgreSQL** - Consider storing file/chunk mappings in PostgreSQL instead of local storage for automatic replication
+- [ ] **GFS metadata in distributed key-value store** - Store file/chunk mappings in etcd or FoundationDB instead of local storage for automatic replication and HA
 - [ ] **Automatic database failover** - Implement Patroni or similar for automatic PostgreSQL primary promotion
 - [ ] **Node health alerting** - PagerDuty/Slack alerts when nodes become NotReady
 - [ ] **Service health monitoring** - External uptime checks for critical endpoints

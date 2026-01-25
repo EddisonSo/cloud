@@ -150,7 +150,7 @@ The CLAUDE.md file documented the node layout and architecture, which helped in 
 - [ ] Implement health checks for external monitoring
 - [ ] Consider running multiple gateway replicas
 - [ ] **Implement GFS master WAL replication for metadata redundancy**
-- [ ] Consider storing GFS metadata in PostgreSQL instead of local storage
+- [ ] Consider storing GFS metadata in distributed key-value store (etcd/FoundationDB)
 
 ## Architecture Changes
 
