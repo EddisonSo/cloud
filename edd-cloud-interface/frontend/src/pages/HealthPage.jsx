@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
@@ -32,6 +32,11 @@ const tabs = [
   { id: "servicemap", label: "Service Map" },
 ];
 
+function getTabFromHash() {
+  const hash = window.location.hash.slice(1);
+  return tabs.find((t) => t.id === hash)?.id || "realtime";
+}
+
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
@@ -39,7 +44,24 @@ export function HealthPage() {
   const [showPercent, setShowPercent] = useState(false);
   const [nodeSort, setNodeSort] = useState({ column: null, dir: "desc" });
   const [podSort, setPodSort] = useState({ column: null, dir: "desc" });
-  const [activeTab, setActiveTab] = useState("realtime");
+  const [activeTab, setActiveTabState] = useState(getTabFromHash);
+
+  // Sync tab with URL hash for browser back/forward navigation
+  const setActiveTab = useCallback((tabId) => {
+    setActiveTabState(tabId);
+    const newHash = tabId === "realtime" ? "" : `#${tabId}`;
+    if (window.location.hash !== newHash) {
+      window.history.pushState(null, "", newHash || window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTabState(getTabFromHash());
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
