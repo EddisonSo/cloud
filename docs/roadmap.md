@@ -49,7 +49,7 @@ flowchart TB
 
 ## High Availability / Disaster Recovery
 
-*Added after [2026-01-25 s0 node failure incident](/docs/incidents/2026-01-25-s0-node-failure)*
+*Added after [2026-01-25 s0 node failure incident](./incidents/2026-01-25-s0-node-failure.md)*
 
 - [ ] **GFS master WAL replication** - Replicate chunk metadata to standby masters for redundancy; current single-master design means metadata loss on node failure
 - [ ] **GFS metadata in PostgreSQL** - Consider storing file/chunk mappings in PostgreSQL instead of local storage for automatic replication
