@@ -43,7 +43,8 @@ Node s0 (192.168.3.100) became unresponsive, causing a complete site outage. s0 
 | 16:40 | GitHub Actions workflow triggered to deploy fixes |
 | 16:43 | Deploy step fails - cannot reach K3s API (s0 down again) |
 | 17:19 | Manual workflow re-trigger attempted |
-| 17:20 | s0 confirmed down again (second failure) |
+| 17:20 | s0 confirmed still down |
+| 23:26-23:48 | Multiple manual physical reboots attempted to recover s0 |
 | 17:22 | Gateway found in CrashLoopBackOff (read-only DB) |
 | 17:22 | Postgres primary pod Pending (nodeSelector: s0) |
 | 17:23 | Decision made to failover database to rp1 |
