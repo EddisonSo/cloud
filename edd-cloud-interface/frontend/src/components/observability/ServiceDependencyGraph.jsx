@@ -180,7 +180,7 @@ export function ServiceDependencyGraph({ healthData }) {
 
   if (loading && rawNodes.length === 0) {
     return (
-      <div className="h-[500px] flex items-center justify-center">
+      <div className="h-[700px] flex items-center justify-center">
         <Skeleton className="w-full h-full" />
       </div>
     );
@@ -188,7 +188,7 @@ export function ServiceDependencyGraph({ healthData }) {
 
   if (error) {
     return (
-      <div className="h-[500px] flex items-center justify-center flex-col gap-4">
+      <div className="h-[700px] flex items-center justify-center flex-col gap-4">
         <p className="text-destructive">{error}</p>
         <button
           onClick={refetch}
@@ -202,7 +202,7 @@ export function ServiceDependencyGraph({ healthData }) {
 
   if (nodes.length === 0) {
     return (
-      <div className="h-[500px] flex items-center justify-center text-muted-foreground">
+      <div className="h-[700px] flex items-center justify-center text-muted-foreground">
         No service dependencies defined
       </div>
     );
@@ -220,7 +220,7 @@ export function ServiceDependencyGraph({ healthData }) {
         </button>
       </div>
 
-      <div className="h-[500px] border rounded-lg bg-background">
+      <div className="h-[700px] border rounded-lg bg-background">
         <ReactFlow
           nodes={nodes}
           edges={edges}
