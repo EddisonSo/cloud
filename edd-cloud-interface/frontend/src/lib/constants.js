@@ -4,7 +4,6 @@ import {
   MessageSquare,
   Database,
   Activity,
-  ScrollText,
   Settings,
   Box,
   Key
@@ -25,7 +24,6 @@ export const NAV_ITEMS = [
   { id: "message-queue", label: "Message Queue", icon: MessageSquare, path: "/message-queue" },
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
-  { id: "logs", label: "Logs", icon: ScrollText, path: "/logs" },
 ];
 
 export const ADMIN_NAV_ITEM = {
@@ -60,11 +58,6 @@ export const TAB_COPY = {
     eyebrow: "Operations",
     title: "Health Monitor",
     lead: "Live telemetry for master connectivity and chunkserver status.",
-  },
-  logs: {
-    eyebrow: "Observability",
-    title: "Cluster Logs",
-    lead: "Real-time log streaming from all cluster services.",
   },
   admin: {
     eyebrow: "Administration",

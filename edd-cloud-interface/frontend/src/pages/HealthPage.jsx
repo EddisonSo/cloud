@@ -9,7 +9,7 @@ import { TAB_COPY } from "@/lib/constants";
 import { useHealth } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatBytes } from "@/lib/formatters";
-import { HistoricalMetricsView } from "@/components/observability";
+import { HistoricalMetricsView, LogsView } from "@/components/observability";
 
 function SortHeader({ children, column, sortColumn, sortDir, onSort, className = "" }) {
   const isActive = sortColumn === column;
@@ -29,6 +29,7 @@ function SortHeader({ children, column, sortColumn, sortDir, onSort, className =
 const tabs = [
   { id: "realtime", label: "Real-time" },
   { id: "historical", label: "Historical" },
+  { id: "logs", label: "Logs" },
 ];
 
 function getTabFromHash() {
@@ -276,6 +277,8 @@ export function HealthPage() {
       </div>
 
       {activeTab === "historical" && <HistoricalMetricsView />}
+
+      {activeTab === "logs" && <LogsView />}
 
       {activeTab === "realtime" && (
         <>
