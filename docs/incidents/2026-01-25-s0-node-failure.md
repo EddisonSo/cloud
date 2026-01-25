@@ -16,46 +16,48 @@ Node s0 (192.168.3.100) became unresponsive, causing a complete site outage. s0 
 
 ## Timeline
 
-### Day 1 - January 24, 2026
+*All times in EST (UTC-5)*
 
-| Time (UTC) | Event |
+### Day 1 - January 23, 2026
+
+| Time (EST) | Event |
 |------------|-------|
-| 02:07 | Last recorded SSH activity on s1 (K3s control plane) |
-| 04:03 | s0 kubelet's last heartbeat to K3s API |
-| 04:08 | s0 marked as NotReady; pods begin terminating |
-| 04:08 | Gateway pod on s0 starts terminating; new pod stuck Pending |
-| 04:08 | PostgreSQL primary on s0 becomes unavailable |
-| 04:08 | gfs-master on s0 becomes unavailable |
-| 04:08 | **Site goes down** - gateway cannot route traffic |
+| 21:07 | Last recorded SSH activity on s1 (K3s control plane) |
+| 23:03 | s0 kubelet's last heartbeat to K3s API |
+| 23:08 | s0 marked as NotReady; pods begin terminating |
+| 23:08 | Gateway pod on s0 starts terminating; new pod stuck Pending |
+| 23:08 | PostgreSQL primary on s0 becomes unavailable |
+| 23:08 | gfs-master on s0 becomes unavailable |
+| 23:08 | **Site goes down** - gateway cannot route traffic |
 
-### Day 2 - January 25, 2026
+### Day 2 - January 24, 2026
 
-| Time (UTC) | Event |
+| Time (EST) | Event |
 |------------|-------|
-| 17:12 | Issue discovered while debugging unrelated auth problem |
-| 17:12 | `kubectl get nodes` shows s0 as NotReady |
-| 17:15 | s1 (K3s control plane) also found unresponsive |
-| 17:16 | s1 restarted manually |
-| 17:16 | Cluster access restored via s1 |
-| 17:17 | Investigation into s0 begins |
-| 21:40 | GitHub Actions workflow triggered to deploy fixes |
-| 21:43 | Deploy step fails - cannot reach K3s API (s0 down again) |
-| 22:19 | Manual workflow re-trigger attempted |
-| 22:20 | s0 confirmed down again (second failure) |
-| 22:22 | Gateway found in CrashLoopBackOff (read-only DB) |
-| 22:22 | Postgres primary pod Pending (nodeSelector: s0) |
-| 22:23 | Decision made to failover database to rp1 |
-| 22:25 | `core-services=true` label added to rp2 |
-| 22:28 | PostgreSQL replica on rp1 promoted via `SELECT pg_promote()` |
-| 22:29 | `postgres` service patched to point to postgres-replica |
-| 22:29 | Gateway pod deleted and rescheduled |
-| 22:30 | `role=backend` label added to rp3 |
-| 22:30 | gfs-master rescheduled to rp3 |
-| 22:31 | Gateway comes up successfully |
-| 22:32 | **Site restored** |
-| 22:33 | Frontend and backend deployments updated |
-| 22:35 | Manifests updated to reflect new architecture |
-| 22:40 | Read replicas created on rp2, rp3, rp4 |
+| 12:12 | Issue discovered while debugging unrelated auth problem |
+| 12:12 | `kubectl get nodes` shows s0 as NotReady |
+| 12:15 | s1 (K3s control plane) also found unresponsive |
+| 12:16 | s1 restarted manually |
+| 12:16 | Cluster access restored via s1 |
+| 12:17 | Investigation into s0 begins |
+| 16:40 | GitHub Actions workflow triggered to deploy fixes |
+| 16:43 | Deploy step fails - cannot reach K3s API (s0 down again) |
+| 17:19 | Manual workflow re-trigger attempted |
+| 17:20 | s0 confirmed down again (second failure) |
+| 17:22 | Gateway found in CrashLoopBackOff (read-only DB) |
+| 17:22 | Postgres primary pod Pending (nodeSelector: s0) |
+| 17:23 | Decision made to failover database to rp1 |
+| 17:25 | `core-services=true` label added to rp2 |
+| 17:28 | PostgreSQL replica on rp1 promoted via `SELECT pg_promote()` |
+| 17:29 | `postgres` service patched to point to postgres-replica |
+| 17:29 | Gateway pod deleted and rescheduled |
+| 17:30 | `role=backend` label added to rp3 |
+| 17:30 | gfs-master rescheduled to rp3 |
+| 17:31 | Gateway comes up successfully |
+| 17:32 | **Site restored** |
+| 17:33 | Frontend and backend deployments updated |
+| 17:35 | Manifests updated to reflect new architecture |
+| 17:40 | Read replicas created on rp2, rp3, rp4 |
 
 ### Resolution Time
 
