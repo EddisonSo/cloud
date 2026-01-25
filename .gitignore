@@ -35,3 +35,4 @@ CLAUDE.md
 # OS
 .DS_Store
 Thumbs.db
+manifests/gfs-ci.kubeconfig
