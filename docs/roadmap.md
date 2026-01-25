@@ -65,7 +65,7 @@ flowchart TB
 - [ ] **Alerting** - Automated alerts for service health
 - [ ] **Log aggregation** - Searchable log storage
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth
-- [ ] **Graph-based observability platform** - Visualize service dependencies and metrics relationships in real-time
+- [ ] **Graph-based observability platform** - Visualize service dependencies and time-series metrics with graph-based relationships
 
 ## Frontend
 
