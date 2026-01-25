@@ -138,10 +138,10 @@ The CLAUDE.md file documented the node layout and architecture, which helped in 
 - [x] Reschedule gateway and gfs-master
 
 ### Short-term
-- [ ] Create read replicas on rp2, rp3, rp4 for redundancy
+- [x] Create read replicas on rp2, rp3, rp4 for redundancy
 - [ ] Add node health monitoring and alerting
 - [ ] Configure PagerDuty/Slack alerts for node failures
-- [ ] Remove `|| true` from CI/CD deploy steps or add proper error handling
+- [x] Remove `|| true` from CI/CD deploy steps or add proper error handling
 
 ### Long-term
 - [ ] Implement automatic database failover (Patroni or similar)
