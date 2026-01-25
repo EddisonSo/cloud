@@ -83,4 +83,4 @@ jobs:
           chmod 600 ~/.kube/config
       - name: Deploy gateway
         run: |
-          kubectl -n $NS set image deployment/gateway gateway=${IMAGE}:${GITHUB_SHA} || true
+          kubectl -n $NS set image deployment/gateway gateway=${IMAGE}:${GITHUB_SHA}
