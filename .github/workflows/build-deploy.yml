@@ -59,7 +59,6 @@ jobs:
               - 'go-gfs/**'
             compute:
               - 'edd-cloud-interface/services/compute/**'
-              - '!edd-cloud-interface/services/compute/images/**'
               - 'go-gfs/**'
             compute-base:
               - 'edd-cloud-interface/services/compute/images/base/**'
