@@ -237,6 +237,7 @@ func main() {
 	mux.HandleFunc("/storage/upload", srv.handleUpload)
 	mux.HandleFunc("/storage/download", srv.handleDownload)
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
+	mux.HandleFunc("GET /storage/status", srv.handleStorageStatus)
 	mux.HandleFunc("GET /storage/download/{namespace}/{file...}", srv.handleFileDownload)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
 	// Admin endpoints (users and sessions are handled by auth service)
@@ -1110,6 +1111,38 @@ type sessionResponse struct {
 	DisplayName string `json:"display_name"`
 	IsAdmin     bool   `json:"is_admin"`
 	Token       string `json:"token,omitempty"`
+}
+
+// handleStorageStatus returns cluster status including chunkserver count
+func (s *server) handleStorageStatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	servers, err := s.client.GetClusterStatus(ctx)
+	if err != nil {
+		slog.Error("failed to get cluster status", "error", err)
+		http.Error(w, "failed to get cluster status", http.StatusInternalServerError)
+		return
+	}
+
+	// Count alive chunkservers
+	aliveCount := 0
+	for _, srv := range servers {
+		if srv.IsAlive {
+			aliveCount++
+		}
+	}
+
+	type statusResponse struct {
+		ChunkserverCount int `json:"chunkserver_count"`
+		TotalServers     int `json:"total_servers"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(statusResponse{
+		ChunkserverCount: aliveCount,
+		TotalServers:     len(servers),
+	})
 }
 
 var adminUsername = os.Getenv("ADMIN_USERNAME")

@@ -11,7 +11,8 @@ import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2 } from "lucide-react";
+import { buildStorageBase } from "@/lib/api";
+import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2, Server } from "lucide-react";
 
 export function StoragePage() {
   const copy = TAB_COPY.storage;
@@ -70,9 +71,15 @@ export function StoragePage() {
   const [namespaceError, setNamespaceError] = useState("");
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [overwriteFileName, setOverwriteFileName] = useState("");
+  const [storageStatus, setStorageStatus] = useState(null);
 
   useEffect(() => {
     loadNamespaces();
+    // Fetch storage status (chunkserver count)
+    fetch(`${buildStorageBase()}/storage/status`)
+      .then((res) => res.json())
+      .then(setStorageStatus)
+      .catch(console.error);
   }, [loadNamespaces]);
 
   useEffect(() => {
@@ -204,6 +211,14 @@ export function StoragePage() {
                 ))
               )}
             </div>
+
+            {/* Chunkserver count */}
+            {storageStatus && (
+              <div className="mt-6 pt-4 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
+                <Server className="w-4 h-4" />
+                <span>{storageStatus.chunkserver_count} chunkserver{storageStatus.chunkserver_count !== 1 ? "s" : ""} online</span>
+              </div>
+            )}
 
           </CardContent>
         </Card>
