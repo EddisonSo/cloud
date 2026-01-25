@@ -1,0 +1,114 @@
+routes:
+  # Default backend for cloud-api
+  - host: cloud-api.eddisonso.com
+    path: /
+    target: simple-file-share-backend:80
+    strip_prefix: false
+
+  # Compute service
+  - host: cloud-api.eddisonso.com
+    path: /compute
+    target: edd-compute:80
+    strip_prefix: false
+
+  # Cluster monitor endpoints - keep full path
+  - host: cloud-api.eddisonso.com
+    path: /health
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /pod-metrics
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /cluster-info
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  # WebSocket endpoints for cluster monitor
+  - host: cloud-api.eddisonso.com
+    path: /ws/cluster-info
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /ws/pod-metrics
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  # SSE endpoints for cluster monitoring
+  - host: cloud-api.eddisonso.com
+    path: /sse/cluster-info
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /sse/pod-metrics
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /sse/health
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  # WebSocket/SSE endpoints for log service
+  - host: cloud-api.eddisonso.com
+    path: /ws/logs
+    target: log-service:80
+    strip_prefix: false
+
+  - host: cloud-api.eddisonso.com
+    path: /sse/logs
+    target: log-service:80
+    strip_prefix: false
+
+  # SSE endpoints for file transfer progress
+  - host: cloud-api.eddisonso.com
+    path: /sse
+    target: simple-file-share-backend:80
+    strip_prefix: false
+
+  # Frontend SPA
+  - host: cloud.eddisonso.com
+    path: /
+    target: simple-file-share-frontend:80
+    strip_prefix: false
+
+  # Service-specific subdomains
+  # Auth service
+  - host: auth.cloud.eddisonso.com
+    path: /
+    target: auth-service:80
+    strip_prefix: false
+
+  # Compute service
+  - host: compute.cloud.eddisonso.com
+    path: /
+    target: edd-compute:80
+    strip_prefix: false
+
+  # Storage service (simple-file-share)
+  - host: storage.cloud.eddisonso.com
+    path: /
+    target: simple-file-share-backend:80
+    strip_prefix: false
+
+  # Health/cluster monitoring service
+  - host: health.cloud.eddisonso.com
+    path: /
+    target: cluster-monitor:80
+    strip_prefix: false
+
+  # Log service endpoints on health subdomain
+  - host: health.cloud.eddisonso.com
+    path: /sse/logs
+    target: log-service:80
+    strip_prefix: false
+
+  - host: health.cloud.eddisonso.com
+    path: /ws/logs
+    target: log-service:80
+    strip_prefix: false
