@@ -67,4 +67,4 @@ jobs:
           chmod 600 ~/.kube/config
       - name: Deploy docs
         run: |
-          kubectl -n $NS set image deployment/edd-cloud-docs docs=${DOCS_IMAGE}:${GITHUB_SHA} || true
+          kubectl -n $NS set image deployment/edd-cloud-docs docs=${DOCS_IMAGE}:${GITHUB_SHA}
