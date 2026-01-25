@@ -67,4 +67,4 @@ jobs:
           chmod 600 ~/.kube/config
       - name: Deploy auth service
         run: |
-          kubectl -n $NS set image deployment/auth-service auth-service=${AUTH_IMAGE}:${GITHUB_SHA} || true
+          kubectl -n $NS set image deployment/auth-service auth-service=${AUTH_IMAGE}:${GITHUB_SHA}
