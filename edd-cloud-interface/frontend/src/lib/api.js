@@ -141,12 +141,3 @@ export async function fetchMetricsHistory({ start, end, resolution, nodeName } =
   return response.json();
 }
 
-export async function fetchServiceDependencies() {
-  const response = await fetch(`${buildHealthBase()}/api/graph/dependencies`, {
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch dependencies: ${response.status}`);
-  }
-  return response.json();
-}
