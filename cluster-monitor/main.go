@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"eddisonso.com/cluster-monitor/internal/graph"
+	"eddisonso.com/cluster-monitor/internal/timeseries"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
@@ -328,10 +330,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize cache and start background workers
+	// Initialize cache and metrics store, start background workers
 	cache := NewMetricsCache()
-	go clusterInfoWorker(clientset, cache, *refreshInterval)
-	go podMetricsWorker(clientset, cache, *refreshInterval)
+	metricsStore := timeseries.NewMetricsStore(0) // Default capacity (24h at 5s intervals)
+	go clusterInfoWorker(clientset, cache, metricsStore, *refreshInterval)
+	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/cluster-info", func(w http.ResponseWriter, r *http.Request) {
@@ -372,6 +375,23 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
+	// Historical metrics API endpoints
+	mux.HandleFunc("/api/metrics/nodes", func(w http.ResponseWriter, r *http.Request) {
+		handleMetricsNodes(w, r, metricsStore)
+	})
+	mux.HandleFunc("/api/metrics/nodes/", func(w http.ResponseWriter, r *http.Request) {
+		handleMetricsNode(w, r, metricsStore)
+	})
+	mux.HandleFunc("/api/metrics/pods", func(w http.ResponseWriter, r *http.Request) {
+		handleMetricsPods(w, r, metricsStore)
+	})
+
+	// Service dependency graph endpoint
+	mux.HandleFunc("/api/graph/dependencies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(graph.GetDependencies())
+	})
+
 	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
@@ -395,19 +415,19 @@ func main() {
 }
 
 // clusterInfoWorker fetches cluster metrics at the configured interval
-func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, interval time.Duration) {
+func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchClusterInfo(clientset, cache)
+	fetchClusterInfo(clientset, cache, store)
 
 	for range ticker.C {
-		fetchClusterInfo(clientset, cache)
+		fetchClusterInfo(clientset, cache, store)
 	}
 }
 
-func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache) {
+func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -531,26 +551,37 @@ func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache) {
 		})
 	}
 
+	now := time.Now()
 	cache.SetClusterInfo(&ClusterInfo{
-		Timestamp: time.Now(),
+		Timestamp: now,
 		Nodes:     nodeMetrics,
 	})
+
+	// Record to time-series store
+	for _, nm := range nodeMetrics {
+		store.RecordNode(nm.Name, timeseries.DataPoint{
+			Timestamp:   now,
+			CPUPercent:  nm.CPUPercent,
+			MemPercent:  nm.MemoryPercent,
+			DiskPercent: nm.DiskPercent,
+		})
+	}
 }
 
 // podMetricsWorker fetches pod metrics at the configured interval
-func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, interval time.Duration) {
+func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchPodMetrics(clientset, cache)
+	fetchPodMetrics(clientset, cache, store)
 
 	for range ticker.C {
-		fetchPodMetrics(clientset, cache)
+		fetchPodMetrics(clientset, cache, store)
 	}
 }
 
-func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache) {
+func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -709,10 +740,21 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache) {
 		})
 	}
 
+	now := time.Now()
 	cache.SetPodMetrics(&PodMetricsInfo{
-		Timestamp: time.Now(),
+		Timestamp: now,
 		Pods:      podMetrics,
 	})
+
+	// Record to time-series store
+	for _, pm := range podMetrics {
+		store.RecordPod(pm.Namespace, pm.Name, timeseries.PodDataPoint{
+			Timestamp: now,
+			CPUNanos:  pm.CPUUsage,
+			MemBytes:  pm.MemoryUsage,
+			DiskBytes: pm.DiskUsage,
+		})
+	}
 }
 
 func handleClusterInfoWS(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
@@ -939,4 +981,135 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 			flusher.Flush()
 		}
 	}
+}
+
+// MetricsResponse is the response format for historical metrics
+type MetricsResponse struct {
+	Start      time.Time                       `json:"start"`
+	End        time.Time                       `json:"end"`
+	Resolution string                          `json:"resolution"`
+	Series     map[string][]timeseries.DataPoint `json:"series"`
+}
+
+// PodMetricsResponse is the response format for historical pod metrics
+type PodMetricsResponse struct {
+	Start      time.Time                          `json:"start"`
+	End        time.Time                          `json:"end"`
+	Resolution string                             `json:"resolution"`
+	Series     map[string][]timeseries.PodDataPoint `json:"series"`
+}
+
+func handleMetricsNodes(w http.ResponseWriter, r *http.Request, store *timeseries.MetricsStore) {
+	start, end, resolution := parseTimeRange(r)
+
+	series := store.QueryNodes(start, end, resolution)
+
+	resolutionStr := "raw"
+	if resolution >= 15*time.Minute {
+		resolutionStr = "15m"
+	} else if resolution >= 5*time.Minute {
+		resolutionStr = "5m"
+	} else if resolution >= time.Minute {
+		resolutionStr = "1m"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(MetricsResponse{
+		Start:      start,
+		End:        end,
+		Resolution: resolutionStr,
+		Series:     series,
+	})
+}
+
+func handleMetricsNode(w http.ResponseWriter, r *http.Request, store *timeseries.MetricsStore) {
+	// Extract node name from URL path: /api/metrics/nodes/{name}
+	path := strings.TrimPrefix(r.URL.Path, "/api/metrics/nodes/")
+	if path == "" {
+		http.Error(w, "node name required", http.StatusBadRequest)
+		return
+	}
+
+	start, end, resolution := parseTimeRange(r)
+
+	data := store.QueryNode(path, start, end, resolution)
+	if data == nil {
+		http.Error(w, "node not found", http.StatusNotFound)
+		return
+	}
+
+	resolutionStr := "raw"
+	if resolution >= 15*time.Minute {
+		resolutionStr = "15m"
+	} else if resolution >= 5*time.Minute {
+		resolutionStr = "5m"
+	} else if resolution >= time.Minute {
+		resolutionStr = "1m"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(MetricsResponse{
+		Start:      start,
+		End:        end,
+		Resolution: resolutionStr,
+		Series:     map[string][]timeseries.DataPoint{path: data},
+	})
+}
+
+func handleMetricsPods(w http.ResponseWriter, r *http.Request, store *timeseries.MetricsStore) {
+	start, end, resolution := parseTimeRange(r)
+	namespace := r.URL.Query().Get("namespace")
+
+	series := store.QueryPods(namespace, start, end, resolution)
+
+	resolutionStr := "raw"
+	if resolution >= 15*time.Minute {
+		resolutionStr = "15m"
+	} else if resolution >= 5*time.Minute {
+		resolutionStr = "5m"
+	} else if resolution >= time.Minute {
+		resolutionStr = "1m"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(PodMetricsResponse{
+		Start:      start,
+		End:        end,
+		Resolution: resolutionStr,
+		Series:     series,
+	})
+}
+
+func parseTimeRange(r *http.Request) (start, end time.Time, resolution time.Duration) {
+	now := time.Now()
+
+	// Parse start time (default: 1 hour ago)
+	if s := r.URL.Query().Get("start"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			start = t
+		}
+	}
+	if start.IsZero() {
+		start = now.Add(-time.Hour)
+	}
+
+	// Parse end time (default: now)
+	if e := r.URL.Query().Get("end"); e != "" {
+		if t, err := time.Parse(time.RFC3339, e); err == nil {
+			end = t
+		}
+	}
+	if end.IsZero() {
+		end = now
+	}
+
+	// Parse resolution or auto-select based on time range
+	res := r.URL.Query().Get("resolution")
+	if res != "" {
+		resolution = timeseries.ParseResolution(res)
+	} else {
+		resolution = timeseries.AutoResolution(start, end)
+	}
+
+	return
 }
