@@ -3,6 +3,8 @@ import {
   ReactFlow,
   Controls,
   Background,
+  Handle,
+  Position,
   useNodesState,
   useEdgesState,
 } from "@xyflow/react";
@@ -30,9 +32,10 @@ function ServiceNode({ data }) {
 
   return (
     <div
-      className="px-4 py-3 rounded-lg border-2 bg-background shadow-sm min-w-[120px]"
+      className="px-4 py-3 rounded-lg border-2 bg-background shadow-sm min-w-[120px] relative"
       style={{ borderColor: typeColor }}
     >
+      <Handle type="target" position={Position.Left} className="!bg-muted-foreground !w-2 !h-2" />
       <div className="flex items-center gap-2">
         <div
           className="w-2 h-2 rounded-full"
@@ -43,6 +46,7 @@ function ServiceNode({ data }) {
       <div className="text-xs text-muted-foreground mt-1 capitalize">
         {data.type}
       </div>
+      <Handle type="source" position={Position.Right} className="!bg-muted-foreground !w-2 !h-2" />
     </div>
   );
 }
