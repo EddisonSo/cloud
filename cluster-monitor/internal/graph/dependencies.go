@@ -47,7 +47,6 @@ func GetDependencies() *DependencyGraph {
 
 		// Infrastructure
 		{ID: "postgres", Label: "PostgreSQL", Type: "database"},
-		{ID: "nats", Label: "NATS", Type: "messaging"},
 
 		// GFS components
 		{ID: "gfs-master", Label: "GFS Master", Type: "storage"},
@@ -72,9 +71,12 @@ func GetDependencies() *DependencyGraph {
 		{ID: "e7", Source: "edd-compute", Target: "postgres", EdgeType: EdgeTypeDB},
 		{ID: "e8", Source: "simple-file-share-backend", Target: "postgres", EdgeType: EdgeTypeDB},
 
-		// NATS connections
-		{ID: "e9", Source: "edd-compute", Target: "nats", EdgeType: EdgeTypeNATS},
-		{ID: "e10", Source: "simple-file-share-backend", Target: "nats", EdgeType: EdgeTypeNATS},
+		// NATS event flows (producer → consumer)
+		// Auth publishes user events, Compute and Storage consume them
+		{ID: "e9", Source: "auth-service", Target: "edd-compute", EdgeType: EdgeTypeNATS, Label: "user events"},
+		{ID: "e10", Source: "auth-service", Target: "simple-file-share-backend", EdgeType: EdgeTypeNATS, Label: "user events"},
+		// Compute publishes container/ingress events, Gateway consumes them
+		{ID: "e17", Source: "edd-compute", Target: "gateway", EdgeType: EdgeTypeNATS, Label: "container events"},
 
 		// GFS connections
 		{ID: "e11", Source: "simple-file-share-backend", Target: "gfs-master", EdgeType: EdgeTypeGRPC},
