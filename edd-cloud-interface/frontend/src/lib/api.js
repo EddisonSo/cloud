@@ -121,3 +121,32 @@ export function copyToClipboard(text, showToast = true) {
     }
   });
 }
+
+export async function fetchMetricsHistory({ start, end, resolution, nodeName } = {}) {
+  const params = new URLSearchParams();
+  if (start) params.append("start", start.toISOString());
+  if (end) params.append("end", end.toISOString());
+  if (resolution) params.append("resolution", resolution);
+
+  const endpoint = nodeName
+    ? `${buildHealthBase()}/api/metrics/nodes/${encodeURIComponent(nodeName)}`
+    : `${buildHealthBase()}/api/metrics/nodes`;
+
+  const response = await fetch(`${endpoint}?${params}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch metrics: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchServiceDependencies() {
+  const response = await fetch(`${buildHealthBase()}/api/graph/dependencies`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch dependencies: ${response.status}`);
+  }
+  return response.json();
+}

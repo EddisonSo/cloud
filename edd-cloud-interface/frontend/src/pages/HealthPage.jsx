@@ -9,6 +9,7 @@ import { TAB_COPY } from "@/lib/constants";
 import { useHealth } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatBytes } from "@/lib/formatters";
+import { HistoricalMetricsView, ServiceDependencyGraph } from "@/components/observability";
 
 function SortHeader({ children, column, sortColumn, sortDir, onSort, className = "" }) {
   const isActive = sortColumn === column;
@@ -25,6 +26,12 @@ function SortHeader({ children, column, sortColumn, sortDir, onSort, className =
   );
 }
 
+const tabs = [
+  { id: "realtime", label: "Real-time" },
+  { id: "historical", label: "Historical" },
+  { id: "servicemap", label: "Service Map" },
+];
+
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user } = useAuth();
@@ -32,6 +39,7 @@ export function HealthPage() {
   const [showPercent, setShowPercent] = useState(false);
   const [nodeSort, setNodeSort] = useState({ column: null, dir: "desc" });
   const [podSort, setPodSort] = useState({ column: null, dir: "desc" });
+  const [activeTab, setActiveTab] = useState("realtime");
 
   const totalNodes = health.nodes.length;
   const healthyNodes = health.nodes.filter((n) => {
@@ -224,24 +232,52 @@ export function HealthPage() {
         </Card>
       </div>
 
-      {/* Update Frequency */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-muted-foreground">Update frequency:</span>
-        <Select
-          value={updateFrequency}
-          onChange={(e) => setUpdateFrequency(Number(e.target.value))}
-          className="w-32"
-        >
-          <option value={0}>Real-time</option>
-          <option value={500}>0.5s</option>
-          <option value={1000}>1s</option>
-          <option value={5000}>5s</option>
-          <option value={30000}>30s</option>
-          <option value={60000}>1 min</option>
-        </Select>
+      {/* Tab Navigation */}
+      <div className="border-b border-border mb-6">
+        <nav className="flex gap-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-3 text-sm font-medium transition-colors relative ${
+                activeTab === tab.id
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Node Table */}
+      {activeTab === "historical" && <HistoricalMetricsView />}
+
+      {activeTab === "servicemap" && <ServiceDependencyGraph healthData={health} />}
+
+      {activeTab === "realtime" && (
+        <>
+          {/* Update Frequency */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm text-muted-foreground">Update frequency:</span>
+            <Select
+              value={updateFrequency}
+              onChange={(e) => setUpdateFrequency(Number(e.target.value))}
+              className="w-32"
+            >
+              <option value={0}>Real-time</option>
+              <option value={500}>0.5s</option>
+              <option value={1000}>1s</option>
+              <option value={5000}>5s</option>
+              <option value={30000}>30s</option>
+              <option value={60000}>1 min</option>
+            </Select>
+          </div>
+
+          {/* Node Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Cluster Nodes</CardTitle>
@@ -499,6 +535,8 @@ export function HealthPage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }

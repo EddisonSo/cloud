@@ -7,3 +7,5 @@ export { useHealth } from "./useHealth";
 export { useLogs } from "./useLogs";
 export { useContainerAccess } from "./useContainerAccess";
 export { useTerminal } from "./useTerminal";
+export { useMetricsHistory } from "./useMetricsHistory";
+export { useServiceGraph } from "./useServiceGraph";
