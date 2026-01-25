@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import {
   ReactFlow,
   Controls,
@@ -165,7 +165,7 @@ export function ServiceDependencyGraph({ healthData }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // Update when data changes
-  useMemo(() => {
+  useEffect(() => {
     if (initialNodes.length > 0) {
       setNodes(initialNodes);
     }
