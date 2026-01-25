@@ -1120,3 +1120,4 @@ func parseTimeRange(r *http.Request) (start, end time.Time, resolution time.Dura
 
 	return
 }
+
