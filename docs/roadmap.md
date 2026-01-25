@@ -57,7 +57,7 @@ flowchart TB
 - [ ] **Node health alerting** - PagerDuty/Slack alerts when nodes become NotReady
 - [ ] **Service health monitoring** - External uptime checks for critical endpoints
 - [ ] **Pod anti-affinity rules** - Spread critical service replicas across nodes
-- [ ] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands
+- [x] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands
 
 ## Monitoring
 
