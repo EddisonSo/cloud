@@ -1,0 +1,113 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@theme {
+  --color-background: hsl(216 28% 7%);
+  --color-foreground: hsl(213 31% 91%);
+  --color-card: hsl(215 28% 9%);
+  --color-card-foreground: hsl(213 31% 91%);
+  --color-popover: hsl(215 28% 9%);
+  --color-popover-foreground: hsl(213 31% 91%);
+  --color-primary: hsl(210 100% 67%);
+  --color-primary-foreground: hsl(216 28% 7%);
+  --color-secondary: hsl(215 19% 17%);
+  --color-secondary-foreground: hsl(213 31% 91%);
+  --color-muted: hsl(215 19% 17%);
+  --color-muted-foreground: hsl(215 14% 57%);
+  --color-accent: hsl(215 19% 17%);
+  --color-accent-foreground: hsl(213 31% 91%);
+  --color-destructive: hsl(0 73% 63%);
+  --color-destructive-foreground: hsl(213 31% 91%);
+  --color-border: hsl(215 14% 25%);
+  --color-input: hsl(215 14% 25%);
+  --color-ring: hsl(210 100% 67%);
+  --color-success: hsl(142 76% 46%);
+  --color-warning: hsl(38 92% 50%);
+  --radius: 0.5rem;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* Light theme */
+.light {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-card: hsl(0 0% 98%);
+  --color-card-foreground: hsl(222.2 84% 4.9%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(210 100% 50%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96%);
+  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-muted: hsl(210 40% 96%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-accent: hsl(210 40% 96%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(210 100% 50%);
+  --color-success: hsl(142 76% 36%);
+  --color-warning: hsl(38 92% 50%);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Terminal styles */
+.terminal-container {
+  background: #1e1e2e;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  min-height: 400px;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-foreground);
+  opacity: 0.5;
+}
+
+/* Animation keyframes */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 1.5s ease-in-out infinite;
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

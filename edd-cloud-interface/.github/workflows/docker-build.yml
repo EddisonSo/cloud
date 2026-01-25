@@ -1,0 +1,234 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  SFS_IMAGE: docker.io/eddisonso/ecloud-sfs
+  LOGGING_IMAGE: docker.io/eddisonso/ecloud-logging
+  COMPUTE_IMAGE: docker.io/eddisonso/ecloud-compute
+  COMPUTE_BASE_IMAGE: docker.io/eddisonso/ecloud-compute-base
+  FRONTEND_IMAGE: docker.io/eddisonso/ecloud-frontend
+  NS: default
+
+jobs:
+  build-sfs:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: edd-cloud-interface
+      - uses: actions/checkout@v4
+        with:
+          repository: EddisonSo/go-gfs
+          path: go-gfs
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install proto tooling
+        run: |
+          sudo apt-get update && sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: Generate go-gfs protobufs
+        working-directory: go-gfs
+        run: make proto
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f edd-cloud-interface/services/sfs/Dockerfile \
+            -t ${SFS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
+  build-logging:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: edd-cloud-interface
+      - uses: actions/checkout@v4
+        with:
+          repository: EddisonSo/go-gfs
+          path: go-gfs
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install proto tooling
+        run: |
+          sudo apt-get update && sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: Generate go-gfs protobufs
+        working-directory: go-gfs
+        run: make proto
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f edd-cloud-interface/services/logging/Dockerfile \
+            -t ${LOGGING_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
+  build-compute:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: edd-cloud-interface
+      - uses: actions/checkout@v4
+        with:
+          repository: EddisonSo/go-gfs
+          path: go-gfs
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install proto tooling
+        run: |
+          sudo apt-get update && sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: Generate go-gfs protobufs
+        working-directory: go-gfs
+        run: make proto
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f edd-cloud-interface/services/compute/Dockerfile \
+            -t ${COMPUTE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
+  build-compute-base:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f services/compute/images/base/Dockerfile \
+            -t ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push services/compute/images/base
+
+  build-frontend:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get commit time
+        id: commit-time
+        run: echo "time=$(git log -1 --format='%ci' | cut -d' ' -f1,2)" >> $GITHUB_OUTPUT
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f frontend/Dockerfile \
+            --build-arg BUILD_COMMIT=${GITHUB_SHA::7} \
+            --build-arg BUILD_TIME="${{ steps.commit-time.outputs.time }}" \
+            -t ${FRONTEND_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push frontend
+
+  create-manifests:
+    needs: [build-sfs, build-logging, build-compute, build-compute-base, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Create multi-arch manifests
+        run: |
+          for IMAGE in "$SFS_IMAGE" "$LOGGING_IMAGE" "$COMPUTE_IMAGE" "$COMPUTE_BASE_IMAGE" "$FRONTEND_IMAGE"; do
+            docker manifest create ${IMAGE}:${GITHUB_SHA} \
+              ${IMAGE}:${GITHUB_SHA}-arm64 \
+              ${IMAGE}:${GITHUB_SHA}-amd64
+            docker manifest create ${IMAGE}:latest \
+              ${IMAGE}:${GITHUB_SHA}-arm64 \
+              ${IMAGE}:${GITHUB_SHA}-amd64
+            docker manifest push ${IMAGE}:${GITHUB_SHA}
+            docker manifest push ${IMAGE}:latest
+          done
+
+  deploy:
+    needs: create-manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure kubectl
+        env:
+          GFS_CI_KUBECONFIG_B64: ${{ secrets.GFS_CI_KUBECONFIG_B64 }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$GFS_CI_KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+      - name: Deploy services
+        run: |
+          kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/log-service log-service=${LOGGING_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/edd-compute edd-compute=${COMPUTE_IMAGE}:${GITHUB_SHA}
+          kubectl -n $NS set image deployment/simple-file-share-frontend frontend=${FRONTEND_IMAGE}:${GITHUB_SHA}
