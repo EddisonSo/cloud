@@ -1,0 +1,37 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+
+# Test artifacts
+*.test
+coverage.out
+
+# Go
+vendor/
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Environment
+.env
+.env.local
+*.env
+
+# Claude
+CLAUDE.md
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
