@@ -301,7 +301,7 @@ var upgrader = websocket.Upgrader{
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
-	refreshInterval := flag.Duration("refresh", 1*time.Second, "Metrics refresh interval")
+	refreshInterval := flag.Duration("refresh", 5*time.Second, "Metrics refresh interval")
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "cluster-monitor", "Log source name (e.g., pod name)")
 	apiServer := flag.String("api-server", "", "Kubernetes API server address (e.g., https://k3s.eddisonso.com:6443)")
