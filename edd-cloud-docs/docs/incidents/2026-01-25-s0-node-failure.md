@@ -74,12 +74,29 @@ Node s0 (192.168.3.100) became unresponsive, causing a complete site outage. s0 
 
 ## Root Cause
 
-The exact cause of s0's failure is unknown. The node became completely unresponsive with no logs captured before the failure. Possible causes:
-- Hardware failure (power supply, memory, disk)
-- Kernel hang/panic
-- Power outage
+**Update (January 26, 2026):** Root cause identified after recurring network failures.
 
-The node had previously been up for ~3 days before failing.
+The network interface on s0 repeatedly failed due to a **missing DHCPv6 client**. The cloud-init generated network configuration (`/etc/network/interfaces.d/50-cloud-init`) included:
+
+```
+iface enp2s0 inet6 dhcp
+```
+
+When `ifup` attempted to bring up the interface:
+1. IPv4 DHCP succeeded
+2. IPv6 DHCP failed with: `No DHCPv6 client software found!`
+3. The entire interface was marked as "failed to bring up"
+4. Network connectivity was lost, causing the node to appear dead to the cluster
+
+This explains why the node was "unresponsive" but could be recovered with a reboot - the OS was running, but the network interface was down.
+
+### Fix Applied
+
+1. Removed the `inet6 dhcp` line from the network configuration
+2. Disabled cloud-init network management to prevent regeneration:
+   ```bash
+   echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+   ```
 
 ## What Went Wrong
 
@@ -181,6 +198,23 @@ rp4
 └── postgres-replica-4 (planned)
 ```
 
+## January 26 Recurrence - Architecture Validation
+
+On January 26, 2026, s0 experienced another network failure before the root cause was identified and fixed. This time, **the website (cloud.eddisonso.com) remained accessible** thanks to the architecture changes made after the initial incident:
+
+| Service | Impact |
+|---------|--------|
+| Frontend (cloud.eddisonso.com) | No impact - gateway running on rp2 |
+| Auth API | No impact |
+| Storage API | No impact |
+| **Compute API** | **Unavailable** - requires GFS master on s0 |
+
+The compute service was the only major service affected because it depends on the GFS master node, which was still pinned to s0. This validates that distributing services across nodes significantly improves resilience.
+
+### Remaining Work
+- Move GFS master to a different node or implement redundancy
+- Add replica scheduling for compute-related services
+
 ## Lessons Learned
 
 1. **Never rely on a single node for critical services** - Even with replicas, the inability to automatically failover created extended downtime.
@@ -190,3 +224,5 @@ rp4
 3. **Test failover procedures** - The manual failover was successful but had never been tested. Regular DR drills should be scheduled.
 
 4. **CI/CD should fail loudly** - Silent failures in deployment pipelines mask real issues and create false confidence.
+
+5. **Check network configuration carefully** - IPv6 configuration on an IPv4-only network caused silent failures that were difficult to diagnose.
