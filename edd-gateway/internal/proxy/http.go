@@ -280,7 +280,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 		defer func() { done <- struct{}{} }()
 
 		// Read response with buffering to capture status line
-		buf := make([]byte, 4096)
+		buf := make([]byte, 128*1024)
 		statusLogged := false
 
 		for {
@@ -331,7 +331,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 	// Client -> Backend
 	go func() {
 		defer func() { done <- struct{}{} }()
-		buf := make([]byte, 4096)
+		buf := make([]byte, 128*1024)
 		for {
 			n, err := client.Read(buf)
 			if n > 0 {

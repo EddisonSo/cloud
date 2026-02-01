@@ -37,7 +37,7 @@ func (c *Client) ReadTo(ctx context.Context, path string, w io.Writer) (int64, e
 }
 
 // ReadToWithNamespace streams file contents to the provided writer with a namespace.
-// Chunks are read sequentially and streamed directly to the writer without buffering.
+// For multi-chunk files, reads up to 3 chunks concurrently to reduce inter-chunk latency.
 func (c *Client) ReadToWithNamespace(ctx context.Context, path, namespace string, w io.Writer) (int64, error) {
 	chunks, err := c.GetChunkLocationsWithNamespace(ctx, path, namespace)
 	if err != nil {
@@ -47,12 +47,61 @@ func (c *Client) ReadToWithNamespace(ctx context.Context, path, namespace string
 		return 0, ErrNoChunkLocations
 	}
 
-	var total int64
-	for _, chunk := range chunks {
+	// Single chunk - read directly without buffering overhead
+	if len(chunks) == 1 {
 		chunkCtx, cancel := context.WithTimeout(ctx, c.chunkTimeout)
-		n, err := c.readChunkWithFailover(chunkCtx, chunk, w)
-		cancel()
-		total += n
+		defer cancel()
+		return c.readChunkWithFailover(chunkCtx, chunks[0], w)
+	}
+
+	// Multiple chunks - read ahead concurrently, write in order
+	type chunkResult struct {
+		data []byte
+		err  error
+	}
+
+	const readAhead = 3
+	results := make([]chan chunkResult, len(chunks))
+	for i := range results {
+		results[i] = make(chan chunkResult, 1)
+	}
+
+	readCtx, readCancel := context.WithCancel(ctx)
+	defer readCancel()
+
+	sem := make(chan struct{}, readAhead)
+
+	// Launch chunk reads in a separate goroutine to avoid blocking the writer
+	go func() {
+		for i, chunk := range chunks {
+			select {
+			case sem <- struct{}{}:
+			case <-readCtx.Done():
+				for j := i; j < len(chunks); j++ {
+					results[j] <- chunkResult{err: readCtx.Err()}
+				}
+				return
+			}
+			go func(idx int, ch *pb.ChunkLocationInfo) {
+				defer func() { <-sem }()
+				var buf bytes.Buffer
+				chunkCtx, cancel := context.WithTimeout(readCtx, c.chunkTimeout)
+				_, err := c.readChunkWithFailover(chunkCtx, ch, &buf)
+				cancel()
+				results[idx] <- chunkResult{data: buf.Bytes(), err: err}
+			}(i, chunk)
+		}
+	}()
+
+	// Write chunks in order as they complete
+	var total int64
+	for i := range chunks {
+		res := <-results[i]
+		if res.err != nil {
+			return total, res.err
+		}
+		n, err := w.Write(res.data)
+		total += int64(n)
 		if err != nil {
 			return total, err
 		}
