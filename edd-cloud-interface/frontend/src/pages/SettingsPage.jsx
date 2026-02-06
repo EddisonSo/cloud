@@ -3,7 +3,7 @@ import { ApiTokenList } from "@/components/settings/ApiTokenList";
 import { TAB_COPY } from "@/lib/constants";
 
 export function SettingsPage() {
-  const copy = TAB_COPY.settings;
+  const copy = TAB_COPY["auth-token"];
 
   return (
     <>

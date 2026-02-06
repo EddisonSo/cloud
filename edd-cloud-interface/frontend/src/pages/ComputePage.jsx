@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +55,7 @@ export function ComputePage({ view: routeView = "containers" }) {
   const [selectedContainer, setSelectedContainer] = useState(null);
   const [creating, setCreating] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
+  const accessOpenedFor = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -69,8 +70,14 @@ export function ComputePage({ view: routeView = "containers" }) {
       const container = containers.find((c) => c.id === containerId);
       if (container) {
         setSelectedContainer(container);
-        access.openAccess(container);
+        if (accessOpenedFor.current !== containerId) {
+          accessOpenedFor.current = containerId;
+          access.openAccess(container);
+        }
       }
+    }
+    if (!containerId) {
+      accessOpenedFor.current = null;
     }
   }, [containerId, containers]);
 
