@@ -1,8 +1,8 @@
 ---
-sidebar_position: 4
+sidebar_position: 3
 ---
 
-# Storage API
+# Storage
 
 **Base URL:** `https://storage.cloud.eddisonso.com`
 
