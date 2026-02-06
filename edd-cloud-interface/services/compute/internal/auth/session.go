@@ -13,9 +13,12 @@ import (
 
 // JWTClaims represents the claims in a JWT token
 type JWTClaims struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	UserID      string `json:"user_id"` // nanoid
+	Username    string              `json:"username"`
+	DisplayName string              `json:"display_name"`
+	UserID      string              `json:"user_id"` // nanoid
+	Type        string              `json:"type,omitempty"`
+	TokenID     string              `json:"token_id,omitempty"`
+	Scopes      map[string][]string `json:"scopes,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -46,6 +49,9 @@ func getJWTSecret() []byte {
 // ValidateSession validates a JWT token
 // Returns the full claims if valid, nil if invalid
 func (v *SessionValidator) ValidateSession(tokenString string) (*JWTClaims, error) {
+	// Strip ecloud_ prefix for API tokens
+	tokenString = strings.TrimPrefix(tokenString, "ecloud_")
+
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])

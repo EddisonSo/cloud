@@ -9,6 +9,7 @@ import {
   DatastorePage,
   HealthPage,
   AdminPage,
+  SettingsPage,
   NotFoundPage,
 } from "@/pages";
 
@@ -31,6 +32,8 @@ function App() {
               <Route path="/datastore" element={<DatastorePage />} />
               <Route path="/health" element={<HealthPage />} />
               <Route path="/logs" element={<Navigate to="/health#logs" replace />} />
+              <Route path="/settings" element={<Navigate to="/settings/tokens" replace />} />
+              <Route path="/settings/tokens" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

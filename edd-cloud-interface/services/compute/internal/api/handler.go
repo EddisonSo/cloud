@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
@@ -14,18 +16,20 @@ import (
 )
 
 type Handler struct {
-	db        *db.DB
-	k8s       *k8s.Client
-	validator *auth.SessionValidator
-	mux       *http.ServeMux
+	db         *db.DB
+	k8s        *k8s.Client
+	validator  *auth.SessionValidator
+	mux        *http.ServeMux
+	tokenCache *tokenCache
 }
 
 func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h := &Handler{
-		db:        database,
-		k8s:       k8sClient,
-		validator: auth.NewSessionValidator("http://simple-file-share-backend"),
-		mux:       http.NewServeMux(),
+		db:         database,
+		k8s:        k8sClient,
+		validator:  auth.NewSessionValidator("http://simple-file-share-backend"),
+		mux:        http.NewServeMux(),
+		tokenCache: newTokenCache(),
 	}
 
 	// Health check (both paths for internal probes and external ingress access)
@@ -33,36 +37,36 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("GET /compute/healthz", h.Healthz)
 
 	// Container endpoints
-	h.mux.HandleFunc("GET /compute/containers", h.authMiddleware(h.ListContainers))
-	h.mux.HandleFunc("POST /compute/containers", h.authMiddleware(h.CreateContainer))
-	h.mux.HandleFunc("GET /compute/containers/{id}", h.authMiddleware(h.GetContainer))
-	h.mux.HandleFunc("DELETE /compute/containers/{id}", h.authMiddleware(h.DeleteContainer))
-	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.StopContainer))
-	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.StartContainer))
+	h.mux.HandleFunc("GET /compute/containers", h.authMiddleware(h.scopeCheck("containers", "read", h.ListContainers)))
+	h.mux.HandleFunc("POST /compute/containers", h.authMiddleware(h.scopeCheck("containers", "create", h.CreateContainer)))
+	h.mux.HandleFunc("GET /compute/containers/{id}", h.authMiddleware(h.scopeCheck("containers", "read", h.GetContainer)))
+	h.mux.HandleFunc("DELETE /compute/containers/{id}", h.authMiddleware(h.scopeCheck("containers", "delete", h.DeleteContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.scopeCheck("containers", "update", h.StopContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.scopeCheck("containers", "update", h.StartContainer)))
 
 	// SSH key endpoints
-	h.mux.HandleFunc("GET /compute/ssh-keys", h.authMiddleware(h.ListSSHKeys))
-	h.mux.HandleFunc("POST /compute/ssh-keys", h.authMiddleware(h.AddSSHKey))
-	h.mux.HandleFunc("DELETE /compute/ssh-keys/{id}", h.authMiddleware(h.DeleteSSHKey))
+	h.mux.HandleFunc("GET /compute/ssh-keys", h.authMiddleware(h.scopeCheck("keys", "read", h.ListSSHKeys)))
+	h.mux.HandleFunc("POST /compute/ssh-keys", h.authMiddleware(h.scopeCheck("keys", "create", h.AddSSHKey)))
+	h.mux.HandleFunc("DELETE /compute/ssh-keys/{id}", h.authMiddleware(h.scopeCheck("keys", "delete", h.DeleteSSHKey)))
 
 	// WebSocket endpoint for real-time updates
-	h.mux.HandleFunc("GET /compute/ws", h.authMiddleware(h.HandleWebSocket))
+	h.mux.HandleFunc("GET /compute/ws", h.authMiddleware(h.scopeCheckRoot("read", h.HandleWebSocket)))
 
 	// Cloud terminal endpoint
-	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.HandleTerminal))
+	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.scopeCheck("containers", "update", h.HandleTerminal)))
 
 	// SSH access toggle (for gateway SSH routing)
-	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.GetSSHAccess))
-	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.UpdateSSHAccess))
+	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheck("containers", "read", h.GetSSHAccess)))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheck("containers", "update", h.UpdateSSHAccess)))
 
 	// Ingress rules (ports 80, 443, 8000-8999)
-	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.ListIngressRules))
-	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.AddIngressRule))
-	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.RemoveIngressRule))
+	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheck("containers", "read", h.ListIngressRules)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheck("containers", "update", h.AddIngressRule)))
+	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.scopeCheck("containers", "update", h.RemoveIngressRule)))
 
 	// Persistent storage mount paths
-	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.GetMountPaths))
-	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.UpdateMountPaths))
+	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheck("containers", "read", h.GetMountPaths)))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheck("containers", "update", h.UpdateMountPaths)))
 
 	// Admin endpoints
 	h.mux.HandleFunc("GET /compute/admin/containers", h.adminMiddleware(h.AdminListContainers))
@@ -167,25 +171,85 @@ func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok"))
 }
 
-// authMiddleware validates session and injects user info into context
+// authMiddleware validates session or API token and injects user info into context
 func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := auth.GetSessionToken(r)
-		if token != "" {
+		if token == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if this is an API token (ecloud_ prefix)
+		if strings.HasPrefix(token, "ecloud_") {
 			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
-				slog.Error("session validation failed", "error", err)
-				http.Error(w, "authentication error", http.StatusInternalServerError)
+				slog.Error("api token validation failed", "error", err)
+				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
-			if claims != nil {
-				r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.Username))
-				next(w, r)
+			if claims == nil || claims.Type != "api_token" {
+				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
+			// Check revocation
+			if !h.tokenCache.isValid(claims.TokenID) {
+				http.Error(w, "token revoked", http.StatusUnauthorized)
+				return
+			}
+			r = r.WithContext(setAPITokenContext(r.Context(), claims.UserID, claims.Scopes))
+			next(w, r)
+			return
+		}
+
+		// Regular session JWT
+		claims, err := h.validator.ValidateSession(token)
+		if err != nil {
+			slog.Error("session validation failed", "error", err)
+			http.Error(w, "authentication error", http.StatusInternalServerError)
+			return
+		}
+		if claims != nil {
+			r = r.WithContext(setUserContext(r.Context(), claims.UserID, claims.Username))
+			next(w, r)
+			return
 		}
 
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}
+}
+
+// scopeCheck returns middleware that checks if the user has the required scope for compute.<uid>.<resource>.
+func (h *Handler) scopeCheck(resource, action string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, _, ok := getUserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		scope := fmt.Sprintf("compute.%s.%s", userID, resource)
+		if !requireScope(r.Context(), scope, action) {
+			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// scopeCheckRoot checks compute.<uid> level scope (e.g., for WebSocket).
+func (h *Handler) scopeCheckRoot(action string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, _, ok := getUserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		scope := fmt.Sprintf("compute.%s", userID)
+		if !requireScope(r.Context(), scope, action) {
+			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
+			return
+		}
+		next(w, r)
 	}
 }
 

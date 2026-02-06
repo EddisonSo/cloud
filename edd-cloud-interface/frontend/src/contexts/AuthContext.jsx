@@ -6,6 +6,7 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [userId, setUserId] = useState(null);
   const [displayName, setDisplayName] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export function AuthProvider({ children }) {
     const token = getAuthToken();
     if (!token) {
       setUser(null);
+      setUserId(null);
       setDisplayName(null);
       setIsAdmin(false);
       setLoading(false);
@@ -42,6 +44,7 @@ export function AuthProvider({ children }) {
       // Token is invalid or expired
       clearAuthToken();
       setUser(null);
+      setUserId(null);
       setDisplayName(null);
       setIsAdmin(false);
       setLoading(false);
@@ -50,6 +53,7 @@ export function AuthProvider({ children }) {
 
     // Set state from decoded token immediately (optimistic)
     setUser(decoded.username);
+    setUserId(decoded.user_id || null);
     setDisplayName(decoded.display_name || decoded.username);
     setLoading(false);
 
@@ -62,6 +66,7 @@ export function AuthProvider({ children }) {
         // Token rejected by server - clear it
         clearAuthToken();
         setUser(null);
+        setUserId(null);
         setDisplayName(null);
         setIsAdmin(false);
         return;
@@ -69,6 +74,7 @@ export function AuthProvider({ children }) {
       if (response.ok) {
         const payload = await response.json();
         setUser(payload.username);
+        setUserId(payload.user_id || null);
         setDisplayName(payload.display_name || payload.username);
         setIsAdmin(payload.is_admin || false);
       }
@@ -98,6 +104,7 @@ export function AuthProvider({ children }) {
       setAuthToken(data.token);
     }
     setUser(data.username);
+    setUserId(data.user_id || null);
     setDisplayName(data.display_name || data.username);
     setIsAdmin(data.is_admin || false);
     return true;
@@ -115,6 +122,7 @@ export function AuthProvider({ children }) {
     }
     clearAuthToken();
     setUser(null);
+    setUserId(null);
     setDisplayName(null);
     setIsAdmin(false);
     clearAllCaches();
@@ -122,6 +130,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    userId,
     displayName,
     isAdmin,
     loading,

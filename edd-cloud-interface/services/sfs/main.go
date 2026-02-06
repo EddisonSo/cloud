@@ -70,13 +70,17 @@ type server struct {
 	sseMu         sync.Mutex
 	sseConns      map[string]chan progressMessage
 	eventConsumer *events.Consumer
+	tkCache       *tokenCache
 }
 
 // JWTClaims represents the claims in a JWT token
 type JWTClaims struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	UserID      string `json:"user_id"` // nanoid
+	Username    string              `json:"username"`
+	DisplayName string              `json:"display_name"`
+	UserID      string              `json:"user_id"` // nanoid
+	Type        string              `json:"type,omitempty"`
+	TokenID     string              `json:"token_id,omitempty"`
+	Scopes      map[string][]string `json:"scopes,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -193,6 +197,7 @@ func main() {
 		sessionTTL: *sessionTTL,
 		wsConns:    make(map[string]*websocket.Conn),
 		sseConns:   make(map[string]chan progressMessage),
+		tkCache:    newTokenCache(),
 	}
 
 	// Initialize user sync from auth-service
@@ -462,7 +467,7 @@ type namespaceCreateRequest struct {
 }
 
 func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "create"); !ok {
 		return
 	}
 
@@ -519,7 +524,7 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete"); !ok {
 		return
 	}
 	name, err := sanitizeNamespace(r.URL.Query().Get("name"))
@@ -565,7 +570,7 @@ type namespaceUpdateRequest struct {
 }
 
 func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update"); !ok {
 		return
 	}
 
@@ -613,7 +618,7 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 
 // handleNamespaceDeleteByPath handles DELETE /storage/namespaces/{name}
 func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete"); !ok {
 		return
 	}
 
@@ -655,7 +660,7 @@ func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Requ
 
 // handleNamespaceUpdateByPath handles PUT /storage/namespaces/{name}
 func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update"); !ok {
 		return
 	}
 
@@ -705,7 +710,7 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "files", "create"); !ok {
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -1065,7 +1070,7 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuth(w, r); !ok {
+	if _, ok := s.requireAuthWithScope(w, r, "files", "delete"); !ok {
 		return
 	}
 	if r.Method != http.MethodDelete {
@@ -1296,6 +1301,9 @@ func (s *server) requireAuth(w http.ResponseWriter, r *http.Request) (string, bo
 
 // parseJWT extracts and validates claims from a JWT token
 func (s *server) parseJWT(tokenString string) (*JWTClaims, bool) {
+	// Strip ecloud_ prefix for API tokens
+	tokenString = strings.TrimPrefix(tokenString, "ecloud_")
+
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -1325,15 +1333,7 @@ func (s *server) currentUser(r *http.Request) (string, bool) {
 }
 
 func (s *server) currentUserID(r *http.Request) (string, bool) {
-	token := s.sessionToken(r)
-	if token == "" {
-		return "", false
-	}
-	claims, ok := s.parseJWT(token)
-	if !ok {
-		return "", false
-	}
-	return claims.UserID, true
+	return s.currentUserOrToken(r)
 }
 
 func (s *server) currentUserWithDisplay(r *http.Request) (string, string, bool) {
