@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # API References
 
-All authenticated endpoints accept a JWT in the `Authorization: Bearer <token>` header — either a session JWT or an [API token](/docs/services/auth#api-tokens).
+All authenticated endpoints accept a JWT in the `Authorization: Bearer <token>` header — either a session JWT or an API token.
 
 | Service | Base URL |
 |---------|----------|
