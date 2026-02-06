@@ -1,5 +1,5 @@
 ---
-sidebar_position: 1
+sidebar_position: 5
 ---
 
 # API Tokens
@@ -144,59 +144,6 @@ This single token can list containers, view SSH keys, list namespaces, list file
 | `update` | Modify resources (start/stop containers, toggle SSH, edit ingress/mounts, update namespace visibility) |
 | `delete` | Remove resources |
 
-## Token Management API
-
-All management endpoints require **session JWT** authentication (not API tokens).
-
-**Base URL:** `https://auth.cloud.eddisonso.com`
-
-### Create Token
-
-```
-POST /api/tokens
-```
-
-**Request body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Display name (max 64 chars) |
-| `scopes` | object | Yes | Map of scope path to action array |
-| `expires_in` | string | No | `30d`, `90d`, `365d`, or `never` (default: `never`) |
-
-**Response:** Token object with the `token` field (one-time only).
-
-### List Tokens
-
-```
-GET /api/tokens
-```
-
-Returns all tokens for the authenticated user. Does **not** include token strings or hashes.
-
-**Response:**
-
-```json
-[
-  {
-    "id": "abc123",
-    "name": "CI/CD pipeline",
-    "scopes": { "compute.XyZ123.containers": ["read", "create"] },
-    "expires_at": 1744000000,
-    "last_used_at": 1740000000,
-    "created_at": 1736000000
-  }
-]
-```
-
-### Delete Token
-
-```
-DELETE /api/tokens/{id}
-```
-
-Deletes the token. Only the token owner can delete it. Returns `404` if the token doesn't exist or belongs to another user.
-
 ## Endpoint Scope Map
 
 ### Compute Endpoints
@@ -247,7 +194,7 @@ curl -X POST https://auth.cloud.eddisonso.com/api/tokens \
   -d '{
     "name": "deploy-script",
     "scopes": {
-      "compute.'"$USER_ID"'.containers": ["create", "read", "update", "delete"]
+      "compute.''"$USER_ID"''.containers": ["create", "read", "update", "delete"]
     },
     "expires_in": "30d"
   }'
@@ -264,8 +211,8 @@ curl -X POST https://auth.cloud.eddisonso.com/api/tokens \
   -d '{
     "name": "nightly-backup",
     "scopes": {
-      "storage.'"$USER_ID"'.files": ["read"],
-      "storage.'"$USER_ID"'.namespaces": ["read"]
+      "storage.''"$USER_ID"''.files": ["read"],
+      "storage.''"$USER_ID"''.namespaces": ["read"]
     },
     "expires_in": "365d"
   }'
@@ -282,20 +229,12 @@ curl -X POST https://auth.cloud.eddisonso.com/api/tokens \
   -d '{
     "name": "full-access",
     "scopes": {
-      "compute.'"$USER_ID"'": ["create", "read", "update", "delete"],
-      "storage.'"$USER_ID"'": ["create", "read", "update", "delete"]
+      "compute.''"$USER_ID"''": ["create", "read", "update", "delete"],
+      "storage.''"$USER_ID"''": ["create", "read", "update", "delete"]
     },
     "expires_in": "30d"
   }'
 ```
-
-## Error Responses
-
-| Status | Meaning |
-|--------|---------|
-| `401 Unauthorized` | Missing, invalid, or expired token |
-| `403 Forbidden` | Token is valid but lacks the required scope |
-| `404 Not Found` | Token revoked (on revocation check) |
 
 ## UI
 
