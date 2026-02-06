@@ -36,13 +36,13 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("GET /healthz", h.Healthz)
 	h.mux.HandleFunc("GET /compute/healthz", h.Healthz)
 
-	// Container endpoints
+	// Container endpoints (list/create use broad scope, specific routes use container ID)
 	h.mux.HandleFunc("GET /compute/containers", h.authMiddleware(h.scopeCheck("containers", "read", h.ListContainers)))
 	h.mux.HandleFunc("POST /compute/containers", h.authMiddleware(h.scopeCheck("containers", "create", h.CreateContainer)))
-	h.mux.HandleFunc("GET /compute/containers/{id}", h.authMiddleware(h.scopeCheck("containers", "read", h.GetContainer)))
-	h.mux.HandleFunc("DELETE /compute/containers/{id}", h.authMiddleware(h.scopeCheck("containers", "delete", h.DeleteContainer)))
-	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.scopeCheck("containers", "update", h.StopContainer)))
-	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.scopeCheck("containers", "update", h.StartContainer)))
+	h.mux.HandleFunc("GET /compute/containers/{id}", h.authMiddleware(h.scopeCheckContainer("read", h.GetContainer)))
+	h.mux.HandleFunc("DELETE /compute/containers/{id}", h.authMiddleware(h.scopeCheckContainer("delete", h.DeleteContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.scopeCheckContainer("update", h.StopContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.scopeCheckContainer("update", h.StartContainer)))
 
 	// SSH key endpoints
 	h.mux.HandleFunc("GET /compute/ssh-keys", h.authMiddleware(h.scopeCheck("keys", "read", h.ListSSHKeys)))
@@ -53,20 +53,20 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h.mux.HandleFunc("GET /compute/ws", h.authMiddleware(h.scopeCheckRoot("read", h.HandleWebSocket)))
 
 	// Cloud terminal endpoint
-	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.scopeCheck("containers", "update", h.HandleTerminal)))
+	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.scopeCheckContainer("update", h.HandleTerminal)))
 
 	// SSH access toggle (for gateway SSH routing)
-	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheck("containers", "read", h.GetSSHAccess)))
-	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheck("containers", "update", h.UpdateSSHAccess)))
+	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheckContainer("read", h.GetSSHAccess)))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheckContainer("update", h.UpdateSSHAccess)))
 
 	// Ingress rules (ports 80, 443, 8000-8999)
-	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheck("containers", "read", h.ListIngressRules)))
-	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheck("containers", "update", h.AddIngressRule)))
-	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.scopeCheck("containers", "update", h.RemoveIngressRule)))
+	h.mux.HandleFunc("GET /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheckContainer("read", h.ListIngressRules)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/ingress", h.authMiddleware(h.scopeCheckContainer("update", h.AddIngressRule)))
+	h.mux.HandleFunc("DELETE /compute/containers/{id}/ingress/{port}", h.authMiddleware(h.scopeCheckContainer("update", h.RemoveIngressRule)))
 
 	// Persistent storage mount paths
-	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheck("containers", "read", h.GetMountPaths)))
-	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheck("containers", "update", h.UpdateMountPaths)))
+	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheckContainer("read", h.GetMountPaths)))
+	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheckContainer("update", h.UpdateMountPaths)))
 
 	// Admin endpoints
 	h.mux.HandleFunc("GET /compute/admin/containers", h.adminMiddleware(h.AdminListContainers))
@@ -228,6 +228,25 @@ func (h *Handler) scopeCheck(resource, action string, next http.HandlerFunc) htt
 			return
 		}
 		scope := fmt.Sprintf("compute.%s.%s", userID, resource)
+		if !requireScope(r.Context(), scope, action) {
+			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// scopeCheckContainer returns middleware that checks compute.<uid>.containers.<id> for container-specific routes.
+// The walk-up in hasPermission means a broad compute.<uid>.containers token still works.
+func (h *Handler) scopeCheckContainer(action string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, _, ok := getUserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		containerID := r.PathValue("id")
+		scope := fmt.Sprintf("compute.%s.containers.%s", userID, containerID)
 		if !requireScope(r.Context(), scope, action) {
 			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 			return

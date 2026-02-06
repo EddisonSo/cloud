@@ -229,10 +229,15 @@ func (h *Handler) handleCheckToken(w http.ResponseWriter, r *http.Request) {
 // validateScopes checks that all scopes reference the caller's user_id,
 // paths are valid, and actions are from the allowed set.
 func validateScopes(scopes map[string][]string, userID string) error {
+	validResources := map[string]map[string]bool{
+		"compute": {"containers": true, "keys": true},
+		"storage": {"namespaces": true, "files": true},
+	}
+
 	for scope, actions := range scopes {
 		parts := strings.Split(scope, ".")
-		if len(parts) < 2 || len(parts) > 3 {
-			return fmt.Errorf("invalid scope path: %s (must be <root>.<userid>[.<resource>])", scope)
+		if len(parts) < 2 || len(parts) > 4 {
+			return fmt.Errorf("invalid scope path: %s (must be <root>.<userid>[.<resource>[.<id>]])", scope)
 		}
 
 		root := parts[0]
@@ -245,14 +250,17 @@ func validateScopes(scopes map[string][]string, userID string) error {
 			return fmt.Errorf("cannot create token for another user's resources")
 		}
 
-		if len(parts) == 3 {
+		if len(parts) >= 3 {
 			resource := parts[2]
-			validResources := map[string]map[string]bool{
-				"compute": {"containers": true, "keys": true},
-				"storage": {"namespaces": true, "files": true},
-			}
 			if !validResources[root][resource] {
 				return fmt.Errorf("invalid resource: %s for root %s", resource, root)
+			}
+		}
+
+		if len(parts) == 4 {
+			resourceID := parts[3]
+			if resourceID == "" {
+				return fmt.Errorf("resource ID cannot be empty in scope %s", scope)
 			}
 		}
 

@@ -370,7 +370,12 @@ func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if !s.canAccessNamespace(r, namespace) {
+		// API tokens use scope-based access; sessions use visibility-based access
+		if s.isAPIToken(r) {
+			if _, ok := s.requireAuthWithScope(w, r, "files", "read", namespace); !ok {
+				return
+			}
+		} else if !s.canAccessNamespace(r, namespace) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -524,12 +529,12 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete"); !ok {
-		return
-	}
 	name, err := sanitizeNamespace(r.URL.Query().Get("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete", name); !ok {
 		return
 	}
 
@@ -570,10 +575,6 @@ type namespaceUpdateRequest struct {
 }
 
 func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update"); !ok {
-		return
-	}
-
 	var payload namespaceUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -583,6 +584,10 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 	name, err := sanitizeNamespace(payload.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update", name); !ok {
 		return
 	}
 
@@ -618,13 +623,13 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 
 // handleNamespaceDeleteByPath handles DELETE /storage/namespaces/{name}
 func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete"); !ok {
-		return
-	}
-
 	name, err := sanitizeNamespace(r.PathValue("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "delete", name); !ok {
 		return
 	}
 
@@ -660,13 +665,13 @@ func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Requ
 
 // handleNamespaceUpdateByPath handles PUT /storage/namespaces/{name}
 func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update"); !ok {
-		return
-	}
-
 	name, err := sanitizeNamespace(r.PathValue("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "namespaces", "update", name); !ok {
 		return
 	}
 
@@ -710,7 +715,17 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "files", "create"); !ok {
+	// Extract namespace early for scope check
+	uploadNamespace := defaultNamespace
+	if rawNs := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNs != "" {
+		var err error
+		uploadNamespace, err = sanitizeNamespace(rawNs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if _, ok := s.requireAuthWithScope(w, r, "files", "create", uploadNamespace); !ok {
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -723,7 +738,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	status := "ok"
 	errDetail := ""
 	name := ""
-	namespace := defaultNamespace
+	namespace := uploadNamespace
 	transferID := s.transferID(r)
 	var total int64
 	defer func() {
@@ -794,15 +809,6 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if file == nil {
 		fail("missing file", http.StatusBadRequest)
 		return
-	}
-
-	if rawNamespace := strings.TrimSpace(r.URL.Query().Get("namespace")); rawNamespace != "" {
-		var err error
-		namespace, err = sanitizeNamespace(rawNamespace)
-		if err != nil {
-			fail(err.Error(), http.StatusBadRequest)
-			return
-		}
 	}
 
 	// Check that namespace exists before allowing upload
@@ -912,7 +918,12 @@ func (s *server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if !s.canAccessNamespace(r, namespace) {
+		// API tokens use scope-based access; sessions use visibility-based access
+		if s.isAPIToken(r) {
+			if _, ok := s.requireAuthWithScope(w, r, "files", "read", namespace); !ok {
+				return
+			}
+		} else if !s.canAccessNamespace(r, namespace) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -1070,9 +1081,6 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireAuthWithScope(w, r, "files", "delete"); !ok {
-		return
-	}
 	if r.Method != http.MethodDelete {
 		w.Header().Set("Allow", http.MethodDelete)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1092,6 +1100,10 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "files", "delete", namespace); !ok {
+		return
 	}
 
 	fullPath := name

@@ -94,7 +94,8 @@ func (c *tokenCache) checkWithAuthService(tokenID string) bool {
 // requireAuthWithScope wraps requireAuth to also handle API token auth and scope checking.
 // For session tokens, returns (userID, true).
 // For API tokens, verifies revocation and scope, returns (userID, true) if allowed.
-func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, resource, action string) (string, bool) {
+// Optional resourceID narrows the scope to storage.<uid>.<resource>.<resourceID>.
+func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, resource, action string, resourceID ...string) (string, bool) {
 	token := s.sessionToken(r)
 	if token == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -118,14 +119,23 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 		return "", false
 	}
 
-	// Check scope
+	// Check scope — append resource ID if provided
 	scope := fmt.Sprintf("storage.%s.%s", claims.UserID, resource)
+	if len(resourceID) > 0 && resourceID[0] != "" {
+		scope = fmt.Sprintf("%s.%s", scope, resourceID[0])
+	}
 	if !hasPermission(claims.Scopes, scope, action) {
 		http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 		return "", false
 	}
 
 	return claims.UserID, true
+}
+
+// isAPIToken checks if the request carries an API token (ecloud_ prefix).
+func (s *server) isAPIToken(r *http.Request) bool {
+	token := s.sessionToken(r)
+	return strings.HasPrefix(token, "ecloud_")
 }
 
 // currentUserOrToken returns the user ID, handling both session and API tokens.

@@ -1,12 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { buildAuthBase, getAuthHeaders, copyToClipboard } from "@/lib/api";
-import { Plus, Trash2, Copy, AlertTriangle, KeyRound } from "lucide-react";
+import {
+  buildAuthBase,
+  buildComputeBase,
+  buildStorageBase,
+  getAuthHeaders,
+  copyToClipboard,
+} from "@/lib/api";
+import {
+  Plus,
+  Trash2,
+  Copy,
+  AlertTriangle,
+  KeyRound,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 
 const EXPIRY_OPTIONS = [
   { value: "30d", label: "30 days" },
@@ -15,22 +30,10 @@ const EXPIRY_OPTIONS = [
   { value: "never", label: "No expiry" },
 ];
 
-const SCOPE_GROUPS = {
-  compute: {
-    label: "Compute",
-    resources: {
-      containers: { label: "Containers", actions: ["create", "read", "update", "delete"] },
-      keys: { label: "SSH Keys", actions: ["create", "read", "delete"] },
-    },
-  },
-  storage: {
-    label: "Storage",
-    resources: {
-      namespaces: { label: "Namespaces", actions: ["create", "read", "update", "delete"] },
-      files: { label: "Files", actions: ["create", "read", "delete"] },
-    },
-  },
-};
+const CONTAINER_ACTIONS = ["create", "read", "update", "delete"];
+const KEY_ACTIONS = ["create", "read", "delete"];
+const NAMESPACE_ACTIONS = ["create", "read", "update", "delete"];
+const FILE_ACTIONS = ["create", "read", "delete"];
 
 function formatDate(unix) {
   if (!unix) return "Never";
@@ -57,8 +60,18 @@ function scopeSummary(scopes) {
   const parts = [];
   for (const [scope, actions] of Object.entries(scopes)) {
     const segments = scope.split(".");
-    const resource = segments.length === 3 ? segments[2] : segments[0];
-    parts.push(`${resource}: ${actions.join(", ")}`);
+    // 4-segment: root.uid.resource.id -> "resource(id)"
+    // 3-segment: root.uid.resource -> "resource"
+    // 2-segment: root.uid -> root
+    let label;
+    if (segments.length === 4) {
+      label = `${segments[2]}(${segments[3]})`;
+    } else if (segments.length === 3) {
+      label = segments[2];
+    } else {
+      label = segments[0];
+    }
+    parts.push(`${label}: ${actions.join(", ")}`);
   }
   return parts.join("; ");
 }
@@ -228,6 +241,44 @@ export function ApiTokenList() {
   );
 }
 
+// Action toggle pill
+function ActionPill({ action, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+        selected
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {action}
+    </button>
+  );
+}
+
+// Collapsible section header
+function SectionHeader({ label, expanded, onToggle, children }) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-sm font-medium w-full text-left mb-2"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5" />
+        )}
+        {label}
+      </button>
+      {expanded && <div className="pl-5 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
 function CreateTokenForm({ userId, onCreated, onCancel }) {
   const [name, setName] = useState("");
   const [expiresIn, setExpiresIn] = useState("90d");
@@ -235,50 +286,91 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  const toggleAction = (root, resource, action) => {
-    const key = `${root}.${userId}.${resource}`;
+  // Lazy-loaded resources
+  const [containers, setContainers] = useState(null); // null = not loaded
+  const [namespaces, setNamespaces] = useState(null);
+  const [loadingContainers, setLoadingContainers] = useState(false);
+  const [loadingNamespaces, setLoadingNamespaces] = useState(false);
+
+  // Expanded sections
+  const [computeExpanded, setComputeExpanded] = useState(false);
+  const [storageExpanded, setStorageExpanded] = useState(false);
+  const [specificContainersExpanded, setSpecificContainersExpanded] = useState(false);
+  const [specificNamespacesExpanded, setSpecificNamespacesExpanded] = useState(false);
+
+  const fetchContainers = useCallback(async () => {
+    if (containers !== null) return;
+    setLoadingContainers(true);
+    try {
+      const res = await fetch(`${buildComputeBase()}/compute/containers`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setContainers(data || []);
+      } else {
+        setContainers([]);
+      }
+    } catch {
+      setContainers([]);
+    } finally {
+      setLoadingContainers(false);
+    }
+  }, [containers]);
+
+  const fetchNamespaces = useCallback(async () => {
+    if (namespaces !== null) return;
+    setLoadingNamespaces(true);
+    try {
+      const res = await fetch(`${buildStorageBase()}/storage/namespaces`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNamespaces(data || []);
+      } else {
+        setNamespaces([]);
+      }
+    } catch {
+      setNamespaces([]);
+    } finally {
+      setLoadingNamespaces(false);
+    }
+  }, [namespaces]);
+
+  // Lazy load on expand
+  useEffect(() => {
+    if (specificContainersExpanded) fetchContainers();
+  }, [specificContainersExpanded, fetchContainers]);
+
+  useEffect(() => {
+    if (specificNamespacesExpanded) fetchNamespaces();
+  }, [specificNamespacesExpanded, fetchNamespaces]);
+
+  const toggleAction = (scopeKey, action) => {
     setSelectedScopes((prev) => {
-      const current = prev[key] || [];
+      const current = prev[scopeKey] || [];
       if (current.includes(action)) {
         const next = current.filter((a) => a !== action);
         if (next.length === 0) {
-          const { [key]: _, ...rest } = prev;
+          const { [scopeKey]: _, ...rest } = prev;
           return rest;
         }
-        return { ...prev, [key]: next };
+        return { ...prev, [scopeKey]: next };
       }
-      return { ...prev, [key]: [...current, action] };
+      return { ...prev, [scopeKey]: [...current, action] };
     });
   };
 
-  const toggleAllForGroup = (root) => {
-    const group = SCOPE_GROUPS[root];
-    const allKeys = Object.entries(group.resources).map(
-      ([resource]) => `${root}.${userId}.${resource}`
-    );
-    const allSelected = allKeys.every((key) => {
-      const resource = key.split(".")[2];
-      const actions = group.resources[resource].actions;
-      return selectedScopes[key]?.length === actions.length;
+  const setAllActions = (scopeKey, actions) => {
+    setSelectedScopes((prev) => {
+      const current = prev[scopeKey] || [];
+      if (current.length === actions.length) {
+        const { [scopeKey]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [scopeKey]: [...actions] };
     });
-
-    if (allSelected) {
-      // Deselect all
-      setSelectedScopes((prev) => {
-        const next = { ...prev };
-        for (const key of allKeys) delete next[key];
-        return next;
-      });
-    } else {
-      // Select all
-      setSelectedScopes((prev) => {
-        const next = { ...prev };
-        for (const [resource, config] of Object.entries(group.resources)) {
-          next[`${root}.${userId}.${resource}`] = [...config.actions];
-        }
-        return next;
-      });
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -323,6 +415,15 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
     }
   };
 
+  // Scope key helpers
+  const broadContainersKey = `compute.${userId}.containers`;
+  const broadKeysKey = `compute.${userId}.keys`;
+  const broadNamespacesKey = `storage.${userId}.namespaces`;
+  const broadFilesKey = `storage.${userId}.files`;
+  const containerKey = (id) => `compute.${userId}.containers.${id}`;
+  const nsNamespacesKey = (nsName) => `storage.${userId}.namespaces.${nsName}`;
+  const nsFilesKey = (nsName) => `storage.${userId}.files.${nsName}`;
+
   return (
     <Card>
       <CardHeader>
@@ -361,51 +462,129 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
           <div className="space-y-3">
             <Label>Permissions</Label>
             <div className="grid grid-cols-2 gap-4">
-              {Object.entries(SCOPE_GROUPS).map(([root, group]) => (
-                <div key={root} className="border border-border rounded-md p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium">{group.label}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-xs"
-                      onClick={() => toggleAllForGroup(root)}
-                    >
-                      Toggle all
-                    </Button>
-                  </div>
-                  <div className="space-y-3">
-                    {Object.entries(group.resources).map(([resource, config]) => {
-                      const key = `${root}.${userId}.${resource}`;
-                      const selected = selectedScopes[key] || [];
-                      return (
-                        <div key={resource}>
-                          <p className="text-xs text-muted-foreground mb-1.5">
-                            {config.label}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {config.actions.map((action) => (
-                              <button
-                                key={action}
-                                type="button"
-                                onClick={() => toggleAction(root, resource, action)}
-                                className={`px-2 py-0.5 text-xs rounded border transition-colors ${
-                                  selected.includes(action)
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                {action}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              {/* Compute section */}
+              <div className="border border-border rounded-md p-3 space-y-3">
+                <SectionHeader
+                  label="Compute"
+                  expanded={computeExpanded}
+                  onToggle={() => setComputeExpanded(!computeExpanded)}
+                >
+                  {/* All Containers */}
+                  <ResourceRow
+                    label="All Containers"
+                    scopeKey={broadContainersKey}
+                    actions={CONTAINER_ACTIONS}
+                    selectedScopes={selectedScopes}
+                    onToggle={toggleAction}
+                    onToggleAll={setAllActions}
+                  />
+
+                  {/* Specific Containers (lazy) */}
+                  <SectionHeader
+                    label="Specific Containers"
+                    expanded={specificContainersExpanded}
+                    onToggle={() => setSpecificContainersExpanded(!specificContainersExpanded)}
+                  >
+                    {loadingContainers && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading containers...
+                      </div>
+                    )}
+                    {containers !== null && containers.length === 0 && !loadingContainers && (
+                      <p className="text-xs text-muted-foreground">No containers found</p>
+                    )}
+                    {containers?.map((c) => (
+                      <ResourceRow
+                        key={c.id}
+                        label={c.name || c.id.slice(0, 8)}
+                        scopeKey={containerKey(c.id)}
+                        actions={CONTAINER_ACTIONS}
+                        selectedScopes={selectedScopes}
+                        onToggle={toggleAction}
+                        onToggleAll={setAllActions}
+                      />
+                    ))}
+                  </SectionHeader>
+
+                  {/* SSH Keys */}
+                  <ResourceRow
+                    label="SSH Keys"
+                    scopeKey={broadKeysKey}
+                    actions={KEY_ACTIONS}
+                    selectedScopes={selectedScopes}
+                    onToggle={toggleAction}
+                    onToggleAll={setAllActions}
+                  />
+                </SectionHeader>
+              </div>
+
+              {/* Storage section */}
+              <div className="border border-border rounded-md p-3 space-y-3">
+                <SectionHeader
+                  label="Storage"
+                  expanded={storageExpanded}
+                  onToggle={() => setStorageExpanded(!storageExpanded)}
+                >
+                  {/* All Namespaces + Files */}
+                  <ResourceRow
+                    label="All Namespaces"
+                    scopeKey={broadNamespacesKey}
+                    actions={NAMESPACE_ACTIONS}
+                    selectedScopes={selectedScopes}
+                    onToggle={toggleAction}
+                    onToggleAll={setAllActions}
+                  />
+                  <ResourceRow
+                    label="All Files"
+                    scopeKey={broadFilesKey}
+                    actions={FILE_ACTIONS}
+                    selectedScopes={selectedScopes}
+                    onToggle={toggleAction}
+                    onToggleAll={setAllActions}
+                  />
+
+                  {/* Specific Namespaces (lazy) */}
+                  <SectionHeader
+                    label="Specific Namespaces"
+                    expanded={specificNamespacesExpanded}
+                    onToggle={() => setSpecificNamespacesExpanded(!specificNamespacesExpanded)}
+                  >
+                    {loadingNamespaces && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading namespaces...
+                      </div>
+                    )}
+                    {namespaces !== null && namespaces.length === 0 && !loadingNamespaces && (
+                      <p className="text-xs text-muted-foreground">No namespaces found</p>
+                    )}
+                    {namespaces?.map((ns) => (
+                      <div key={ns.name} className="space-y-1.5">
+                        <p className="text-xs font-medium text-foreground">{ns.name}</p>
+                        <ResourceRow
+                          label="Namespace"
+                          scopeKey={nsNamespacesKey(ns.name)}
+                          actions={NAMESPACE_ACTIONS}
+                          selectedScopes={selectedScopes}
+                          onToggle={toggleAction}
+                          onToggleAll={setAllActions}
+
+                        />
+                        <ResourceRow
+                          label="Files"
+                          scopeKey={nsFilesKey(ns.name)}
+                          actions={FILE_ACTIONS}
+                          selectedScopes={selectedScopes}
+                          onToggle={toggleAction}
+                          onToggleAll={setAllActions}
+
+                        />
+                      </div>
+                    ))}
+                  </SectionHeader>
+                </SectionHeader>
+              </div>
             </div>
           </div>
 
@@ -422,5 +601,43 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// A row with a label and action pills
+function ResourceRow({
+  label,
+  scopeKey,
+  actions,
+  selectedScopes,
+  onToggle,
+  onToggleAll,
+}) {
+  const selected = selectedScopes[scopeKey] || [];
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-muted-foreground">
+          {label}
+        </p>
+        <button
+          type="button"
+          onClick={() => onToggleAll(scopeKey, actions)}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          {selected.length === actions.length ? "none" : "all"}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {actions.map((action) => (
+          <ActionPill
+            key={action}
+            action={action}
+            selected={selected.includes(action)}
+            onClick={() => onToggle(scopeKey, action)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
