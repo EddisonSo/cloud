@@ -192,12 +192,17 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
-			// Check revocation
-			if !h.tokenCache.isValid(claims.TokenID) {
+			// Check revocation and get cached scopes
+			valid, cachedScopes := h.tokenCache.checkToken(claims.TokenID)
+			if !valid {
 				http.Error(w, "token revoked", http.StatusUnauthorized)
 				return
 			}
-			r = r.WithContext(setAPITokenContext(r.Context(), claims.UserID, claims.Scopes))
+			scopes := claims.Scopes
+			if cachedScopes != nil {
+				scopes = cachedScopes
+			}
+			r = r.WithContext(setAPITokenContext(r.Context(), claims.UserID, scopes))
 			next(w, r)
 			return
 		}

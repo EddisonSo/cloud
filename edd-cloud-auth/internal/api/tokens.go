@@ -14,10 +14,11 @@ import (
 
 // APITokenClaims represents the claims in an API token JWT
 type APITokenClaims struct {
-	UserID  string              `json:"user_id"`
-	TokenID string              `json:"token_id"`
-	Type    string              `json:"type"` // "api_token"
-	Scopes  map[string][]string `json:"scopes"`
+	UserID           string              `json:"user_id"`
+	TokenID          string              `json:"token_id"`
+	Type             string              `json:"type"` // "api_token"
+	Scopes           map[string][]string `json:"scopes,omitempty"`
+	ServiceAccountID string              `json:"service_account_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -203,6 +204,7 @@ func (h *Handler) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
 
 // handleCheckToken is a service-to-service endpoint for revocation checks.
 // Returns 200 if the token is valid and not expired, 404 otherwise.
+// For service account tokens, includes the SA's current scopes in the response.
 func (h *Handler) handleCheckToken(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -222,7 +224,20 @@ func (h *Handler) handleCheckToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	// If token belongs to a service account, return the SA's current scopes
+	if token.ServiceAccountID != nil {
+		sa, err := h.db.GetServiceAccountByID(*token.ServiceAccountID)
+		if err != nil || sa == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]interface{}{
+			"status": "valid",
+			"scopes": sa.Scopes,
+		})
+		return
+	}
+
 	writeJSON(w, map[string]string{"status": "valid"})
 }
 

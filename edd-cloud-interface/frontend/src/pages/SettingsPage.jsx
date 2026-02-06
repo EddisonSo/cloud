@@ -1,13 +1,14 @@
 import { Header } from "@/components/layout";
 import { ApiTokenList } from "@/components/settings/ApiTokenList";
-import { TAB_COPY } from "@/lib/constants";
 
 export function SettingsPage() {
-  const copy = TAB_COPY["auth-token"];
-
   return (
     <>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Header
+        eyebrow="Auth"
+        title="Legacy API Tokens"
+        description="Standalone API tokens with embedded permissions. New tokens should use Service Accounts."
+      />
       <ApiTokenList />
     </>
   );

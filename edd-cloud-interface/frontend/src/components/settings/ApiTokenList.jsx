@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   buildAuthBase,
-  buildComputeBase,
-  buildStorageBase,
   getAuthHeaders,
   copyToClipboard,
 } from "@/lib/api";
@@ -18,22 +16,12 @@ import {
   Copy,
   AlertTriangle,
   KeyRound,
-  ChevronDown,
-  ChevronRight,
-  Loader2,
 } from "lucide-react";
-
-const EXPIRY_OPTIONS = [
-  { value: "30d", label: "30 days" },
-  { value: "90d", label: "90 days" },
-  { value: "365d", label: "1 year" },
-  { value: "never", label: "No expiry" },
-];
-
-const CONTAINER_ACTIONS = ["create", "read", "update", "delete"];
-const KEY_ACTIONS = ["create", "read", "delete"];
-const NAMESPACE_ACTIONS = ["create", "read", "update", "delete"];
-const FILE_ACTIONS = ["create", "read", "delete"];
+import {
+  scopeSummary,
+  PermissionPicker,
+  EXPIRY_OPTIONS,
+} from "@/components/service-accounts/PermissionPicker";
 
 function formatDate(unix) {
   if (!unix) return "Never";
@@ -56,26 +44,6 @@ function formatRelative(unix) {
   return `${Math.round(days / 365)} year${Math.round(days / 365) > 1 ? "s" : ""}`;
 }
 
-function scopeSummary(scopes) {
-  const parts = [];
-  for (const [scope, actions] of Object.entries(scopes)) {
-    const segments = scope.split(".");
-    // 4-segment: root.uid.resource.id -> "resource(id)"
-    // 3-segment: root.uid.resource -> "resource"
-    // 2-segment: root.uid -> root
-    let label;
-    if (segments.length === 4) {
-      label = `${segments[2]}(${segments[3]})`;
-    } else if (segments.length === 3) {
-      label = segments[2];
-    } else {
-      label = segments[0];
-    }
-    parts.push(`${label}: ${actions.join(", ")}`);
-  }
-  return parts.join("; ");
-}
-
 export function ApiTokenList() {
   const { userId } = useAuth();
   const [tokens, setTokens] = useState([]);
@@ -90,7 +58,8 @@ export function ApiTokenList() {
       });
       if (res.ok) {
         const data = await res.json();
-        setTokens(data || []);
+        // Filter out service-account tokens (they're managed under Service Accounts)
+        setTokens((data || []).filter((t) => !t.service_account_id));
       }
     } catch (err) {
       console.warn("Failed to load tokens:", err);
@@ -241,137 +210,12 @@ export function ApiTokenList() {
   );
 }
 
-// Action toggle pill
-function ActionPill({ action, selected, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2 py-0.5 text-xs rounded border transition-colors ${
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-secondary border-border text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {action}
-    </button>
-  );
-}
-
-// Collapsible section header
-function SectionHeader({ label, expanded, onToggle, children }) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex items-center gap-1.5 text-sm font-medium w-full text-left mb-2"
-      >
-        {expanded ? (
-          <ChevronDown className="w-3.5 h-3.5" />
-        ) : (
-          <ChevronRight className="w-3.5 h-3.5" />
-        )}
-        {label}
-      </button>
-      {expanded && <div className="pl-5 space-y-3">{children}</div>}
-    </div>
-  );
-}
-
 function CreateTokenForm({ userId, onCreated, onCancel }) {
   const [name, setName] = useState("");
   const [expiresIn, setExpiresIn] = useState("90d");
   const [selectedScopes, setSelectedScopes] = useState({});
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-
-  // Lazy-loaded resources
-  const [containers, setContainers] = useState(null); // null = not loaded
-  const [namespaces, setNamespaces] = useState(null);
-  const [loadingContainers, setLoadingContainers] = useState(false);
-  const [loadingNamespaces, setLoadingNamespaces] = useState(false);
-
-  // Expanded sections
-  const [computeExpanded, setComputeExpanded] = useState(false);
-  const [storageExpanded, setStorageExpanded] = useState(false);
-  const [specificContainersExpanded, setSpecificContainersExpanded] = useState(false);
-  const [specificNamespacesExpanded, setSpecificNamespacesExpanded] = useState(false);
-
-  const fetchContainers = useCallback(async () => {
-    if (containers !== null) return;
-    setLoadingContainers(true);
-    try {
-      const res = await fetch(`${buildComputeBase()}/compute/containers`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setContainers(data || []);
-      } else {
-        setContainers([]);
-      }
-    } catch {
-      setContainers([]);
-    } finally {
-      setLoadingContainers(false);
-    }
-  }, [containers]);
-
-  const fetchNamespaces = useCallback(async () => {
-    if (namespaces !== null) return;
-    setLoadingNamespaces(true);
-    try {
-      const res = await fetch(`${buildStorageBase()}/storage/namespaces`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setNamespaces(data || []);
-      } else {
-        setNamespaces([]);
-      }
-    } catch {
-      setNamespaces([]);
-    } finally {
-      setLoadingNamespaces(false);
-    }
-  }, [namespaces]);
-
-  // Lazy load on expand
-  useEffect(() => {
-    if (specificContainersExpanded) fetchContainers();
-  }, [specificContainersExpanded, fetchContainers]);
-
-  useEffect(() => {
-    if (specificNamespacesExpanded) fetchNamespaces();
-  }, [specificNamespacesExpanded, fetchNamespaces]);
-
-  const toggleAction = (scopeKey, action) => {
-    setSelectedScopes((prev) => {
-      const current = prev[scopeKey] || [];
-      if (current.includes(action)) {
-        const next = current.filter((a) => a !== action);
-        if (next.length === 0) {
-          const { [scopeKey]: _, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, [scopeKey]: next };
-      }
-      return { ...prev, [scopeKey]: [...current, action] };
-    });
-  };
-
-  const setAllActions = (scopeKey, actions) => {
-    setSelectedScopes((prev) => {
-      const current = prev[scopeKey] || [];
-      if (current.length === actions.length) {
-        const { [scopeKey]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [scopeKey]: [...actions] };
-    });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -415,15 +259,6 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
     }
   };
 
-  // Scope key helpers
-  const broadContainersKey = `compute.${userId}.containers`;
-  const broadKeysKey = `compute.${userId}.keys`;
-  const broadNamespacesKey = `storage.${userId}.namespaces`;
-  const broadFilesKey = `storage.${userId}.files`;
-  const containerKey = (id) => `compute.${userId}.containers.${id}`;
-  const nsNamespacesKey = (nsName) => `storage.${userId}.namespaces.${nsName}`;
-  const nsFilesKey = (nsName) => `storage.${userId}.files.${nsName}`;
-
   return (
     <Card>
       <CardHeader>
@@ -459,134 +294,11 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label>Permissions</Label>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Compute section */}
-              <div className="border border-border rounded-md p-3 space-y-3">
-                <SectionHeader
-                  label="Compute"
-                  expanded={computeExpanded}
-                  onToggle={() => setComputeExpanded(!computeExpanded)}
-                >
-                  {/* All Containers */}
-                  <ResourceRow
-                    label="All Containers"
-                    scopeKey={broadContainersKey}
-                    actions={CONTAINER_ACTIONS}
-                    selectedScopes={selectedScopes}
-                    onToggle={toggleAction}
-                    onToggleAll={setAllActions}
-                  />
-
-                  {/* Specific Containers (lazy) */}
-                  <SectionHeader
-                    label="Specific Containers"
-                    expanded={specificContainersExpanded}
-                    onToggle={() => setSpecificContainersExpanded(!specificContainersExpanded)}
-                  >
-                    {loadingContainers && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Loading containers...
-                      </div>
-                    )}
-                    {containers !== null && containers.length === 0 && !loadingContainers && (
-                      <p className="text-xs text-muted-foreground">No containers found</p>
-                    )}
-                    {containers?.map((c) => (
-                      <ResourceRow
-                        key={c.id}
-                        label={c.name || c.id.slice(0, 8)}
-                        scopeKey={containerKey(c.id)}
-                        actions={CONTAINER_ACTIONS}
-                        selectedScopes={selectedScopes}
-                        onToggle={toggleAction}
-                        onToggleAll={setAllActions}
-                      />
-                    ))}
-                  </SectionHeader>
-
-                  {/* SSH Keys */}
-                  <ResourceRow
-                    label="SSH Keys"
-                    scopeKey={broadKeysKey}
-                    actions={KEY_ACTIONS}
-                    selectedScopes={selectedScopes}
-                    onToggle={toggleAction}
-                    onToggleAll={setAllActions}
-                  />
-                </SectionHeader>
-              </div>
-
-              {/* Storage section */}
-              <div className="border border-border rounded-md p-3 space-y-3">
-                <SectionHeader
-                  label="Storage"
-                  expanded={storageExpanded}
-                  onToggle={() => setStorageExpanded(!storageExpanded)}
-                >
-                  {/* All Namespaces + Files */}
-                  <ResourceRow
-                    label="All Namespaces"
-                    scopeKey={broadNamespacesKey}
-                    actions={NAMESPACE_ACTIONS}
-                    selectedScopes={selectedScopes}
-                    onToggle={toggleAction}
-                    onToggleAll={setAllActions}
-                  />
-                  <ResourceRow
-                    label="All Files"
-                    scopeKey={broadFilesKey}
-                    actions={FILE_ACTIONS}
-                    selectedScopes={selectedScopes}
-                    onToggle={toggleAction}
-                    onToggleAll={setAllActions}
-                  />
-
-                  {/* Specific Namespaces (lazy) */}
-                  <SectionHeader
-                    label="Specific Namespaces"
-                    expanded={specificNamespacesExpanded}
-                    onToggle={() => setSpecificNamespacesExpanded(!specificNamespacesExpanded)}
-                  >
-                    {loadingNamespaces && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Loading namespaces...
-                      </div>
-                    )}
-                    {namespaces !== null && namespaces.length === 0 && !loadingNamespaces && (
-                      <p className="text-xs text-muted-foreground">No namespaces found</p>
-                    )}
-                    {namespaces?.map((ns) => (
-                      <div key={ns.name} className="space-y-1.5">
-                        <p className="text-xs font-medium text-foreground">{ns.name}</p>
-                        <ResourceRow
-                          label="Namespace"
-                          scopeKey={nsNamespacesKey(ns.name)}
-                          actions={NAMESPACE_ACTIONS}
-                          selectedScopes={selectedScopes}
-                          onToggle={toggleAction}
-                          onToggleAll={setAllActions}
-
-                        />
-                        <ResourceRow
-                          label="Files"
-                          scopeKey={nsFilesKey(ns.name)}
-                          actions={FILE_ACTIONS}
-                          selectedScopes={selectedScopes}
-                          onToggle={toggleAction}
-                          onToggleAll={setAllActions}
-
-                        />
-                      </div>
-                    ))}
-                  </SectionHeader>
-                </SectionHeader>
-              </div>
-            </div>
-          </div>
+          <PermissionPicker
+            userId={userId}
+            selectedScopes={selectedScopes}
+            setSelectedScopes={setSelectedScopes}
+          />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -601,43 +313,5 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
         </form>
       </CardContent>
     </Card>
-  );
-}
-
-// A row with a label and action pills
-function ResourceRow({
-  label,
-  scopeKey,
-  actions,
-  selectedScopes,
-  onToggle,
-  onToggleAll,
-}) {
-  const selected = selectedScopes[scopeKey] || [];
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-muted-foreground">
-          {label}
-        </p>
-        <button
-          type="button"
-          onClick={() => onToggleAll(scopeKey, actions)}
-          className="text-[10px] text-muted-foreground hover:text-foreground"
-        >
-          {selected.length === actions.length ? "none" : "all"}
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {actions.map((action) => (
-          <ActionPill
-            key={action}
-            action={action}
-            selected={selected.includes(action)}
-            onClick={() => onToggle(scopeKey, action)}
-          />
-        ))}
-      </div>
-    </div>
   );
 }

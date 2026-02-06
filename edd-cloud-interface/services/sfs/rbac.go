@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -39,6 +40,7 @@ func hasPermission(granted map[string][]string, scope, action string) bool {
 // tokenCacheEntry stores the result of a revocation check
 type tokenCacheEntry struct {
 	valid     bool
+	scopes    map[string][]string // non-nil for service account tokens
 	checkedAt time.Time
 }
 
@@ -62,33 +64,47 @@ func newTokenCache() *tokenCache {
 	}
 }
 
-func (c *tokenCache) isValid(tokenID string) bool {
+// checkToken checks if the token is valid and returns cached scopes (if any).
+func (c *tokenCache) checkToken(tokenID string) (bool, map[string][]string) {
 	c.mu.RLock()
 	entry, ok := c.entries[tokenID]
 	c.mu.RUnlock()
 
 	if ok && time.Since(entry.checkedAt) < c.ttl {
-		return entry.valid
+		return entry.valid, entry.scopes
 	}
 
-	valid := c.checkWithAuthService(tokenID)
+	valid, scopes := c.checkWithAuthService(tokenID)
 
 	c.mu.Lock()
-	c.entries[tokenID] = tokenCacheEntry{valid: valid, checkedAt: time.Now()}
+	c.entries[tokenID] = tokenCacheEntry{valid: valid, scopes: scopes, checkedAt: time.Now()}
 	c.mu.Unlock()
 
-	return valid
+	return valid, scopes
 }
 
-func (c *tokenCache) checkWithAuthService(tokenID string) bool {
+func (c *tokenCache) checkWithAuthService(tokenID string) (bool, map[string][]string) {
 	url := fmt.Sprintf("%s/api/tokens/%s/check", c.authURL, tokenID)
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		return true // fail open on network errors
+		return true, nil // fail open on network errors
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+
+	if resp.StatusCode != http.StatusOK {
+		return false, nil
+	}
+
+	var body struct {
+		Status string              `json:"status"`
+		Scopes map[string][]string `json:"scopes,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return true, nil
+	}
+
+	return true, body.Scopes
 }
 
 // requireAuthWithScope wraps requireAuth to also handle API token auth and scope checking.
@@ -113,10 +129,17 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 		return claims.UserID, true
 	}
 
-	// API token — check revocation
-	if !s.tkCache.isValid(claims.TokenID) {
+	// API token — check revocation and get cached scopes
+	valid, cachedScopes := s.tkCache.checkToken(claims.TokenID)
+	if !valid {
 		http.Error(w, "token revoked", http.StatusUnauthorized)
 		return "", false
+	}
+
+	// Use cached scopes (from service account) if available, otherwise JWT scopes
+	scopes := claims.Scopes
+	if cachedScopes != nil {
+		scopes = cachedScopes
 	}
 
 	// Check scope — append resource ID if provided
@@ -124,7 +147,7 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 	if len(resourceID) > 0 && resourceID[0] != "" {
 		scope = fmt.Sprintf("%s.%s", scope, resourceID[0])
 	}
-	if !hasPermission(claims.Scopes, scope, action) {
+	if !hasPermission(scopes, scope, action) {
 		http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 		return "", false
 	}
@@ -150,7 +173,8 @@ func (s *server) currentUserOrToken(r *http.Request) (string, bool) {
 		return "", false
 	}
 	if claims.Type == "api_token" {
-		if !s.tkCache.isValid(claims.TokenID) {
+		valid, _ := s.tkCache.checkToken(claims.TokenID)
+		if !valid {
 			return "", false
 		}
 	}

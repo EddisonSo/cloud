@@ -26,13 +26,10 @@ export const NAV_ITEMS = [
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
   {
-    id: "auth-token",
-    label: "Auth Token",
+    id: "service-accounts",
+    label: "Service Accounts",
     icon: KeyRound,
-    path: "/auth-token",
-    subItems: [
-      { id: "api-tokens", label: "API Tokens", icon: KeyRound, path: "/auth-token/tokens" },
-    ],
+    path: "/service-accounts",
   },
 ];
 
@@ -74,10 +71,10 @@ export const TAB_COPY = {
     title: "Admin Panel",
     lead: "View all files and containers across the system.",
   },
-  "auth-token": {
-    eyebrow: "Auth Token",
-    title: "API Tokens",
-    lead: "Create and manage API tokens for programmatic access to compute and storage services.",
+  "service-accounts": {
+    eyebrow: "Auth",
+    title: "Service Accounts",
+    lead: "Create service accounts with scoped permissions and generate tokens for programmatic API access.",
   },
 };
 

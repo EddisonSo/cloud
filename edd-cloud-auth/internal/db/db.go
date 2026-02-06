@@ -78,6 +78,16 @@ func (db *DB) migrate() error {
 			created_at BIGINT NOT NULL DEFAULT 0
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id)`,
+		`CREATE TABLE IF NOT EXISTS service_accounts (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			scopes JSONB NOT NULL,
+			created_at BIGINT NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_service_accounts_user_id ON service_accounts(user_id)`,
+		`ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS service_account_id TEXT REFERENCES service_accounts(id) ON DELETE CASCADE`,
+		`ALTER TABLE api_tokens ALTER COLUMN scopes DROP NOT NULL`,
 	}
 
 	for _, m := range migrations {

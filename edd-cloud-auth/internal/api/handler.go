@@ -56,6 +56,15 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Service-to-service token check (no auth required)
 	mux.HandleFunc("GET /api/tokens/{id}/check", h.handleCheckToken)
 
+	// Service account endpoints (session auth required)
+	mux.HandleFunc("POST /api/service-accounts", h.handleCreateServiceAccount)
+	mux.HandleFunc("GET /api/service-accounts", h.handleListServiceAccounts)
+	mux.HandleFunc("GET /api/service-accounts/{id}", h.handleGetServiceAccount)
+	mux.HandleFunc("PUT /api/service-accounts/{id}/scopes", h.handleUpdateServiceAccountScopes)
+	mux.HandleFunc("DELETE /api/service-accounts/{id}", h.handleDeleteServiceAccount)
+	mux.HandleFunc("POST /api/service-accounts/{id}/tokens", h.handleCreateServiceAccountToken)
+	mux.HandleFunc("GET /api/service-accounts/{id}/tokens", h.handleListServiceAccountTokens)
+
 	// Admin endpoints
 	mux.HandleFunc("GET /admin/users", h.adminOnly(h.handleListUsers))
 	mux.HandleFunc("POST /admin/users", h.adminOnly(h.handleCreateUser))
