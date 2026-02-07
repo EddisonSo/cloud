@@ -138,6 +138,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, logServer *server.L
 	var mu sync.Mutex
 	done := make(chan struct{})
 
+	// Configure pong handler to extend read deadline on each pong
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	// Read pump (handle close)
 	go func() {
 		defer close(done)
@@ -148,6 +155,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, logServer *server.L
 			}
 		}
 	}()
+
+	// Ping ticker to keep connection alive
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
 
 	// Write pump
 	for {
@@ -162,11 +173,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, logServer *server.L
 					continue
 				}
 				mu.Lock()
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				err = conn.WriteMessage(websocket.TextMessage, data)
 				mu.Unlock()
 				if err != nil {
 					return
 				}
+			}
+		case <-pingTicker.C:
+			mu.Lock()
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			err := conn.WriteMessage(websocket.PingMessage, nil)
+			mu.Unlock()
+			if err != nil {
+				return
 			}
 		case <-done:
 			return
