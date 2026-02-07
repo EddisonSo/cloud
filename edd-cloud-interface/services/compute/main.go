@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"eddisonso.com/edd-cloud/pkg/events"
@@ -17,10 +18,17 @@ import (
 	"eddisonso.com/go-gfs/pkg/gfslog"
 )
 
+func isAllowedOrigin(origin string) bool {
+	return origin == "https://cloud.eddisonso.com" ||
+		(len(origin) > len("https://.cloud.eddisonso.com") &&
+			strings.HasSuffix(origin, ".cloud.eddisonso.com") &&
+			strings.HasPrefix(origin, "https://"))
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" {
+		if origin != "" && isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

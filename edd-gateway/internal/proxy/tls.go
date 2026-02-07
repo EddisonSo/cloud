@@ -155,7 +155,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
 	if err != nil {
 		slog.Warn("no ingress rule for container port", "sni", sni, "port", ingressPort, "error", err)
-		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\nNo ingress rule configured for this port\r\n"))
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo ingress rule configured for this port\r\n"))
 		tlsConn.Close()
 		return
 	}
@@ -166,7 +166,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
 		slog.Error("failed to connect to container backend", "sni", sni, "addr", backendAddr, "error", err)
-		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
 		tlsConn.Close()
 		return
 	}

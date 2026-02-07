@@ -4,17 +4,26 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
+func isAllowedOrigin(origin string) bool {
+	return origin == "https://cloud.eddisonso.com" ||
+		(len(origin) > len("https://.cloud.eddisonso.com") &&
+			strings.HasSuffix(origin, ".cloud.eddisonso.com") &&
+			strings.HasPrefix(origin, "https://"))
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
+		origin := r.Header.Get("Origin")
+		return origin == "" || isAllowedOrigin(origin)
 	},
 }
 

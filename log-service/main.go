@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,9 +23,17 @@ import (
 	"google.golang.org/grpc"
 )
 
+func isAllowedOrigin(origin string) bool {
+	return origin == "https://cloud.eddisonso.com" ||
+		(len(origin) > len("https://.cloud.eddisonso.com") &&
+			strings.HasSuffix(origin, ".cloud.eddisonso.com") &&
+			strings.HasPrefix(origin, "https://"))
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		return origin == "" || isAllowedOrigin(origin)
 	},
 }
 

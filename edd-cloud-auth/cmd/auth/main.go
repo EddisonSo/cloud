@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"eddisonso.com/edd-cloud-auth/internal/api"
@@ -122,10 +123,17 @@ func logRequests(next http.Handler) http.Handler {
 	})
 }
 
+func isAllowedOrigin(origin string) bool {
+	return origin == "https://cloud.eddisonso.com" ||
+		(len(origin) > len("https://.cloud.eddisonso.com") &&
+			strings.HasSuffix(origin, ".cloud.eddisonso.com") &&
+			strings.HasPrefix(origin, "https://"))
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" {
+		if origin != "" && isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

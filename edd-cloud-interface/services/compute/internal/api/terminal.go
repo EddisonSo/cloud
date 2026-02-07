@@ -18,7 +18,8 @@ import (
 
 var terminalUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		return origin == "" || isAllowedOrigin(origin)
 	},
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
