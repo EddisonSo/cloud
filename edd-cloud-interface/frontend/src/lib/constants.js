@@ -24,7 +24,6 @@ export const NAV_ITEMS = [
   { id: "storage", label: "Storage", icon: HardDrive, path: "/storage" },
   { id: "message-queue", label: "Message Queue", icon: MessageSquare, path: "/message-queue" },
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
-  { id: "health", label: "Health", icon: Activity, path: "/health" },
   {
     id: "service-accounts",
     label: "Service Accounts",
@@ -35,6 +34,7 @@ export const NAV_ITEMS = [
       { id: "sa-tokens", label: "Account Tokens", icon: Key, path: "/service-accounts/tokens" },
     ],
   },
+  { id: "health", label: "Health", icon: Activity, path: "/health" },
 ];
 
 export const ADMIN_NAV_ITEM = {
