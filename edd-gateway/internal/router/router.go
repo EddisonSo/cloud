@@ -3,6 +3,7 @@ package router
 import (
 	"container/list"
 	"context"
+	"crypto/md5"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"golang.org/x/crypto/ssh"
 )
 
 // LRU cache for route lookups
@@ -476,4 +478,26 @@ func (r *Router) ListRoutes() []StaticRoute {
 	routes := make([]StaticRoute, len(r.routes))
 	copy(routes, r.routes)
 	return routes
+}
+
+// ValidateSSHKey checks if the given public key belongs to the owner of the specified container.
+// Computes an MD5 fingerprint to match the format stored by the compute service.
+func (r *Router) ValidateSSHKey(containerID string, pubKey ssh.PublicKey) (bool, error) {
+	hash := md5.Sum(pubKey.Marshal())
+	parts := make([]string, len(hash))
+	for i, b := range hash {
+		parts[i] = fmt.Sprintf("%02x", b)
+	}
+	fp := strings.Join(parts, ":")
+
+	var count int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM ssh_keys sk
+		JOIN containers c ON sk.user_id = c.user_id
+		WHERE c.id = $1 AND sk.fingerprint = $2
+	`, containerID, fp).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("validate ssh key: %w", err)
+	}
+	return count > 0, nil
 }

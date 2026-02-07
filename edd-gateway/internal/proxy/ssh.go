@@ -61,22 +61,33 @@ func (s *Server) handleSSH(conn net.Conn) {
 		return
 	}
 
-	// Configure SSH server
+	// Configure SSH server — pubkey auth only.
+	// Password and keyboard-interactive are intentionally omitted.
 	config := &ssh.ServerConfig{
 		NoClientAuth: false,
 		PublicKeyCallback: func(c ssh.ConnMetadata, pubKey ssh.PublicKey) (*ssh.Permissions, error) {
-			// Accept any public key - we verify the user owns the container
+			// Extract container ID from username (format: "containerid" or "user.containerid")
+			username := c.User()
+			containerID := username
+			if idx := strings.LastIndex(username, "."); idx != -1 {
+				containerID = username[idx+1:]
+			}
+
+			valid, err := s.router.ValidateSSHKey(containerID, pubKey)
+			if err != nil {
+				slog.Error("SSH key validation error", "container", containerID, "error", err)
+				return nil, fmt.Errorf("key validation failed")
+			}
+			if !valid {
+				slog.Warn("SSH key rejected", "container", containerID, "fingerprint", ssh.FingerprintSHA256(pubKey))
+				return nil, fmt.Errorf("key not authorized for container %s", containerID)
+			}
+
 			return &ssh.Permissions{
 				Extensions: map[string]string{
 					"pubkey-fp": ssh.FingerprintSHA256(pubKey),
 				},
 			}, nil
-		},
-		KeyboardInteractiveCallback: func(c ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-			return &ssh.Permissions{}, nil
-		},
-		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
-			return &ssh.Permissions{}, nil
 		},
 	}
 	config.AddHostKey(hostSigner)
@@ -121,7 +132,9 @@ func (s *Server) handleSSH(conn net.Conn) {
 	}
 
 	backendConfig := &ssh.ClientConfig{
-		User:            targetUser,
+		User: targetUser,
+		// Accepted risk (H5): Containers are ephemeral — host keys regenerate on every
+		// restart. There is no internal SSH CA, so host key verification is not feasible.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(clientSigner),
