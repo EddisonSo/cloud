@@ -44,7 +44,7 @@ export function useLogs(user, enabled = false) {
   useEffect(() => {
     if (!user || !enabled) return;
 
-    let eventSource = null;
+    let ws = null;
     let reconnectTimeout = null;
     let flushInterval = null;
     let isCleaningUp = false;
@@ -70,20 +70,21 @@ export function useLogs(user, enabled = false) {
       const params = new URLSearchParams();
       if (sourceFilter) params.set("source", sourceFilter);
       if (levelFilter && levelFilter !== "DEBUG") params.set("level", levelFilter);
-      const sseUrl = `${buildHealthBase()}/sse/logs${params.toString() ? "?" + params.toString() : ""}`;
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = buildHealthBase().replace(/^https?:\/\//, "");
+      const wsUrl = `${protocol}://${host}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
 
-      eventSource = new EventSource(sseUrl);
+      ws = new WebSocket(wsUrl);
 
-      eventSource.onopen = () => {
+      ws.onopen = () => {
         setConnected(true);
         setError("");
       };
 
-      eventSource.onmessage = (event) => {
+      ws.onmessage = (event) => {
         try {
           const entry = JSON.parse(event.data);
           setLastLogTime(new Date());
-
 
           if (updateFrequency === 0) {
             setLogs((prev) => {
@@ -98,13 +99,15 @@ export function useLogs(user, enabled = false) {
         }
       };
 
-      eventSource.onerror = () => {
-        setError("Connection error");
+      ws.onclose = () => {
         setConnected(false);
-        eventSource.close();
         if (!isCleaningUp) {
           reconnectTimeout = setTimeout(connect, 5000);
         }
+      };
+
+      ws.onerror = () => {
+        setError("Connection error");
       };
     };
 
@@ -118,7 +121,7 @@ export function useLogs(user, enabled = false) {
       isCleaningUp = true;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (flushInterval) clearInterval(flushInterval);
-      if (eventSource) eventSource.close();
+      if (ws) ws.close();
       flushBuffer();
     };
   }, [user, enabled, sourceFilter, levelFilter, updateFrequency]);
