@@ -12,7 +12,7 @@ type DB struct {
 }
 
 // Open connects to PostgreSQL using a connection string
-// Format: postgres://user:password@host:port/dbname?sslmode=disable
+// Format: postgres://user:password@host:port/dbname?sslmode=require
 func Open(connStr string) (*DB, error) {
 	sqlDB, err := sql.Open("postgres", connStr)
 	if err != nil {

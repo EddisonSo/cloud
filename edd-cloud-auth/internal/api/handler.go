@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -97,7 +98,7 @@ func (h *Handler) isAdmin(username string) bool {
 func (h *Handler) serviceAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-Service-Key")
-		if key == "" || key != h.serviceAPIKey {
+		if key == "" || subtle.ConstantTimeCompare([]byte(key), []byte(h.serviceAPIKey)) != 1 {
 			writeError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
