@@ -83,6 +83,13 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 
 	resp := make([]containerResponse, 0, len(containers))
 	for _, c := range containers {
+		// Sync status from K8s for non-terminal containers
+		if c.Status == "initializing" || c.Status == "pending" {
+			if status, err := h.k8s.GetPodStatus(ctx, c.Namespace); err == nil && status != "" && status != c.Status {
+				c.Status = status
+				h.db.UpdateContainerStatus(c.ID, status)
+			}
+		}
 		cr := containerToResponse(c)
 		// Fetch usage for running containers
 		if c.Status == "running" {

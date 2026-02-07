@@ -127,11 +127,17 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	hub := GetHub()
 	hub.Register(userID, conn)
 
-	// Send initial container list
+	// Send initial container list (with live K8s status sync)
 	containers, err := h.db.ListContainersByUser(userID)
 	if err == nil {
 		resp := make([]containerResponse, 0, len(containers))
 		for _, c := range containers {
+			if c.Status == "initializing" || c.Status == "pending" {
+				if status, serr := h.k8s.GetPodStatus(r.Context(), c.Namespace); serr == nil && status != "" && status != c.Status {
+					c.Status = status
+					h.db.UpdateContainerStatus(c.ID, status)
+				}
+			}
 			resp = append(resp, containerToResponse(c))
 		}
 		msg := WSMessage{Type: "containers", Data: resp}
