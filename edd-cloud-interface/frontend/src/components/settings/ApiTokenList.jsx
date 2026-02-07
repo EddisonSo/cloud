@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   buildAuthBase,
   getAuthHeaders,
@@ -17,11 +16,7 @@ import {
   AlertTriangle,
   KeyRound,
 } from "lucide-react";
-import {
-  scopeSummary,
-  PermissionPicker,
-  EXPIRY_OPTIONS,
-} from "@/components/service-accounts/PermissionPicker";
+import { EXPIRY_OPTIONS } from "@/components/service-accounts/PermissionPicker";
 
 function formatDate(unix) {
   if (!unix) return "Never";
@@ -45,31 +40,35 @@ function formatRelative(unix) {
 }
 
 export function ApiTokenList() {
-  const { userId } = useAuth();
   const [tokens, setTokens] = useState([]);
+  const [serviceAccounts, setServiceAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [createdToken, setCreatedToken] = useState(null);
 
-  const loadTokens = async () => {
+  const loadData = async () => {
     try {
-      const res = await fetch(`${buildAuthBase()}/api/tokens`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter out service-account tokens (they're managed under Service Accounts)
-        setTokens((data || []).filter((t) => !t.service_account_id));
+      const [tokensRes, saRes] = await Promise.all([
+        fetch(`${buildAuthBase()}/api/tokens`, { headers: getAuthHeaders() }),
+        fetch(`${buildAuthBase()}/api/service-accounts`, { headers: getAuthHeaders() }),
+      ]);
+      if (tokensRes.ok) {
+        const data = await tokensRes.json();
+        setTokens(data || []);
+      }
+      if (saRes.ok) {
+        const data = await saRes.json();
+        setServiceAccounts(data || []);
       }
     } catch (err) {
-      console.warn("Failed to load tokens:", err);
+      console.warn("Failed to load data:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTokens();
+    loadData();
   }, []);
 
   const handleDelete = async (id) => {
@@ -86,11 +85,17 @@ export function ApiTokenList() {
     }
   };
 
-  const handleCreated = (token, meta) => {
+  const handleCreated = (token) => {
     setCreatedToken(token);
     setShowCreate(false);
-    loadTokens();
+    loadData();
   };
+
+  // Build lookup for service account names
+  const saMap = {};
+  for (const sa of serviceAccounts) {
+    saMap[sa.id] = sa.name;
+  }
 
   if (loading) {
     return (
@@ -142,13 +147,13 @@ export function ApiTokenList() {
       {/* Create form */}
       {showCreate ? (
         <CreateTokenForm
-          userId={userId}
+          serviceAccounts={serviceAccounts}
           onCreated={handleCreated}
           onCancel={() => setShowCreate(false)}
         />
       ) : (
         <div className="flex justify-end">
-          <Button onClick={() => setShowCreate(true)}>
+          <Button onClick={() => setShowCreate(true)} disabled={serviceAccounts.length === 0}>
             <Plus className="w-4 h-4 mr-2" />
             Create token
           </Button>
@@ -166,7 +171,7 @@ export function ApiTokenList() {
               <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p>No API tokens yet</p>
               <p className="text-xs mt-1">
-                Create a token for programmatic access to compute and storage APIs.
+                Create a token bound to a service account for programmatic API access.
               </p>
             </div>
           ) : (
@@ -179,17 +184,22 @@ export function ApiTokenList() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm">{token.name}</span>
+                      {token.service_account_id && saMap[token.service_account_id] && (
+                        <Badge variant="outline" className="text-xs">
+                          {saMap[token.service_account_id]}
+                        </Badge>
+                      )}
+                      {!token.service_account_id && (
+                        <Badge variant="secondary" className="text-xs">standalone</Badge>
+                      )}
                       {token.expires_at > 0 && token.expires_at < Date.now() / 1000 && (
                         <Badge variant="destructive" className="text-xs">Expired</Badge>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground space-y-0.5">
-                      <p>{scopeSummary(token.scopes)}</p>
-                      <p>
-                        Created {formatDate(token.created_at)}
-                        {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
-                        {token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
-                      </p>
+                    <div className="text-xs text-muted-foreground">
+                      Created {formatDate(token.created_at)}
+                      {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
+                      {token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
                     </div>
                   </div>
                   <Button
@@ -210,10 +220,10 @@ export function ApiTokenList() {
   );
 }
 
-function CreateTokenForm({ userId, onCreated, onCancel }) {
+function CreateTokenForm({ serviceAccounts, onCreated, onCancel }) {
   const [name, setName] = useState("");
+  const [saId, setSaId] = useState(serviceAccounts[0]?.id || "");
   const [expiresIn, setExpiresIn] = useState("90d");
-  const [selectedScopes, setSelectedScopes] = useState({});
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -225,14 +235,14 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
       setError("Token name is required");
       return;
     }
-    if (Object.keys(selectedScopes).length === 0) {
-      setError("Select at least one permission");
+    if (!saId) {
+      setError("Select a service account");
       return;
     }
 
     setCreating(true);
     try {
-      const res = await fetch(`${buildAuthBase()}/api/tokens`, {
+      const res = await fetch(`${buildAuthBase()}/api/service-accounts/${saId}/tokens`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -240,7 +250,6 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
         },
         body: JSON.stringify({
           name: name.trim(),
-          scopes: selectedScopes,
           expires_in: expiresIn,
         }),
       });
@@ -251,7 +260,7 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
       }
 
       const data = await res.json();
-      onCreated(data.token, data);
+      onCreated(data.token);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -266,16 +275,31 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="token-name">Name</Label>
               <Input
                 id="token-name"
-                placeholder="e.g., CI/CD pipeline"
+                placeholder="e.g., production"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="token-sa">Service Account</Label>
+              <select
+                id="token-sa"
+                value={saId}
+                onChange={(e) => setSaId(e.target.value)}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm"
+              >
+                {serviceAccounts.map((sa) => (
+                  <option key={sa.id} value={sa.id}>
+                    {sa.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="token-expiry">Expiry</Label>
@@ -293,12 +317,6 @@ function CreateTokenForm({ userId, onCreated, onCancel }) {
               </select>
             </div>
           </div>
-
-          <PermissionPicker
-            userId={userId}
-            selectedScopes={selectedScopes}
-            setSelectedScopes={setSelectedScopes}
-          />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
