@@ -466,6 +466,11 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if container.Status == "stopped" {
+		writeJSON(w, containerToResponse(container))
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
@@ -501,6 +506,11 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	}
 	if container == nil || container.UserID != userID {
 		writeError(w, "container not found", http.StatusNotFound)
+		return
+	}
+
+	if container.Status == "running" || container.Status == "pending" {
+		writeJSON(w, containerToResponse(container))
 		return
 	}
 
