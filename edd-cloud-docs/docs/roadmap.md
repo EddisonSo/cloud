@@ -57,6 +57,8 @@ flowchart TB
 - [ ] **Service health monitoring** - External uptime checks for critical endpoints
 - [ ] **Pod anti-affinity rules** - Spread critical service replicas across nodes
 - [x] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands
+- [ ] **Distributed GFS master** - Run multiple GFS master replicas with leader election and WAL replication for metadata high availability. Eliminates the single point of failure on s0
+- [ ] **Distributed gateway** - Run multiple gateway replicas across backend nodes with MetalLB load balancing. Removes gateway dependency on s0
 
 ## Monitoring
 
