@@ -63,6 +63,7 @@ flowchart TB
 - [ ] **Distributed tracing** - Request tracing across services
 - [ ] **Alerting** - Automated alerts for service health
 - [ ] **Log aggregation** - Searchable log storage
+- [ ] **Distributed logging aggregation** - Replicate log entries across log service replicas so all instances share the same ring buffers and subscribers; enables horizontal scaling without splitting logs across pods
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth
 - [x] **Graph-based observability platform** - Visualize service dependencies and time-series metrics with graph-based relationships
 
