@@ -30,7 +30,7 @@ func init() {
 	flag.IntVar(&port, "port", 9000, "Master server port")
 	flag.StringVar(&dataDir, "data", "/data/master", "Data directory for WAL")
 	flag.StringVar(&logServiceAddr, "log-service", "", "Log service address (e.g., log-service:50051)")
-	flag.StringVar(&logSource, "log-source", "gfs-master", "Log source name (e.g., pod name)")
+	flag.StringVar(&logSource, "log-source", "edd-storage", "Log source name")
 	flag.DurationVar(&snapshotInterval, "snapshot-interval", 5*time.Minute, "Interval between snapshot checks")
 	flag.IntVar(&snapshotMaxWAL, "snapshot-max-wal", 1000, "Max WAL entries before forcing snapshot")
 }
