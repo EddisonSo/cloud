@@ -9,6 +9,7 @@ import {
   getAuthHeaders,
   copyToClipboard,
 } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus,
   Copy,
@@ -84,11 +85,27 @@ export function ApiTokenList() {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          Loading tokens...
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-28" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="p-3 rounded-md border border-border">
+                <div className="flex items-center gap-2 mb-1">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-52" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
