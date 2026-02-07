@@ -54,6 +54,11 @@ spec:
               value: "nats://nats:4222"
             - name: AUTH_SERVICE_URL
               value: "http://auth-service:80"
+            - name: GFS_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gfs-jwt-secret
+                  key: GFS_JWT_SECRET
           envFrom:
             - secretRef:
                 name: edd-cloud-auth

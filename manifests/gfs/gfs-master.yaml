@@ -49,6 +49,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: GFS_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gfs-jwt-secret
+                  key: GFS_JWT_SECRET
           ports:
             - containerPort: 9000
           volumeMounts:
