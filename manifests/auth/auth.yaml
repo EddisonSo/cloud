@@ -22,6 +22,8 @@ spec:
           args:
             - -addr
             - :8080
+            - -log-service
+            - log-service:50051
           env:
             - name: DATABASE_URL
               valueFrom:

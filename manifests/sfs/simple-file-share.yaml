@@ -34,7 +34,7 @@ spec:
             - -log-service
             - log-service:50051
             - -log-source
-            - sfs-backend
+            - edd-storage
           env:
             - name: POD_NAME
               valueFrom:

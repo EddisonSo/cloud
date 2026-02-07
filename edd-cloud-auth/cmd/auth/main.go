@@ -11,13 +11,26 @@ import (
 	"eddisonso.com/edd-cloud-auth/internal/api"
 	"eddisonso.com/edd-cloud-auth/internal/db"
 	"eddisonso.com/edd-cloud-auth/internal/events"
+	"eddisonso.com/go-gfs/pkg/gfslog"
 	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
 	sessionTTL := flag.Duration("session-ttl", 24*time.Hour, "Session lifetime")
+	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	flag.Parse()
+
+	// Initialize logger
+	if *logServiceAddr != "" {
+		logger := gfslog.NewLogger(gfslog.Config{
+			Source:         "edd-auth",
+			LogServiceAddr: *logServiceAddr,
+			MinLevel:       slog.LevelInfo,
+		})
+		slog.SetDefault(logger.Logger)
+		defer logger.Close()
+	}
 
 	// Get configuration from environment
 	dbURL := os.Getenv("DATABASE_URL")

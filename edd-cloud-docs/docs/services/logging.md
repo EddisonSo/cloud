@@ -18,9 +18,10 @@ The Log Service provides centralized logging for all Edd Cloud services with rea
 
 ```mermaid
 flowchart TB
-    SFS[SFS Backend] -->|gRPC :50051| LogService[Log Service]
-    Compute[Compute] -->|gRPC :50051| LogService
-    Gateway[Gateway] -->|gRPC :50051| LogService
+    Auth[Auth edd-auth] -->|gRPC :50051| LogService[Log Service]
+    Storage[Storage edd-storage] -->|gRPC :50051| LogService
+    Compute[Compute edd-compute] -->|gRPC :50051| LogService
+    Gateway[Gateway edd-gateway] -->|gRPC :50051| LogService
 
     LogService --> Buffer[Buffer]
     LogService --> Stream[Stream]
@@ -72,7 +73,7 @@ slog.Error("Connection failed", "error", err)
 {
   "timestamp": "2024-01-19T12:34:56.789Z",
   "level": 1,
-  "source": "sfs-backend-abc123",
+  "source": "edd-storage",
   "message": "Request processed",
   "fields": {
     "method": "GET",
@@ -97,7 +98,7 @@ The dashboard streams logs via SSE:
 
 ```javascript
 const params = new URLSearchParams();
-params.set('source', 'sfs-backend');
+params.set('source', 'edd-storage');
 params.set('level', 'INFO');
 
 const eventSource = new EventSource(`/sse/logs?${params}`);

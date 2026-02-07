@@ -41,7 +41,7 @@ func main() {
 
 	// Logger setup
 	logger := gfslog.NewLogger(gfslog.Config{
-		Source:         "gateway",
+		Source:         "edd-gateway",
 		LogServiceAddr: *logService,
 		MinLevel:       slog.LevelDebug,
 	})

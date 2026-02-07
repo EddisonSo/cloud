@@ -132,7 +132,7 @@ func main() {
 	// authDB flag kept for backwards compatibility but DATABASE_URL takes precedence
 	sessionTTL := flag.Duration("session-ttl", 24*time.Hour, "session lifetime")
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
-	logSource := flag.String("log-source", "edd-cloud-interface", "Log source name (e.g., pod name)")
+	logSource := flag.String("log-source", "edd-storage", "Log source name (e.g., pod name)")
 	flag.Parse()
 
 	// Initialize logger

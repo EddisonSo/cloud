@@ -78,6 +78,8 @@ The auth service publishes events to NATS when user state changes:
 | `auth.user.{id}.updated` | `UserUpdated` | User profile updated |
 | `auth.session.{id}.created` | `SessionCreated` | User logged in |
 | `auth.session.{id}.invalidated` | `SessionInvalidated` | User logged out |
+| `auth.identity.{sa_id}.updated` | `IdentityPermissionsUpdated` | Service account permissions changed |
+| `auth.identity.{sa_id}.deleted` | `IdentityPermissionsDeleted` | Service account deleted |
 
 ## Configuration
 
@@ -98,6 +100,7 @@ The auth service publishes events to NATS when user state changes:
 |------|-------------|---------|
 | `-addr` | HTTP listen address | `:8080` |
 | `-session-ttl` | Session lifetime | `24h` |
+| `-log-service` | Log service gRPC address | (disabled) |
 
 ## Deployment
 
