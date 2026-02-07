@@ -36,6 +36,17 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Rate limit by IP and username
+	clientIP := h.getClientIP(r)
+	if !h.ipLimiter.allow(clientIP) {
+		writeError(w, "too many login attempts, try again later", http.StatusTooManyRequests)
+		return
+	}
+	if !h.userLimiter.allow(req.Username) {
+		writeError(w, "too many login attempts for this account, try again later", http.StatusTooManyRequests)
+		return
+	}
+
 	user, err := h.db.GetUserByUsername(req.Username)
 	if err != nil {
 		writeError(w, "internal error", http.StatusInternalServerError)
@@ -72,7 +83,6 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store session in database
-	clientIP := h.getClientIP(r)
 	session, err := h.db.CreateSession(user.UserID, tokenString, expires, clientIP)
 	if err != nil {
 		writeError(w, "failed to create session", http.StatusInternalServerError)
@@ -94,7 +104,10 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// With JWT, logout is handled client-side by removing the token
+	token := h.extractToken(r)
+	if token != "" {
+		h.db.DeleteSession(token)
+	}
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 

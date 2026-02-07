@@ -20,6 +20,8 @@ type Handler struct {
 	sessionTTL    time.Duration
 	adminUser     string
 	serviceAPIKey string
+	ipLimiter     *rateLimiter
+	userLimiter   *rateLimiter
 }
 
 type Config struct {
@@ -39,6 +41,8 @@ func NewHandler(cfg Config) *Handler {
 		sessionTTL:    cfg.SessionTTL,
 		adminUser:     cfg.AdminUser,
 		serviceAPIKey: cfg.ServiceAPIKey,
+		ipLimiter:     newRateLimiter(20, 15*time.Minute),
+		userLimiter:   newRateLimiter(10, 15*time.Minute),
 	}
 }
 
