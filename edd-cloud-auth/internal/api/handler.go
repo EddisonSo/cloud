@@ -14,28 +14,31 @@ import (
 )
 
 type Handler struct {
-	db         *db.DB
-	publisher  *events.Publisher
-	jwtSecret  []byte
-	sessionTTL time.Duration
-	adminUser  string
+	db            *db.DB
+	publisher     *events.Publisher
+	jwtSecret     []byte
+	sessionTTL    time.Duration
+	adminUser     string
+	serviceAPIKey string
 }
 
 type Config struct {
-	DB         *db.DB
-	Publisher  *events.Publisher
-	JWTSecret  []byte
-	SessionTTL time.Duration
-	AdminUser  string
+	DB            *db.DB
+	Publisher     *events.Publisher
+	JWTSecret     []byte
+	SessionTTL    time.Duration
+	AdminUser     string
+	ServiceAPIKey string
 }
 
 func NewHandler(cfg Config) *Handler {
 	return &Handler{
-		db:         cfg.DB,
-		publisher:  cfg.Publisher,
-		jwtSecret:  cfg.JWTSecret,
-		sessionTTL: cfg.SessionTTL,
-		adminUser:  cfg.AdminUser,
+		db:            cfg.DB,
+		publisher:     cfg.Publisher,
+		jwtSecret:     cfg.JWTSecret,
+		sessionTTL:    cfg.SessionTTL,
+		adminUser:     cfg.AdminUser,
+		serviceAPIKey: cfg.ServiceAPIKey,
 	}
 }
 
@@ -45,16 +48,16 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/logout", h.handleLogout)
 	mux.HandleFunc("GET /api/session", h.handleSession)
 
-	// Service-to-service endpoints (for initial sync)
-	mux.HandleFunc("GET /api/users", h.handleGetAllUsers)
-	mux.HandleFunc("GET /api/identity-permissions", h.handleGetAllIdentityPermissions)
+	// Service-to-service endpoints (require X-Service-Key header)
+	mux.HandleFunc("GET /api/users", h.serviceAuth(h.handleGetAllUsers))
+	mux.HandleFunc("GET /api/identity-permissions", h.serviceAuth(h.handleGetAllIdentityPermissions))
 
 	// API token endpoints (session auth required)
 	mux.HandleFunc("POST /api/tokens", h.handleCreateToken)
 	mux.HandleFunc("GET /api/tokens", h.handleListTokens)
 
-	// Service-to-service token check (no auth required)
-	mux.HandleFunc("GET /api/tokens/{id}/check", h.handleCheckToken)
+	// Service-to-service token check (require X-Service-Key header)
+	mux.HandleFunc("GET /api/tokens/{id}/check", h.serviceAuth(h.handleCheckToken))
 
 	// Service account endpoints (session auth required)
 	mux.HandleFunc("POST /api/service-accounts", h.handleCreateServiceAccount)
@@ -85,6 +88,17 @@ type JWTClaims struct {
 
 func (h *Handler) isAdmin(username string) bool {
 	return username == h.adminUser || username == os.Getenv("ADMIN_USERNAME")
+}
+
+func (h *Handler) serviceAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("X-Service-Key")
+		if key == "" || key != h.serviceAPIKey {
+			writeError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 func (h *Handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {

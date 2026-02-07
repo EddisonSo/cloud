@@ -54,6 +54,11 @@ func main() {
 		log.Fatal("DEFAULT_USERNAME and DEFAULT_PASSWORD environment variables required")
 	}
 
+	serviceAPIKey := os.Getenv("SERVICE_API_KEY")
+	if serviceAPIKey == "" {
+		log.Fatal("SERVICE_API_KEY environment variable required")
+	}
+
 	natsURL := os.Getenv("NATS_URL")
 
 	// Connect to database
@@ -88,11 +93,12 @@ func main() {
 
 	// Create handler
 	handler := api.NewHandler(api.Config{
-		DB:         database,
-		Publisher:  publisher,
-		JWTSecret:  []byte(jwtSecret),
-		SessionTTL: *sessionTTL,
-		AdminUser:  adminUsername,
+		DB:            database,
+		Publisher:     publisher,
+		JWTSecret:     []byte(jwtSecret),
+		SessionTTL:    *sessionTTL,
+		AdminUser:     adminUsername,
+		ServiceAPIKey: serviceAPIKey,
 	})
 
 	// Setup routes

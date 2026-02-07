@@ -50,6 +50,11 @@ spec:
                 configMapKeyRef:
                   name: edd-cloud-config
                   key: ADMIN_USERNAME
+            - name: SERVICE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: service-api-key
+                  key: SERVICE_API_KEY
             - name: NATS_URL
               value: "nats://nats:4222"
             - name: AUTH_SERVICE_URL

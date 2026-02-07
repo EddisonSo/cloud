@@ -84,9 +84,16 @@ func (c *tokenCache) checkToken(tokenID string) (bool, map[string][]string) {
 }
 
 func (c *tokenCache) checkWithAuthService(tokenID string) (bool, map[string][]string) {
-	url := fmt.Sprintf("%s/api/tokens/%s/check", c.authURL, tokenID)
+	checkURL := fmt.Sprintf("%s/api/tokens/%s/check", c.authURL, tokenID)
+	req, err := http.NewRequest(http.MethodGet, checkURL, nil)
+	if err != nil {
+		return true, nil // fail open on request creation errors
+	}
+	if key := os.Getenv("SERVICE_API_KEY"); key != "" {
+		req.Header.Set("X-Service-Key", key)
+	}
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := client.Do(req)
 	if err != nil {
 		return true, nil // fail open on network errors
 	}

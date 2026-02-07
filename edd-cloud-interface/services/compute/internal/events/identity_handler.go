@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -69,6 +70,9 @@ func SyncIdentityPermissions(database *db.DB, authServiceURL string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, authServiceURL+"/api/identity-permissions", nil)
 	if err != nil {
 		return err
+	}
+	if key := os.Getenv("SERVICE_API_KEY"); key != "" {
+		req.Header.Set("X-Service-Key", key)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
