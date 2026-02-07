@@ -278,6 +278,29 @@ func (s *LogServer) Subscribe(source string, minLevel pb.LogLevel) (<-chan *pb.L
 	return ch, unsubscribe
 }
 
+// SubscribeLive creates a channel for receiving only new log entries (no history).
+// Use GetRecentEntries to send history first, then switch to live.
+func (s *LogServer) SubscribeLive() (<-chan *pb.LogEntry, func()) {
+	ch := make(chan *pb.LogEntry, 1000)
+
+	s.subscribersMu.Lock()
+	s.subscribers[ch] = struct{}{}
+	s.subscribersMu.Unlock()
+
+	unsubscribe := func() {
+		s.subscribersMu.Lock()
+		delete(s.subscribers, ch)
+		s.subscribersMu.Unlock()
+	}
+
+	return ch, unsubscribe
+}
+
+// GetRecentEntries is the exported version of getRecentEntries.
+func (s *LogServer) GetRecentEntries(source string, minLevel pb.LogLevel) []*pb.LogEntry {
+	return s.getRecentEntries(source, minLevel)
+}
+
 // getRecentEntries retrieves entries from ring buffers matching the filter
 func (s *LogServer) getRecentEntries(source string, minLevel pb.LogLevel) []*pb.LogEntry {
 	s.buffersMu.RLock()

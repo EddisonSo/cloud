@@ -131,8 +131,21 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, logServer *server.L
 
 	slog.Info("WebSocket client connected", "source", source, "level", levelStr, "minLevel", minLevel)
 
-	// Subscribe to logs
-	ch, unsubscribe := logServer.Subscribe(source, minLevel)
+	// Send recent entries directly over WebSocket first (avoids channel overflow)
+	recent := logServer.GetRecentEntries(source, minLevel)
+	for _, entry := range recent {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			continue
+		}
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return
+		}
+	}
+
+	// Now subscribe for live broadcasts only
+	ch, unsubscribe := logServer.SubscribeLive()
 	defer unsubscribe()
 
 	var mu sync.Mutex
@@ -160,7 +173,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, logServer *server.L
 	pingTicker := time.NewTicker(30 * time.Second)
 	defer pingTicker.Stop()
 
-	// Write pump
+	// Write pump (live entries only)
 	for {
 		select {
 		case entry, ok := <-ch:
