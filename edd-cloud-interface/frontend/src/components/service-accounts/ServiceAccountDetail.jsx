@@ -11,6 +11,8 @@ import {
   PermissionPicker,
   EXPIRY_OPTIONS,
 } from "./PermissionPicker";
+import { Modal } from "@/components/common/Modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Trash2,
   Copy,
@@ -53,6 +55,7 @@ export function ServiceAccountDetail({ id }) {
   const [showCreateToken, setShowCreateToken] = useState(false);
   const [createdToken, setCreatedToken] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const loadAccount = async () => {
     try {
@@ -108,7 +111,6 @@ export function ServiceAccountDetail({ id }) {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this service account? All its tokens will be revoked.")) return;
     setDeleting(true);
     try {
       const res = await fetch(`${buildAuthBase()}/api/service-accounts/${id}`, {
@@ -122,6 +124,7 @@ export function ServiceAccountDetail({ id }) {
       console.warn("Failed to delete service account:", err);
     } finally {
       setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -133,11 +136,41 @@ export function ServiceAccountDetail({ id }) {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          Loading...
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-24" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-center gap-2 py-1">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-5 w-14 rounded-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-8 w-28" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="p-3 rounded-md border border-border">
+                <Skeleton className="h-4 w-28 mb-2" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -168,7 +201,7 @@ export function ServiceAccountDetail({ id }) {
         <Button
           variant="destructive"
           size="sm"
-          onClick={handleDelete}
+          onClick={() => setShowDeleteConfirm(true)}
           disabled={deleting}
         >
           <Trash2 className="w-4 h-4 mr-1" />
@@ -337,6 +370,31 @@ export function ServiceAccountDetail({ id }) {
           )}
         </CardContent>
       </Card>
+
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete service account"
+        description="All tokens for this account will be permanently revoked."
+      >
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
