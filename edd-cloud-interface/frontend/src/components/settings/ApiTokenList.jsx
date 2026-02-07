@@ -11,7 +11,6 @@ import {
 } from "@/lib/api";
 import {
   Plus,
-  Trash2,
   Copy,
   AlertTriangle,
   KeyRound,
@@ -70,20 +69,6 @@ export function ApiTokenList() {
   useEffect(() => {
     loadData();
   }, []);
-
-  const handleDelete = async (id) => {
-    try {
-      const res = await fetch(`${buildAuthBase()}/api/tokens/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        setTokens((prev) => prev.filter((t) => t.id !== id));
-      }
-    } catch (err) {
-      console.warn("Failed to delete token:", err);
-    }
-  };
 
   const handleCreated = (token) => {
     setCreatedToken(token);
@@ -179,37 +164,27 @@ export function ApiTokenList() {
               {tokens.map((token) => (
                 <div
                   key={token.id}
-                  className="flex items-center justify-between p-3 rounded-md border border-border bg-secondary/30"
+                  className="p-3 rounded-md border border-border bg-secondary/30"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{token.name}</span>
-                      {token.service_account_id && saMap[token.service_account_id] && (
-                        <Badge variant="outline" className="text-xs">
-                          {saMap[token.service_account_id]}
-                        </Badge>
-                      )}
-                      {!token.service_account_id && (
-                        <Badge variant="secondary" className="text-xs">standalone</Badge>
-                      )}
-                      {token.expires_at > 0 && token.expires_at < Date.now() / 1000 && (
-                        <Badge variant="destructive" className="text-xs">Expired</Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Created {formatDate(token.created_at)}
-                      {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
-                      {token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
-                    </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-sm">{token.name}</span>
+                    {token.service_account_id && saMap[token.service_account_id] && (
+                      <Badge variant="outline" className="text-xs">
+                        {saMap[token.service_account_id]}
+                      </Badge>
+                    )}
+                    {!token.service_account_id && (
+                      <Badge variant="secondary" className="text-xs">standalone</Badge>
+                    )}
+                    {token.expires_at > 0 && token.expires_at < Date.now() / 1000 && (
+                      <Badge variant="destructive" className="text-xs">Expired</Badge>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(token.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="text-xs text-muted-foreground">
+                    Created {formatDate(token.created_at)}
+                    {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
+                    {token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
+                  </div>
                 </div>
               ))}
             </div>

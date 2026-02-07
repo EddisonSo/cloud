@@ -51,7 +51,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// API token endpoints (session auth required)
 	mux.HandleFunc("POST /api/tokens", h.handleCreateToken)
 	mux.HandleFunc("GET /api/tokens", h.handleListTokens)
-	mux.HandleFunc("DELETE /api/tokens/{id}", h.handleDeleteToken)
 
 	// Service-to-service token check (no auth required)
 	mux.HandleFunc("GET /api/tokens/{id}/check", h.handleCheckToken)
