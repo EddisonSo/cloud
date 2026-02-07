@@ -84,12 +84,6 @@ export function useLogs(user, enabled = false) {
           const entry = JSON.parse(event.data);
           setLastLogTime(new Date());
 
-          if (entry.source) {
-            setSources((prev) => {
-              if (prev.includes(entry.source)) return prev;
-              return [...prev, entry.source].sort();
-            });
-          }
 
           if (updateFrequency === 0) {
             setLogs((prev) => {
