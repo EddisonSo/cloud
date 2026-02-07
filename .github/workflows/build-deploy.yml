@@ -288,7 +288,7 @@ jobs:
             --platform ${{ matrix.platform }} \
             -f edd-cloud-auth/Dockerfile \
             -t ${AUTH_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
-            --provenance=false --sbom=false --push edd-cloud-auth
+            --provenance=false --sbom=false --push .
 
   # Build Gateway service
   build-gateway:

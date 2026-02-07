@@ -1,18 +1,20 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
-WORKDIR /app
+WORKDIR /build
 
 # Install dependencies
 RUN apk add --no-cache git
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy go-gfs dependency
+COPY go-gfs/ ./go-gfs/
+
+# Copy auth source
+COPY edd-cloud-auth/ ./edd-cloud-auth/
+
+WORKDIR /build/edd-cloud-auth
+
+# Download dependencies and build
 RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build
 RUN CGO_ENABLED=0 GOOS=linux go build -o /auth ./cmd/auth
 
 # Final stage
