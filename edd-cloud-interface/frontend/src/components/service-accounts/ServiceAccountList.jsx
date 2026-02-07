@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildAuthBase, getAuthHeaders } from "@/lib/api";
 import { scopeSummary, PermissionPicker } from "./PermissionPicker";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, KeyRound } from "lucide-react";
 
 function formatDate(unix) {
@@ -52,11 +53,28 @@ export function ServiceAccountList() {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          Loading service accounts...
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-9 w-48" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-36" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="p-3 rounded-md border border-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-3 w-48 mb-1" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
