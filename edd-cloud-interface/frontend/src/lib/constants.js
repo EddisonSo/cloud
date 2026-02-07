@@ -30,6 +30,10 @@ export const NAV_ITEMS = [
     label: "Service Accounts",
     icon: KeyRound,
     path: "/service-accounts",
+    subItems: [
+      { id: "sa-list", label: "Service Accounts", icon: KeyRound, path: "/service-accounts" },
+      { id: "sa-tokens", label: "Account Tokens", icon: Key, path: "/service-accounts/tokens" },
+    ],
   },
 ];
 

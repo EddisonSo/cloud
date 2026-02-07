@@ -132,7 +132,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }) 
       });
       if (res.ok) {
         const data = await res.json();
-        setContainers(data || []);
+        setContainers(data.containers || []);
       } else {
         setContainers([]);
       }

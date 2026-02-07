@@ -9,7 +9,6 @@ import {
   DatastorePage,
   HealthPage,
   AdminPage,
-  SettingsPage,
   ServiceAccountsPage,
   NotFoundPage,
 } from "@/pages";
@@ -34,9 +33,10 @@ function App() {
               <Route path="/health" element={<HealthPage />} />
               <Route path="/logs" element={<Navigate to="/health#logs" replace />} />
               <Route path="/service-accounts" element={<ServiceAccountsPage />} />
+              <Route path="/service-accounts/tokens" element={<ServiceAccountsPage view="tokens" />} />
               <Route path="/service-accounts/:id" element={<ServiceAccountsPage />} />
               <Route path="/auth-token" element={<Navigate to="/service-accounts" replace />} />
-              <Route path="/auth-token/tokens" element={<SettingsPage />} />
+              <Route path="/auth-token/tokens" element={<Navigate to="/service-accounts/tokens" replace />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
