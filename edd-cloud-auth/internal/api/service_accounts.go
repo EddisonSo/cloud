@@ -77,6 +77,13 @@ func (h *Handler) handleCreateServiceAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if h.publisher != nil {
+		if err := h.publisher.PublishIdentityPermissionsUpdated(sa.ID, sa.UserID, sa.Scopes, sa.Version); err != nil {
+			// Log but don't fail the request — event will be caught on next sync
+			_ = err
+		}
+	}
+
 	writeJSON(w, serviceAccountResponse{
 		ID:         sa.ID,
 		Name:       sa.Name,
@@ -179,9 +186,16 @@ func (h *Handler) handleUpdateServiceAccountScopes(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if err := h.db.UpdateServiceAccountScopes(id, claims.UserID, req.Scopes); err != nil {
+	newVersion, err := h.db.UpdateServiceAccountScopes(id, claims.UserID, req.Scopes)
+	if err != nil {
 		writeError(w, "service account not found", http.StatusNotFound)
 		return
+	}
+
+	if h.publisher != nil {
+		if err := h.publisher.PublishIdentityPermissionsUpdated(id, claims.UserID, req.Scopes, newVersion); err != nil {
+			_ = err
+		}
 	}
 
 	writeJSON(w, map[string]string{"status": "ok"})
@@ -200,9 +214,16 @@ func (h *Handler) handleDeleteServiceAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.db.DeleteServiceAccount(id, claims.UserID); err != nil {
+	version, err := h.db.DeleteServiceAccount(id, claims.UserID)
+	if err != nil {
 		writeError(w, "service account not found", http.StatusNotFound)
 		return
+	}
+
+	if h.publisher != nil {
+		if err := h.publisher.PublishIdentityPermissionsDeleted(id, claims.UserID, version); err != nil {
+			_ = err
+		}
 	}
 
 	writeJSON(w, map[string]string{"status": "ok"})

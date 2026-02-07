@@ -49,3 +49,20 @@ type SessionInvalidated struct {
 	SessionID string        `json:"session_id"`
 	UserID    string        `json:"user_id"`
 }
+
+// IdentityPermissionsUpdated event - published when a service account's permissions are created or updated
+type IdentityPermissionsUpdated struct {
+	Metadata         EventMetadata       `json:"metadata"`
+	ServiceAccountID string              `json:"service_account_id"`
+	UserID           string              `json:"user_id"`
+	Scopes           map[string][]string `json:"scopes"`
+	Version          int64               `json:"version"`
+}
+
+// IdentityPermissionsDeleted event - published when a service account is deleted
+type IdentityPermissionsDeleted struct {
+	Metadata         EventMetadata `json:"metadata"`
+	ServiceAccountID string        `json:"service_account_id"`
+	UserID           string        `json:"user_id"`
+	Version          int64         `json:"version"`
+}

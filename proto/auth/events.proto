@@ -61,3 +61,27 @@ message ValidateTokenResponse {
   string username = 3;
   string error = 4;
 }
+
+// List of actions for a single scope key
+message ActionList {
+  repeated string actions = 1;
+}
+
+// Published when a service account's permissions are created or updated
+// Subject: auth.identity.{service_account_id}.updated
+message IdentityPermissionsUpdated {
+  common.EventMetadata metadata = 1;
+  string service_account_id = 2;
+  string user_id = 3;
+  map<string, ActionList> scopes = 4;  // e.g. "compute.uid.containers" -> ["read","create"]
+  int64 version = 5;
+}
+
+// Published when a service account is deleted
+// Subject: auth.identity.{service_account_id}.deleted
+message IdentityPermissionsDeleted {
+  common.EventMetadata metadata = 1;
+  string service_account_id = 2;
+  string user_id = 3;
+  int64 version = 4;
+}

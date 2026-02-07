@@ -129,14 +129,31 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 		return claims.UserID, true
 	}
 
-	// API token — check revocation and get cached scopes
+	// SA tokens: look up scopes from local identity_permissions store
+	if claims.ServiceAccountID != "" {
+		scopes := s.idStore.getScopes(claims.ServiceAccountID)
+		if scopes == nil {
+			http.Error(w, "forbidden: service account permissions not found", http.StatusForbidden)
+			return "", false
+		}
+		scope := fmt.Sprintf("storage.%s.%s", claims.UserID, resource)
+		if len(resourceID) > 0 && resourceID[0] != "" {
+			scope = fmt.Sprintf("%s.%s", scope, resourceID[0])
+		}
+		if !hasPermission(scopes, scope, action) {
+			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
+			return "", false
+		}
+		return claims.UserID, true
+	}
+
+	// Legacy standalone tokens: check revocation and use JWT/cached scopes
 	valid, cachedScopes := s.tkCache.checkToken(claims.TokenID)
 	if !valid {
 		http.Error(w, "token revoked", http.StatusUnauthorized)
 		return "", false
 	}
 
-	// Use cached scopes (from service account) if available, otherwise JWT scopes
 	scopes := claims.Scopes
 	if cachedScopes != nil {
 		scopes = cachedScopes
@@ -173,6 +190,15 @@ func (s *server) currentUserOrToken(r *http.Request) (string, bool) {
 		return "", false
 	}
 	if claims.Type == "api_token" {
+		// SA tokens: verify permissions exist in local store
+		if claims.ServiceAccountID != "" {
+			scopes := s.idStore.getScopes(claims.ServiceAccountID)
+			if scopes == nil {
+				return "", false
+			}
+			return claims.UserID, true
+		}
+		// Legacy standalone tokens: check revocation via auth service
 		valid, _ := s.tkCache.checkToken(claims.TokenID)
 		if !valid {
 			return "", false

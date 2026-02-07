@@ -13,6 +13,7 @@ type ServiceAccount struct {
 	Name      string              `json:"name"`
 	Scopes    map[string][]string `json:"scopes"`
 	CreatedAt int64               `json:"created_at"`
+	Version   int64               `json:"version"`
 }
 
 func (db *DB) CreateServiceAccount(userID, name string, scopes map[string][]string) (*ServiceAccount, error) {
@@ -41,12 +42,13 @@ func (db *DB) CreateServiceAccount(userID, name string, scopes map[string][]stri
 		Name:      name,
 		Scopes:    scopes,
 		CreatedAt: now,
+		Version:   1,
 	}, nil
 }
 
 func (db *DB) ListServiceAccountsByUser(userID string) ([]*ServiceAccount, error) {
 	rows, err := db.Query(`
-		SELECT id, user_id, name, scopes, created_at
+		SELECT id, user_id, name, scopes, created_at, COALESCE(version, 1)
 		FROM service_accounts WHERE user_id = $1 ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -58,7 +60,7 @@ func (db *DB) ListServiceAccountsByUser(userID string) ([]*ServiceAccount, error
 	for rows.Next() {
 		sa := &ServiceAccount{}
 		var scopesJSON []byte
-		if err := rows.Scan(&sa.ID, &sa.UserID, &sa.Name, &scopesJSON, &sa.CreatedAt); err != nil {
+		if err := rows.Scan(&sa.ID, &sa.UserID, &sa.Name, &scopesJSON, &sa.CreatedAt, &sa.Version); err != nil {
 			return nil, fmt.Errorf("scan service account: %w", err)
 		}
 		if err := json.Unmarshal(scopesJSON, &sa.Scopes); err != nil {
@@ -73,9 +75,9 @@ func (db *DB) GetServiceAccountByID(id string) (*ServiceAccount, error) {
 	sa := &ServiceAccount{}
 	var scopesJSON []byte
 	err := db.QueryRow(`
-		SELECT id, user_id, name, scopes, created_at
+		SELECT id, user_id, name, scopes, created_at, COALESCE(version, 1)
 		FROM service_accounts WHERE id = $1
-	`, id).Scan(&sa.ID, &sa.UserID, &sa.Name, &scopesJSON, &sa.CreatedAt)
+	`, id).Scan(&sa.ID, &sa.UserID, &sa.Name, &scopesJSON, &sa.CreatedAt, &sa.Version)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -88,36 +90,65 @@ func (db *DB) GetServiceAccountByID(id string) (*ServiceAccount, error) {
 	return sa, nil
 }
 
-func (db *DB) UpdateServiceAccountScopes(id, userID string, scopes map[string][]string) error {
+func (db *DB) UpdateServiceAccountScopes(id, userID string, scopes map[string][]string) (int64, error) {
 	scopesJSON, err := json.Marshal(scopes)
 	if err != nil {
-		return fmt.Errorf("marshal scopes: %w", err)
+		return 0, fmt.Errorf("marshal scopes: %w", err)
 	}
 
-	result, err := db.Exec(`
-		UPDATE service_accounts SET scopes = $1
+	var newVersion int64
+	err = db.QueryRow(`
+		UPDATE service_accounts SET scopes = $1, version = COALESCE(version, 1) + 1
 		WHERE id = $2 AND user_id = $3
-	`, scopesJSON, id, userID)
+		RETURNING version
+	`, scopesJSON, id, userID).Scan(&newVersion)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("service account not found")
+	}
 	if err != nil {
-		return fmt.Errorf("update service account scopes: %w", err)
+		return 0, fmt.Errorf("update service account scopes: %w", err)
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return fmt.Errorf("service account not found")
-	}
-	return nil
+	return newVersion, nil
 }
 
-func (db *DB) DeleteServiceAccount(id, userID string) error {
-	result, err := db.Exec(`DELETE FROM service_accounts WHERE id = $1 AND user_id = $2`, id, userID)
+func (db *DB) DeleteServiceAccount(id, userID string) (int64, error) {
+	var version int64
+	err := db.QueryRow(`
+		DELETE FROM service_accounts WHERE id = $1 AND user_id = $2
+		RETURNING COALESCE(version, 1)
+	`, id, userID).Scan(&version)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("service account not found")
+	}
 	if err != nil {
-		return fmt.Errorf("delete service account: %w", err)
+		return 0, fmt.Errorf("delete service account: %w", err)
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return fmt.Errorf("service account not found")
+	return version, nil
+}
+
+func (db *DB) ListAllServiceAccountPermissions() ([]*ServiceAccount, error) {
+	rows, err := db.Query(`
+		SELECT id, user_id, name, scopes, created_at, COALESCE(version, 1)
+		FROM service_accounts ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query all service accounts: %w", err)
 	}
-	return nil
+	defer rows.Close()
+
+	var accounts []*ServiceAccount
+	for rows.Next() {
+		sa := &ServiceAccount{}
+		var scopesJSON []byte
+		if err := rows.Scan(&sa.ID, &sa.UserID, &sa.Name, &scopesJSON, &sa.CreatedAt, &sa.Version); err != nil {
+			return nil, fmt.Errorf("scan service account: %w", err)
+		}
+		if err := json.Unmarshal(scopesJSON, &sa.Scopes); err != nil {
+			return nil, fmt.Errorf("unmarshal scopes: %w", err)
+		}
+		accounts = append(accounts, sa)
+	}
+	return accounts, rows.Err()
 }
 
 func (db *DB) CountServiceAccountTokens(saID string) (int, error) {

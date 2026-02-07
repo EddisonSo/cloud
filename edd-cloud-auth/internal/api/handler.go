@@ -45,8 +45,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/logout", h.handleLogout)
 	mux.HandleFunc("GET /api/session", h.handleSession)
 
-	// Service-to-service endpoint (for initial sync)
+	// Service-to-service endpoints (for initial sync)
 	mux.HandleFunc("GET /api/users", h.handleGetAllUsers)
+	mux.HandleFunc("GET /api/identity-permissions", h.handleGetAllIdentityPermissions)
 
 	// API token endpoints (session auth required)
 	mux.HandleFunc("POST /api/tokens", h.handleCreateToken)
@@ -165,6 +166,33 @@ func (h *Handler) getClientIP(r *http.Request) string {
 func (h *Handler) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("ok"))
+}
+
+func (h *Handler) handleGetAllIdentityPermissions(w http.ResponseWriter, r *http.Request) {
+	accounts, err := h.db.ListAllServiceAccountPermissions()
+	if err != nil {
+		writeError(w, "failed to list identity permissions", http.StatusInternalServerError)
+		return
+	}
+
+	type identityPermission struct {
+		ServiceAccountID string              `json:"service_account_id"`
+		UserID           string              `json:"user_id"`
+		Scopes           map[string][]string `json:"scopes"`
+		Version          int64               `json:"version"`
+	}
+
+	resp := make([]identityPermission, 0, len(accounts))
+	for _, sa := range accounts {
+		resp = append(resp, identityPermission{
+			ServiceAccountID: sa.ID,
+			UserID:           sa.UserID,
+			Scopes:           sa.Scopes,
+			Version:          sa.Version,
+		})
+	}
+
+	writeJSON(w, resp)
 }
 
 func writeJSON(w http.ResponseWriter, data interface{}) {

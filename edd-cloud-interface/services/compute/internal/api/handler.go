@@ -16,20 +16,22 @@ import (
 )
 
 type Handler struct {
-	db         *db.DB
-	k8s        *k8s.Client
-	validator  *auth.SessionValidator
-	mux        *http.ServeMux
-	tokenCache *tokenCache
+	db              *db.DB
+	k8s             *k8s.Client
+	validator       *auth.SessionValidator
+	mux             *http.ServeMux
+	tokenCache      *tokenCache
+	permissionStore *permissionStore
 }
 
 func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 	h := &Handler{
-		db:         database,
-		k8s:        k8sClient,
-		validator:  auth.NewSessionValidator("http://simple-file-share-backend"),
-		mux:        http.NewServeMux(),
-		tokenCache: newTokenCache(),
+		db:              database,
+		k8s:             k8sClient,
+		validator:       auth.NewSessionValidator("http://simple-file-share-backend"),
+		mux:             http.NewServeMux(),
+		tokenCache:      newTokenCache(),
+		permissionStore: newPermissionStore(database),
 	}
 
 	// Health check (both paths for internal probes and external ingress access)
@@ -192,7 +194,20 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
-			// Check revocation and get cached scopes
+
+			// SA tokens: look up scopes from local identity_permissions store
+			if claims.ServiceAccountID != "" {
+				scopes := h.permissionStore.getScopes(claims.ServiceAccountID)
+				if scopes == nil {
+					http.Error(w, "forbidden: service account permissions not found", http.StatusForbidden)
+					return
+				}
+				r = r.WithContext(setAPITokenContext(r.Context(), claims.UserID, scopes))
+				next(w, r)
+				return
+			}
+
+			// Legacy standalone tokens: check revocation and use JWT/cached scopes
 			valid, cachedScopes := h.tokenCache.checkToken(claims.TokenID)
 			if !valid {
 				http.Error(w, "token revoked", http.StatusUnauthorized)

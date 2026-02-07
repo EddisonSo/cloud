@@ -66,6 +66,12 @@ flowchart TB
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth
 - [x] **Graph-based observability platform** - Visualize service dependencies and time-series metrics with graph-based relationships
 
+## Auth
+
+- [x] **Token-based RBAC** - Users can create per-user tokens scoped to specific resource permissions (e.g. `compute.uid.containers: ["create", "read", "delete"]`, `storage.uid.files: ["read"]`) for programmatic API access; tokens are tied to the creating user via service accounts
+- [x] **Distributed identity permission store** - Auth service pushes service account permissions to compute/storage services via NATS events; services maintain local permission stores for zero-latency token validation without synchronous auth service dependency
+- [ ] **OAuth2 / OpenID Connect** - External identity provider integration
+
 ## Frontend
 
 - [ ] **Mobile UI** - Fix responsive layout and usability on mobile devices

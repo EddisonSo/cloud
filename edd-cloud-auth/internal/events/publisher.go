@@ -169,3 +169,36 @@ func (p *Publisher) PublishSessionInvalidated(sessionToken, userID string) error
 	slog.Debug("published session.invalidated", "user_id", userID)
 	return nil
 }
+
+func (p *Publisher) PublishIdentityPermissionsUpdated(saID, userID string, scopes map[string][]string, version int64) error {
+	subject := fmt.Sprintf("auth.identity.%s.updated", saID)
+	event := IdentityPermissionsUpdated{
+		Metadata:         p.newMetadata(saID),
+		ServiceAccountID: saID,
+		UserID:           userID,
+		Scopes:           scopes,
+		Version:          version,
+	}
+	if err := p.publish(subject, event); err != nil {
+		slog.Error("failed to publish identity.updated", "error", err, "sa_id", saID)
+		return err
+	}
+	slog.Info("published identity.updated", "sa_id", saID, "version", version)
+	return nil
+}
+
+func (p *Publisher) PublishIdentityPermissionsDeleted(saID, userID string, version int64) error {
+	subject := fmt.Sprintf("auth.identity.%s.deleted", saID)
+	event := IdentityPermissionsDeleted{
+		Metadata:         p.newMetadata(saID),
+		ServiceAccountID: saID,
+		UserID:           userID,
+		Version:          version,
+	}
+	if err := p.publish(subject, event); err != nil {
+		slog.Error("failed to publish identity.deleted", "error", err, "sa_id", saID)
+		return err
+	}
+	slog.Info("published identity.deleted", "sa_id", saID, "version", version)
+	return nil
+}

@@ -56,21 +56,23 @@ func generateNanoID() (string, error) {
 }
 
 type server struct {
-	client        *gfs.Client
-	prefix        string
-	staticDir     string
-	maxUpload     int64
-	listPrefix    string
-	uploadTTL     time.Duration
-	db            *sql.DB
-	jwtSecret     []byte
-	sessionTTL    time.Duration
-	wsMu          sync.Mutex
-	wsConns       map[string]*websocket.Conn
-	sseMu         sync.Mutex
-	sseConns      map[string]chan progressMessage
-	eventConsumer *events.Consumer
-	tkCache       *tokenCache
+	client           *gfs.Client
+	prefix           string
+	staticDir        string
+	maxUpload        int64
+	listPrefix       string
+	uploadTTL        time.Duration
+	db               *sql.DB
+	jwtSecret        []byte
+	sessionTTL       time.Duration
+	wsMu             sync.Mutex
+	wsConns          map[string]*websocket.Conn
+	sseMu            sync.Mutex
+	sseConns         map[string]chan progressMessage
+	eventConsumer    *events.Consumer
+	identityConsumer *events.IdentityConsumer
+	tkCache          *tokenCache
+	idStore          *identityStore
 }
 
 // JWTClaims represents the claims in a JWT token
@@ -199,6 +201,7 @@ func main() {
 		wsConns:    make(map[string]*websocket.Conn),
 		sseConns:   make(map[string]chan progressMessage),
 		tkCache:    newTokenCache(),
+		idStore:    newIdentityStore(db),
 	}
 
 	// Initialize user sync from auth-service
@@ -206,6 +209,9 @@ func main() {
 	if authServiceURL != "" {
 		if err := syncUsersFromAuthService(db, authServiceURL); err != nil {
 			slog.Warn("initial user sync failed", "error", err)
+		}
+		if err := syncIdentityPermissions(db, authServiceURL); err != nil {
+			slog.Warn("initial identity permissions sync failed", "error", err)
 		}
 	}
 
@@ -226,6 +232,23 @@ func main() {
 				slog.Error("failed to start event consumer", "error", err)
 			} else {
 				slog.Info("NATS event consumer started")
+			}
+		}
+
+		identityHandler := newIdentityEventHandler(db, srv.idStore)
+		idConsumer, err := events.NewIdentityConsumer(events.IdentityConsumerConfig{
+			NatsURL:      natsURL,
+			ConsumerName: "sfs-identity",
+			Handler:      identityHandler,
+		})
+		if err != nil {
+			slog.Warn("failed to create identity consumer", "error", err)
+		} else {
+			srv.identityConsumer = idConsumer
+			if err := idConsumer.Start(context.Background()); err != nil {
+				slog.Error("failed to start identity consumer", "error", err)
+			} else {
+				slog.Info("NATS identity consumer started")
 			}
 		}
 	}
@@ -301,6 +324,13 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 			hidden INTEGER NOT NULL DEFAULT 0,
 			visibility INTEGER NOT NULL DEFAULT 2,
 			owner_id TEXT
+		)`,
+		// Identity permissions - populated from auth-service identity events
+		`CREATE TABLE IF NOT EXISTS identity_permissions (
+			service_account_id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			scopes JSONB NOT NULL,
+			version BIGINT NOT NULL DEFAULT 0
 		)`,
 	}
 	for _, stmt := range stmts {

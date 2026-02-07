@@ -74,11 +74,15 @@ func main() {
 		if err := eventshandler.SyncUsersFromAuthService(database, authServiceURL); err != nil {
 			slog.Warn("initial user sync failed", "error", err)
 		}
+		if err := eventshandler.SyncIdentityPermissions(database, authServiceURL); err != nil {
+			slog.Warn("initial identity permissions sync failed", "error", err)
+		}
 	}
 
 	// Initialize NATS event consumer
 	natsURL := os.Getenv("NATS_URL")
 	var eventConsumer *events.Consumer
+	var identityConsumer *events.IdentityConsumer
 	if natsURL != "" {
 		eventHandler := eventshandler.NewHandler(database, k8sClient)
 		consumer, err := events.NewConsumer(events.ConsumerConfig{
@@ -96,6 +100,23 @@ func main() {
 				slog.Info("NATS event consumer started")
 			}
 		}
+
+		identityHandler := eventshandler.NewIdentityHandler(database)
+		idConsumer, err := events.NewIdentityConsumer(events.IdentityConsumerConfig{
+			NatsURL:      natsURL,
+			ConsumerName: "compute-identity",
+			Handler:      identityHandler,
+		})
+		if err != nil {
+			slog.Warn("failed to create identity consumer", "error", err)
+		} else {
+			identityConsumer = idConsumer
+			if err := idConsumer.Start(context.Background()); err != nil {
+				slog.Error("failed to start identity consumer", "error", err)
+			} else {
+				slog.Info("NATS identity consumer started")
+			}
+		}
 	}
 
 	// HTTP server with CORS
@@ -110,6 +131,9 @@ func main() {
 		slog.Info("shutting down")
 		if eventConsumer != nil {
 			eventConsumer.Stop()
+		}
+		if identityConsumer != nil {
+			identityConsumer.Stop()
 		}
 		server.Close()
 	}()

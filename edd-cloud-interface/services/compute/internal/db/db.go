@@ -80,6 +80,13 @@ func (db *DB) migrate() error {
 			display_name TEXT NOT NULL DEFAULT '',
 			synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
+		// Identity permissions - populated from auth-service identity events
+		`CREATE TABLE IF NOT EXISTS identity_permissions (
+			service_account_id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			scopes JSONB NOT NULL,
+			version BIGINT NOT NULL DEFAULT 0
+		)`,
 	}
 
 	for _, m := range migrations {
