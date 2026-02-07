@@ -47,8 +47,8 @@ spec:
                   key: DEFAULT_PASSWORD
             - name: ADMIN_USERNAME
               valueFrom:
-                configMapKeyRef:
-                  name: edd-cloud-config
+                secretKeyRef:
+                  name: edd-cloud-admin
                   key: ADMIN_USERNAME
             - name: SERVICE_API_KEY
               valueFrom:

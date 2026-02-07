@@ -57,7 +57,7 @@ func main() {
 	// Database connection string from environment
 	dbConnStr := os.Getenv("DATABASE_URL")
 	if dbConnStr == "" {
-		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=disable"
+		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=require"
 	}
 
 	// Router for container lookups

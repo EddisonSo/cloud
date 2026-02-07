@@ -174,7 +174,7 @@ func main() {
 
 	dbConnStr := os.Getenv("DATABASE_URL")
 	if dbConnStr == "" {
-		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=disable"
+		dbConnStr = "postgres://localhost:5432/eddcloud?sslmode=require"
 	}
 	db, err := sql.Open("postgres", dbConnStr)
 	if err != nil {

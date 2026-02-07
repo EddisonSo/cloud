@@ -32,8 +32,8 @@ spec:
                   key: DATABASE_URL
             - name: ADMIN_USERNAME
               valueFrom:
-                configMapKeyRef:
-                  name: edd-cloud-config
+                secretKeyRef:
+                  name: edd-cloud-admin
                   key: ADMIN_USERNAME
             - name: JWT_SECRET
               valueFrom:

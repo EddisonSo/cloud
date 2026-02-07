@@ -3,5 +3,4 @@ kind: ConfigMap
 metadata:
   name: edd-cloud-config
   namespace: default
-data:
-  ADMIN_USERNAME: eddisonso@gmail.com
+data: {}
