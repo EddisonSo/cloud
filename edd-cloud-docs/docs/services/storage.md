@@ -85,6 +85,20 @@ Downloads use sequential streaming for memory efficiency:
 - Constant memory usage regardless of file size
 - Automatic failover to replicas on read errors
 
+### Frontend Download Mechanism
+
+The frontend triggers downloads using a **hidden iframe** rather than an anchor element (`<a>` click) or `fetch()`+blob:
+
+```javascript
+const iframe = document.createElement("iframe");
+iframe.style.display = "none";
+iframe.src = downloadUrl;
+document.body.appendChild(iframe);
+setTimeout(() => iframe.remove(), 60000);
+```
+
+This avoids a **page reload** that occurs with `link.click()` on cross-origin URLs (`cloud.eddisonso.com` → `storage.cloud.eddisonso.com`). The `download` attribute on `<a>` tags is ignored by browsers for cross-origin links, causing top-level navigation. The backend's `Content-Disposition: attachment` header tells the browser to save the file instead of rendering it, and the iframe keeps the navigation off the main page.
+
 ## Progress Tracking
 
 Progress is tracked via Server-Sent Events (SSE):
