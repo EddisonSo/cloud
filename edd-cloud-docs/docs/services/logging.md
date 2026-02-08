@@ -8,27 +8,67 @@ The Log Service provides centralized logging for all Edd Cloud services with rea
 
 ## Features
 
-- **Centralized Collection**: All services send logs to a single endpoint
-- **Real-time Streaming**: SSE-based log streaming to clients
+- **Centralized Collection**: All services send logs via gRPC
+- **Real-time Streaming**: SSE and WebSocket log streaming to the dashboard
 - **Log Levels**: DEBUG, INFO, WARN, ERROR
 - **Source Filtering**: Filter logs by service/pod name
-- **Persistent Storage**: Logs stored in GFS
+- **GFS Persistence**: Async, best-effort log persistence to GFS
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    Auth[Auth edd-auth] -->|gRPC :50051| LogService[Log Service]
-    Storage[Storage edd-storage] -->|gRPC :50051| LogService
-    Compute[Compute edd-compute] -->|gRPC :50051| LogService
-    Gateway[Gateway edd-gateway] -->|gRPC :50051| LogService
+    Auth[Auth Service] -->|gRPC :50051| LS[Log Service]
+    Storage[Storage Service] -->|gRPC :50051| LS
+    Compute[Compute Service] -->|gRPC :50051| LS
+    Gateway[Gateway] -->|gRPC :50051| LS
+    CM[Cluster Monitor] -->|gRPC :50051| LS
+    GFSMaster[GFS Master] -->|gRPC :50051| LS
+    GFSChunk[GFS Chunkserver] -->|gRPC :50051| LS
 
-    LogService --> Buffer[Buffer]
-    LogService --> Stream[Stream]
-    LogService --> Store[Store]
+    LS --> RB["Ring Buffers<br/>(1000 entries per source×level)"]
+    LS --> Sub[Subscribers<br/>SSE / WebSocket]
+    LS --> PW[Persistence Worker]
 
-    Store --> GFS[GFS Storage]
+    PW -->|"batch append<br/>(500 entries or 1 min)"| GFS[GFS Storage<br/>/YYYY-MM-DD/source.jsonl]
 ```
+
+## Storage Model
+
+Logs are stored in two layers:
+
+### In-Memory Ring Buffers (primary)
+
+Each unique source + level combination gets its own circular buffer holding up to **1000 entries**. These are the primary serving layer — subscribers receive recent entries from ring buffers on connect, then live updates via pub/sub broadcast.
+
+- **Ephemeral**: Lost on pod restart
+- **Per-replica**: Each log-service pod has independent buffers
+
+### GFS Persistence (async, best-effort)
+
+Log entries are queued to an internal channel (capacity: 1000). A background worker batches entries and appends them to GFS as JSONL files organized by date and source:
+
+```
+/core-logs/2026-02-08/gateway.jsonl
+/core-logs/2026-02-08/cluster-monitor.jsonl
+/core-logs/2026-02-08/auth-service.jsonl
+```
+
+| Setting | Value |
+|---------|-------|
+| Batch size | 500 entries |
+| Flush interval | 1 minute |
+| GFS namespace | `core-logs` |
+| Queue capacity | 1000 entries |
+| Overflow behavior | Silent drop |
+
+If GFS is unavailable at startup, persistence is disabled and logs are kept in memory only.
+
+### Limitations
+
+- No log replay from GFS on startup — ring buffers start empty after a pod restart
+- Each log-service replica has independent ring buffers (no cross-replica sharing)
+- Persistence queue drops entries silently when full
 
 ## Client Library
 
@@ -56,8 +96,9 @@ slog.Error("Connection failed", "error", err)
 
 | Method | Description |
 |--------|-------------|
-| `Log(LogRequest)` | Send a log entry |
-| `StreamLogs(StreamRequest)` | Stream logs (server-side) |
+| `PushLog(PushLogRequest)` | Send a log entry |
+| `StreamLogs(StreamLogsRequest)` | Stream logs (server-side streaming) |
+| `GetLogs(GetLogsRequest)` | Query recent log entries |
 
 ### HTTP/SSE (External)
 
@@ -71,11 +112,11 @@ slog.Error("Connection failed", "error", err)
 
 ```json
 {
-  "timestamp": "2024-01-19T12:34:56.789Z",
+  "timestamp": 1707350096,
   "level": 1,
   "source": "edd-storage",
   "message": "Request processed",
-  "fields": {
+  "attributes": {
     "method": "GET",
     "path": "/storage/files",
     "duration": "15ms"
@@ -115,4 +156,4 @@ eventSource.onmessage = (event) => {
 |------|-------------|---------|
 | `-grpc` | gRPC listen address | `:50051` |
 | `-http` | HTTP listen address | `:8080` |
-| `-master` | GFS master address | - |
+| `-master` | GFS master address | `gfs-master:9000` |
