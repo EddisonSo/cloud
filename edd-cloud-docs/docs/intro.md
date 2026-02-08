@@ -17,6 +17,7 @@ Edd Cloud is a personal cloud infrastructure platform that provides storage, com
 | **Compute API** | Container management service | `compute.cloud.eddisonso.com` |
 | **Health API** | Cluster monitoring and metrics | `health.cloud.eddisonso.com` |
 | **GFS** | Distributed file system (Google File System clone) | Internal |
+| **Notifications** | Real-time push notifications via WebSocket | `notifications.cloud.eddisonso.com` |
 | **Log Service** | Centralized logging with SSE streaming | Internal |
 
 ## Technology Stack
@@ -42,3 +43,4 @@ Edd Cloud is a personal cloud infrastructure platform that provides storage, com
 - [Storage Service](./services/storage)
 - [Compute Service](./services/compute)
 - [GFS Distributed Storage](./services/gfs)
+- [Notification Service](./services/notifications)
