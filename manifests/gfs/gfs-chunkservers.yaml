@@ -23,7 +23,7 @@ spec:
 
       containers:
         - name: chunkserver
-          image: eddisonso/gfs-chunkserver:latest
+          image: docker.io/eddisonso/ecloud-gfs:latest
           imagePullPolicy: Always
 
           # Explicit command (no ENTRYPOINT in image)

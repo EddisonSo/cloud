@@ -32,7 +32,7 @@ spec:
         gfs-master: "true"
       containers:
         - name: master
-          image: eddisonso/gfs-master:latest
+          image: docker.io/eddisonso/ecloud-gfs:latest
           imagePullPolicy: Always
           command: ["./master"]
           args:
