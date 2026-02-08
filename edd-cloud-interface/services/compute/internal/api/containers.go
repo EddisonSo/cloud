@@ -329,7 +329,7 @@ func (h *Handler) pollContainerReady(container *db.Container) {
 					if h.notifier != nil {
 						h.notifier.Notify(context.Background(), container.UserID, "Container Ready",
 							fmt.Sprintf("Container '%s' is now running", container.Name),
-							fmt.Sprintf("/compute/containers/%s", container.ID), "compute")
+							fmt.Sprintf("/compute/containers/%s", container.ID), "compute", "")
 					}
 				} else if status == "failed" {
 					h.db.UpdateContainerStatus(container.ID, "failed")
@@ -502,7 +502,7 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 	if h.notifier != nil {
 		h.notifier.Notify(r.Context(), container.UserID, "Container Stopped",
 			fmt.Sprintf("Container '%s' has stopped", container.Name),
-			fmt.Sprintf("/compute/containers/%s", container.ID), "compute")
+			fmt.Sprintf("/compute/containers/%s", container.ID), "compute", "")
 	}
 	writeJSON(w, containerToResponse(container))
 }

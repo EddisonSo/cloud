@@ -77,7 +77,7 @@ func (p *Publisher) Notify(userID, title, message, link, category string) {
 	if p.notifier == nil {
 		return
 	}
-	if err := p.notifier.Notify(context.Background(), userID, title, message, link, category); err != nil {
+	if err := p.notifier.Notify(context.Background(), userID, title, message, link, category, ""); err != nil {
 		slog.Error("failed to send notification", "error", err, "user_id", userID, "title", title)
 	}
 }
