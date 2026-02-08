@@ -609,6 +609,14 @@ func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.notifier != nil {
+		if uid, ok := s.currentUserID(r); ok {
+			s.notifier.Notify(r.Context(), uid, "Namespace Deleted",
+				fmt.Sprintf("Namespace '%s' has been deleted", name),
+				"/storage", "storage", name)
+		}
+	}
+
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
@@ -950,7 +958,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		if uid, ok := s.currentUserID(r); ok {
 			s.notifier.Notify(r.Context(), uid, "File Uploaded",
 				fmt.Sprintf("'%s' uploaded to %s", name, namespace),
-				fmt.Sprintf("/storage/%s", namespace), "storage")
+				fmt.Sprintf("/storage/%s", namespace), "storage", namespace)
 		}
 	}
 
@@ -1166,6 +1174,14 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	if err := s.client.DeleteFileWithNamespace(ctx, fullPath, s.gfsNamespace(namespace)); err != nil {
 		http.Error(w, fmt.Sprintf("delete failed: %v", err), http.StatusBadGateway)
 		return
+	}
+
+	if s.notifier != nil {
+		if uid, ok := s.currentUserID(r); ok {
+			s.notifier.Notify(r.Context(), uid, "File Deleted",
+				fmt.Sprintf("'%s' deleted from %s", name, namespace),
+				fmt.Sprintf("/storage/%s", namespace), "storage", namespace)
+		}
 	}
 
 	writeJSON(w, map[string]string{"status": "ok", "name": name})
