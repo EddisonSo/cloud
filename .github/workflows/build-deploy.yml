@@ -23,6 +23,7 @@ env:
   DOCS_IMAGE: docker.io/eddisonso/ecloud-docs
   GFS_IMAGE: docker.io/eddisonso/ecloud-gfs
   CLUSTER_MONITOR_IMAGE: docker.io/eddisonso/cluster-monitor
+  NOTIFICATIONS_IMAGE: docker.io/eddisonso/ecloud-notifications
 
 jobs:
   # Detect which services have changes
@@ -40,6 +41,7 @@ jobs:
       gfs: ${{ steps.filter.outputs.gfs }}
       go-gfs: ${{ steps.filter.outputs.go-gfs }}
       cluster-monitor: ${{ steps.filter.outputs.cluster-monitor }}
+      notifications: ${{ steps.filter.outputs.notifications }}
       any_service: ${{ steps.filter.outputs.any_service }}
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +78,9 @@ jobs:
             cluster-monitor:
               - 'cluster-monitor/**'
               - 'go-gfs/**'
+            notifications:
+              - 'notification-service/**'
+              - 'proto/notification/**'
             any_service:
               - 'edd-cloud-interface/**'
               - 'edd-cloud-auth/**'
@@ -83,6 +88,7 @@ jobs:
               - 'edd-cloud-docs/**'
               - 'go-gfs/**'
               - 'cluster-monitor/**'
+              - 'notification-service/**'
 
   # Build SFS service
   build-sfs:
@@ -415,6 +421,35 @@ jobs:
             -t ${GFS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push go-gfs
 
+  # Build Notifications service
+  build-notifications:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.notifications == 'true' || github.event.inputs.force_all == 'true'
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f notification-service/Dockerfile \
+            -t ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
   # Create manifests for built services
   create-manifests:
     needs:
@@ -429,6 +464,7 @@ jobs:
       - build-docs
       - build-cluster-monitor
       - build-gfs
+      - build-notifications
     if: always() && (needs.detect-changes.outputs.any_service == 'true' || github.event.inputs.force_all == 'true')
     runs-on: ubuntu-latest
     outputs:
@@ -442,6 +478,7 @@ jobs:
       docs_built: ${{ steps.check.outputs.docs_built }}
       cluster_monitor_built: ${{ steps.check.outputs.cluster_monitor_built }}
       gfs_built: ${{ steps.check.outputs.gfs_built }}
+      notifications_built: ${{ steps.check.outputs.notifications_built }}
     steps:
       - uses: docker/login-action@v3
         with:
@@ -460,6 +497,7 @@ jobs:
           echo "docs_built=${{ needs.build-docs.result == 'success' }}" >> $GITHUB_OUTPUT
           echo "cluster_monitor_built=${{ needs.build-cluster-monitor.result == 'success' }}" >> $GITHUB_OUTPUT
           echo "gfs_built=${{ needs.build-gfs.result == 'success' }}" >> $GITHUB_OUTPUT
+          echo "notifications_built=${{ needs.build-notifications.result == 'success' }}" >> $GITHUB_OUTPUT
       - name: Create SFS manifest
         if: needs.build-sfs.result == 'success'
         run: |
@@ -570,6 +608,17 @@ jobs:
             ${GFS_IMAGE}:${GITHUB_SHA}-amd64
           docker manifest push ${GFS_IMAGE}:${GITHUB_SHA}
           docker manifest push ${GFS_IMAGE}:latest
+      - name: Create Notifications manifest
+        if: needs.build-notifications.result == 'success'
+        run: |
+          docker manifest create ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA} \
+            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-arm64 \
+            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${NOTIFICATIONS_IMAGE}:latest \
+            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-arm64 \
+            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest push ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}
+          docker manifest push ${NOTIFICATIONS_IMAGE}:latest
 
   # Deploy only the services that were built
   deploy:
@@ -614,3 +663,6 @@ jobs:
       - name: Deploy GFS Chunkserver
         if: needs.create-manifests.outputs.gfs_built == 'true'
         run: kubectl -n $NS set image daemonset/gfs-chunkserver chunkserver=${GFS_IMAGE}:${GITHUB_SHA}
+      - name: Deploy Notifications
+        if: needs.create-manifests.outputs.notifications_built == 'true'
+        run: kubectl -n $NS set image deployment/notification-service notification-service=${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}

@@ -10,12 +10,15 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+
+	notifypub "eddisonso.com/notification-service/pkg/publisher"
 )
 
 type Publisher struct {
-	nc     *nats.Conn
-	js     jetstream.JetStream
-	source string
+	nc       *nats.Conn
+	js       jetstream.JetStream
+	source   string
+	notifier *notifypub.Publisher
 }
 
 func NewPublisher(natsURL, source string) (*Publisher, error) {
@@ -47,16 +50,36 @@ func NewPublisher(natsURL, source string) (*Publisher, error) {
 		slog.Warn("failed to create AUTH stream (may already exist)", "error", err)
 	}
 
+	// Initialize notification publisher (reuses same NATS connection URL)
+	notifier, err := notifypub.New(natsURL, source)
+	if err != nil {
+		slog.Warn("failed to create notification publisher", "error", err)
+	}
+
 	return &Publisher{
-		nc:     nc,
-		js:     js,
-		source: source,
+		nc:       nc,
+		js:       js,
+		source:   source,
+		notifier: notifier,
 	}, nil
 }
 
 func (p *Publisher) Close() error {
+	if p.notifier != nil {
+		p.notifier.Close()
+	}
 	p.nc.Close()
 	return nil
+}
+
+// Notify sends a user-facing notification via the notification service.
+func (p *Publisher) Notify(userID, title, message, link, category string) {
+	if p.notifier == nil {
+		return
+	}
+	if err := p.notifier.Notify(context.Background(), userID, title, message, link, category); err != nil {
+		slog.Error("failed to send notification", "error", err, "user_id", userID, "title", title)
+	}
 }
 
 func generateUUID() string {

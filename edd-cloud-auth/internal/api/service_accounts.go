@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -82,6 +83,9 @@ func (h *Handler) handleCreateServiceAccount(w http.ResponseWriter, r *http.Requ
 			// Log but don't fail the request — event will be caught on next sync
 			_ = err
 		}
+		h.publisher.Notify(claims.UserID, "Service Account Created",
+			fmt.Sprintf("Service account '%s' has been created", req.Name),
+			"/service-accounts", "auth")
 	}
 
 	writeJSON(w, serviceAccountResponse{
@@ -214,6 +218,12 @@ func (h *Handler) handleDeleteServiceAccount(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Get name before deleting for notification
+	var saName string
+	if sa, err := h.db.GetServiceAccountByID(id); err == nil && sa != nil {
+		saName = sa.Name
+	}
+
 	version, err := h.db.DeleteServiceAccount(id, claims.UserID)
 	if err != nil {
 		writeError(w, "service account not found", http.StatusNotFound)
@@ -223,6 +233,11 @@ func (h *Handler) handleDeleteServiceAccount(w http.ResponseWriter, r *http.Requ
 	if h.publisher != nil {
 		if err := h.publisher.PublishIdentityPermissionsDeleted(id, claims.UserID, version); err != nil {
 			_ = err
+		}
+		if saName != "" {
+			h.publisher.Notify(claims.UserID, "Service Account Deleted",
+				fmt.Sprintf("Service account '%s' has been deleted", saName),
+				"/service-accounts", "auth")
 		}
 	}
 

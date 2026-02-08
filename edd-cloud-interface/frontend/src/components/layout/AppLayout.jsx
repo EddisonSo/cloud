@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export function AppLayout() {
   const { user, loading: authLoading, login } = useAuth();
@@ -80,6 +81,9 @@ export function AppLayout() {
   return (
     <div className="min-h-screen overflow-hidden">
       <Sidebar healthOk={health.cluster_ok} />
+      <div className="fixed top-4 right-6 z-40">
+        <NotificationBell />
+      </div>
       <main className="ml-[220px] p-6 min-h-screen overflow-x-hidden">
         <Outlet />
       </main>

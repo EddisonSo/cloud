@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package notification;
+
+option go_package = "eddisonso.com/edd-cloud/proto/notification";
+
+import "common/types.proto";
+
+message Notification {
+  common.EventMetadata metadata = 1;
+  string user_id = 2;       // Target user (nanoid)
+  string title = 3;         // Short title (e.g., "Container Ready")
+  string message = 4;       // Body text (e.g., "Container 'dev-box' is now running")
+  string link = 5;          // URL path to navigate to (e.g., "/compute/containers/abc")
+  string category = 6;      // "compute", "storage", "auth", etc.
+}

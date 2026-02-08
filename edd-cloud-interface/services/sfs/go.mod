@@ -6,7 +6,8 @@ toolchain go1.24.11
 
 require (
 	eddisonso.com/edd-cloud/pkg/events v0.0.0
-	eddisonso.com/go-gfs v0.0.0-00010101000000-000000000000
+	eddisonso.com/go-gfs v0.0.0
+	eddisonso.com/notification-service v0.0.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.40.0
@@ -28,3 +29,5 @@ require (
 replace eddisonso.com/go-gfs => ../../../go-gfs
 
 replace eddisonso.com/edd-cloud/pkg/events => ../../pkg/events
+
+replace eddisonso.com/notification-service => ../../../notification-service

@@ -326,6 +326,11 @@ func (h *Handler) pollContainerReady(container *db.Container) {
 					h.db.UpdateContainerStatus(container.ID, "running")
 					slog.Info("container running", "container", container.ID)
 					GetHub().SendContainerStatus(container.UserID, container.ID, "running", nil)
+					if h.notifier != nil {
+						h.notifier.Notify(context.Background(), container.UserID, "Container Ready",
+							fmt.Sprintf("Container '%s' is now running", container.Name),
+							fmt.Sprintf("/compute/containers/%s", container.ID), "compute")
+					}
 				} else if status == "failed" {
 					h.db.UpdateContainerStatus(container.ID, "failed")
 					GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
@@ -494,6 +499,11 @@ func (h *Handler) StopContainer(w http.ResponseWriter, r *http.Request) {
 	container.Status = "stopped"
 	// Broadcast stopped status via WebSocket
 	GetHub().SendContainerStatus(container.UserID, container.ID, "stopped", nil)
+	if h.notifier != nil {
+		h.notifier.Notify(r.Context(), container.UserID, "Container Stopped",
+			fmt.Sprintf("Container '%s' has stopped", container.Name),
+			fmt.Sprintf("/compute/containers/%s", container.ID), "compute")
+	}
 	writeJSON(w, containerToResponse(container))
 }
 

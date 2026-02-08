@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AppLayout } from "@/components/layout";
 import {
   StoragePage,
@@ -18,6 +19,7 @@ function App() {
     <BrowserRouter>
       <ThemeProvider defaultTheme="dark">
         <AuthProvider>
+          <NotificationProvider>
           <Routes>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/compute" replace />} />
@@ -41,6 +43,7 @@ function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
+          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

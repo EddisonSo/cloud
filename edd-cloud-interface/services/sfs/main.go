@@ -25,6 +25,7 @@ import (
 	"eddisonso.com/edd-cloud/pkg/events"
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 	"eddisonso.com/go-gfs/pkg/gfslog"
+	notifypub "eddisonso.com/notification-service/pkg/publisher"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/websocket"
@@ -73,6 +74,7 @@ type server struct {
 	identityConsumer *events.IdentityConsumer
 	tkCache          *tokenCache
 	idStore          *identityStore
+	notifier         *notifypub.Publisher
 }
 
 // JWTClaims represents the claims in a JWT token
@@ -215,8 +217,19 @@ func main() {
 		}
 	}
 
-	// Initialize NATS event consumer
+	// Initialize notification publisher
 	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		np, err := notifypub.New(natsURL, "edd-storage")
+		if err != nil {
+			slog.Warn("failed to create notification publisher", "error", err)
+		} else {
+			srv.notifier = np
+			defer np.Close()
+		}
+	}
+
+	// Initialize NATS event consumer
 	if natsURL != "" {
 		handler := newUserEventHandler(db)
 		consumer, err := events.NewConsumer(events.ConsumerConfig{
@@ -931,6 +944,15 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		total,
 		transferID,
 	)
+
+	// Send notification for file upload
+	if s.notifier != nil {
+		if uid, ok := s.currentUserID(r); ok {
+			s.notifier.Notify(r.Context(), uid, "File Uploaded",
+				fmt.Sprintf("'%s' uploaded to %s", name, namespace),
+				fmt.Sprintf("/storage/%s", namespace), "storage")
+		}
+	}
 
 	writeJSON(w, map[string]string{"status": "ok", "name": name})
 }

@@ -140,6 +140,17 @@ data:
         target: log-service:80
         strip_prefix: false
 
+      # Notification service
+      - host: notifications.cloud.eddisonso.com
+        path: /
+        target: notification-service:80
+        strip_prefix: false
+
+      - host: notifications.cloud.eddisonso.com
+        path: /ws/notifications
+        target: notification-service:80
+        strip_prefix: false
+
       # Documentation service
       - host: docs.cloud.eddisonso.com
         path: /

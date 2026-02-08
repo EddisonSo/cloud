@@ -60,6 +60,15 @@ export function buildHealthBase() {
   return buildServiceBase("health");
 }
 
+export function buildNotificationsBase() {
+  return buildServiceBase("notifications");
+}
+
+export function buildNotificationsWsBase() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${resolveServiceHost("notifications")}`;
+}
+
 export function buildWsBase() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   return `${protocol}://${resolveApiHost()}`;

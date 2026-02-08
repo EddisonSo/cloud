@@ -13,6 +13,7 @@ import (
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
 	"eddisonso.com/edd-cloud/services/compute/internal/k8s"
+	notifypub "eddisonso.com/notification-service/pkg/publisher"
 )
 
 type Handler struct {
@@ -22,9 +23,10 @@ type Handler struct {
 	mux             *http.ServeMux
 	tokenCache      *tokenCache
 	permissionStore *permissionStore
+	notifier        *notifypub.Publisher
 }
 
-func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
+func NewHandler(database *db.DB, k8sClient *k8s.Client, notifier *notifypub.Publisher) http.Handler {
 	h := &Handler{
 		db:              database,
 		k8s:             k8sClient,
@@ -32,6 +34,7 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client) http.Handler {
 		mux:             http.NewServeMux(),
 		tokenCache:      newTokenCache(),
 		permissionStore: newPermissionStore(database),
+		notifier:        notifier,
 	}
 
 	// Health check (both paths for internal probes and external ingress access)

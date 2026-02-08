@@ -17,6 +17,10 @@ coverage.out
 
 # Go
 vendor/
+notification-service/notification
+edd-cloud-interface/services/compute/compute
+edd-cloud-interface/services/sfs/sfs
+edd-cloud-interface/services/logging/logging
 
 # Node
 node_modules/
@@ -31,6 +35,7 @@ dist/
 # Claude
 CLAUDE.md
 .claude/
+claude_context.md
 
 # OS
 .DS_Store

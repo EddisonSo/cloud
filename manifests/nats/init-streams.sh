@@ -83,5 +83,21 @@ nats stream add SFS \
     --deny-purge \
     || echo "SFS stream already exists"
 
+# Create NOTIFICATIONS stream
+nats stream add NOTIFICATIONS \
+    --subjects "notify.>" \
+    --retention limits \
+    --max-msgs 1000000 \
+    --max-bytes 1073741824 \
+    --max-age 168h \
+    --storage file \
+    --replicas 1 \
+    --discard old \
+    --dupe-window 2m \
+    --no-allow-rollup \
+    --deny-delete \
+    --deny-purge \
+    || echo "NOTIFICATIONS stream already exists"
+
 echo "JetStream streams initialized"
 nats stream list

@@ -16,6 +16,7 @@ import (
 	eventshandler "eddisonso.com/edd-cloud/services/compute/internal/events"
 	"eddisonso.com/edd-cloud/services/compute/internal/k8s"
 	"eddisonso.com/go-gfs/pkg/gfslog"
+	notifypub "eddisonso.com/notification-service/pkg/publisher"
 )
 
 func isAllowedOrigin(origin string) bool {
@@ -127,8 +128,20 @@ func main() {
 		}
 	}
 
+	// Initialize notification publisher
+	var notifier *notifypub.Publisher
+	if natsURL != "" {
+		np, err := notifypub.New(natsURL, "edd-compute")
+		if err != nil {
+			slog.Warn("failed to create notification publisher", "error", err)
+		} else {
+			notifier = np
+			defer notifier.Close()
+		}
+	}
+
 	// HTTP server with CORS
-	apiHandler := api.NewHandler(database, k8sClient)
+	apiHandler := api.NewHandler(database, k8sClient, notifier)
 	server := &http.Server{Addr: *addr, Handler: corsMiddleware(apiHandler)}
 
 	// Graceful shutdown

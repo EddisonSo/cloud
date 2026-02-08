@@ -7,6 +7,7 @@ toolchain go1.24.11
 require (
 	eddisonso.com/edd-cloud/pkg/events v0.0.0
 	eddisonso.com/go-gfs v0.0.0
+	eddisonso.com/notification-service v0.0.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -67,3 +68,5 @@ require (
 replace eddisonso.com/go-gfs => ../../../go-gfs
 
 replace eddisonso.com/edd-cloud/pkg/events => ../../pkg/events
+
+replace eddisonso.com/notification-service => ../../../notification-service
