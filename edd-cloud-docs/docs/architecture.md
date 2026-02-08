@@ -46,31 +46,31 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node | Architecture | OS | Role | Labels |
 |------|-------------|-----|------|--------|
-| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, gateway, GFS master | `db-role=primary`, `core-services=true` |
+| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, GFS master | `db-role=primary`, `core-services=true` |
 | rp1 | arm64 | Debian 11 (kernel 6.1) | Database replica, HAProxy | `db-role=replica` |
 | rp2 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp3 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp4 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
-| s1 | amd64 | - | GFS chunkserver | hostNetwork |
-| s2 | amd64 | - | GFS chunkserver | hostNetwork |
-| s3 | amd64 | - | GFS chunkserver | hostNetwork |
+| s1 | amd64 | Debian 13 (kernel 6.12) | Control plane, etcd, GFS chunkserver | hostNetwork |
+| s2 | amd64 | Debian 13 (kernel 6.12) | Control plane, etcd, GFS chunkserver | hostNetwork |
+| s3 | amd64 | Debian 13 (kernel 6.12) | Control plane, etcd, GFS chunkserver | hostNetwork |
 
 ### Service Distribution
 
 | Node(s) | Services |
 |---------|----------|
-| s0 | gateway, gfs-master, postgres-primary, postgres-replica-s0 |
+| s0 | gfs-master, postgres-primary, postgres-replica-s0 |
 | rp1 | postgres-replica, haproxy |
-| rp2, rp3, rp4 | auth-service, edd-compute, log-service, NATS, cluster-monitor, simple-file-share, edd-cloud-docs |
-| s1, s2, s3 | gfs-chunkservers (hostNetwork) |
+| rp2, rp3, rp4 | gateway, auth-service, edd-compute, log-service, NATS, cluster-monitor, simple-file-share, edd-cloud-docs, postgres-replicas |
+| s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
 ## Network Architecture
 
 ### Routing and Load Balancing
 
-The cluster uses a custom networking stack -- **not** the default K3s Traefik ingress or servicelb:
+The cluster uses a custom networking stack -- **not** the default K3s Traefik ingress or ServiceLB:
 
-- **Traefik and k3s servicelb are disabled** in `/etc/rancher/k3s/config.yaml`
+- **Traefik and k3s ServiceLB (Klipper) are disabled** in `/etc/rancher/k3s/config.yaml`
 - **MetalLB** (L2 mode) allocates virtual IPs for `LoadBalancer`-type services
 - **Calico** provides pod networking using a VXLAN overlay
 - **Gateway VIP**: `192.168.3.200` (allocated by MetalLB)
@@ -101,7 +101,7 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 
 | Service | Type | Ports | Protocol |
 |---------|------|-------|----------|
-| gateway | LoadBalancer | 80, 443, 2222 | HTTP/HTTPS/SSH |
+| gateway | LoadBalancer | 22, 80, 443, 8000-8999 | SSH/HTTP/HTTPS/Container ingress |
 | auth-service | ClusterIP | 80 | HTTP |
 | simple-file-share-backend | ClusterIP | 80 | HTTP |
 | simple-file-share-frontend | ClusterIP | 80 | HTTP |
@@ -149,7 +149,7 @@ Examples:
 
 ### SSH Access Flow
 
-1. Client connects to `cloud.eddisonso.com:2222` via SSH
+1. Client connects to `cloud.eddisonso.com:22` via SSH (port 22 maps to gateway's internal port 2222)
 2. Gateway accepts the SSH connection and authenticates using user-uploaded SSH keys
 3. Gateway proxies the SSH session to the target user container pod
 
@@ -186,7 +186,7 @@ This handles scenarios like:
 PostgreSQL runs in a high-availability configuration with streaming replication:
 
 - **Primary**: s0
-- **Replica**: rp1 (plus a replica pod on s0)
+- **Replicas**: rp1, rp2, rp3, rp4, s0 (5 replica pods for read scaling and redundancy)
 - **HAProxy**: Runs on rp1, provides connection pooling and automatic failover
 
 Each service owns its own database for loose coupling:
