@@ -61,7 +61,7 @@ func (p *Publisher) Close() {
 	p.nc.Close()
 }
 
-func (p *Publisher) Notify(ctx context.Context, userID, title, message, link, category string) error {
+func (p *Publisher) Notify(ctx context.Context, userID, title, message, link, category, scope string) error {
 	notification := &pb.Notification{
 		Metadata: &pbcommon.EventMetadata{
 			EventId:  generateUUID(),
@@ -76,6 +76,7 @@ func (p *Publisher) Notify(ctx context.Context, userID, title, message, link, ca
 		Message:  message,
 		Link:     link,
 		Category: category,
+		Scope:    scope,
 	}
 
 	data, err := proto.Marshal(notification)

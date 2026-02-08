@@ -129,7 +129,19 @@ func (c *Consumer) processMessage(msg jetstream.Msg) {
 		return
 	}
 
-	n, err := c.db.Insert(userID, notification.Title, notification.Message, notification.Link, notification.Category)
+	// Check if this notification is muted for the user
+	if notification.Scope != "" {
+		muted, err := c.db.IsMuted(userID, notification.Category, notification.Scope)
+		if err != nil {
+			slog.Error("failed to check mute status", "error", err, "user_id", userID)
+		} else if muted {
+			slog.Debug("notification muted", "user_id", userID, "category", notification.Category, "scope", notification.Scope)
+			msg.Ack()
+			return
+		}
+	}
+
+	n, err := c.db.Insert(userID, notification.Title, notification.Message, notification.Link, notification.Category, notification.Scope)
 	if err != nil {
 		slog.Error("failed to insert notification", "error", err, "user_id", userID)
 		msg.Nak()

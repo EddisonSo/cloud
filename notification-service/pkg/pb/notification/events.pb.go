@@ -30,6 +30,7 @@ type Notification struct {
 	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`             // Body text (e.g., "Container 'dev-box' is now running")
 	Link          string                 `protobuf:"bytes,5,opt,name=link,proto3" json:"link,omitempty"`                   // URL path to navigate to (e.g., "/compute/containers/abc")
 	Category      string                 `protobuf:"bytes,6,opt,name=category,proto3" json:"category,omitempty"`           // "compute", "storage", "auth", etc.
+	Scope         string                 `protobuf:"bytes,7,opt,name=scope,proto3" json:"scope,omitempty"`                 // Optional scope within category (e.g., storage namespace name)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -106,18 +107,26 @@ func (x *Notification) GetCategory() string {
 	return ""
 }
 
+func (x *Notification) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 var File_notification_events_proto protoreflect.FileDescriptor
 
 const file_notification_events_proto_rawDesc = "" +
 	"\n" +
-	"\x19notification/events.proto\x12\fnotification\x1a\x12common/types.proto\"\xba\x01\n" +
+	"\x19notification/events.proto\x12\fnotification\x1a\x12common/types.proto\"\xd0\x01\n" +
 	"\fNotification\x121\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x15.common.EventMetadataR\bmetadata\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12\x12\n" +
 	"\x04link\x18\x05 \x01(\tR\x04link\x12\x1a\n" +
-	"\bcategory\x18\x06 \x01(\tR\bcategoryB,Z*eddisonso.com/edd-cloud/proto/notificationb\x06proto3"
+	"\bcategory\x18\x06 \x01(\tR\bcategory\x12\x14\n" +
+	"\x05scope\x18\a \x01(\tR\x05scopeB,Z*eddisonso.com/edd-cloud/proto/notificationb\x06proto3"
 
 var (
 	file_notification_events_proto_rawDescOnce sync.Once

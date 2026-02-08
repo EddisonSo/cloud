@@ -13,4 +13,5 @@ message Notification {
   string message = 4;       // Body text (e.g., "Container 'dev-box' is now running")
   string link = 5;          // URL path to navigate to (e.g., "/compute/containers/abc")
   string category = 6;      // "compute", "storage", "auth", etc.
+  string scope = 7;          // Optional scope within category (e.g., storage namespace name)
 }

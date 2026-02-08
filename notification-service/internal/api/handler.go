@@ -43,6 +43,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notifications/unread-count", h.handleUnreadCount)
 	mux.HandleFunc("POST /api/notifications/{id}/read", h.handleMarkRead)
 	mux.HandleFunc("POST /api/notifications/read-all", h.handleMarkAllRead)
+	mux.HandleFunc("GET /api/notifications/mutes", h.handleListMutes)
+	mux.HandleFunc("PUT /api/notifications/mutes", h.handleAddMute)
+	mux.HandleFunc("DELETE /api/notifications/mutes", h.handleRemoveMute)
 	mux.HandleFunc("GET /healthz", h.handleHealthz)
 	mux.Handle("GET /ws/notifications", websocket.Handler(h.handleWS))
 }
@@ -161,6 +164,85 @@ func (h *Handler) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.db.MarkAllRead(userID); err != nil {
 		slog.Error("failed to mark all notifications read", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleListMutes(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.authenticate(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	mutes, err := h.db.ListMutes(userID)
+	if err != nil {
+		slog.Error("failed to list mutes", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if mutes == nil {
+		mutes = []db.NotificationMute{}
+	}
+
+	writeJSON(w, mutes)
+}
+
+func (h *Handler) handleAddMute(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.authenticate(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Category string `json:"category"`
+		Scope    string `json:"scope"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Category == "" || req.Scope == "" {
+		http.Error(w, "category and scope are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.db.AddMute(userID, req.Category, req.Scope); err != nil {
+		slog.Error("failed to add mute", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleRemoveMute(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.authenticate(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Category string `json:"category"`
+		Scope    string `json:"scope"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Category == "" || req.Scope == "" {
+		http.Error(w, "category and scope are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.db.RemoveMute(userID, req.Category, req.Scope); err != nil {
+		slog.Error("failed to remove mute", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -290,7 +372,7 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		if origin != "" && isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		}
 		if r.Method == http.MethodOptions {
