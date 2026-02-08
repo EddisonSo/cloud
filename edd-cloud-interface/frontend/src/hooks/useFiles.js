@@ -190,16 +190,17 @@ export function useFiles() {
     try {
       const response = await fetch(downloadUrl, { headers: getAuthHeaders() });
       if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
+      const blob = new Blob([await response.blob()], {
+        type: response.headers.get("Content-Type") || "application/octet-stream",
+      });
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = file.name;
-      link.style.display = "none";
       document.body.appendChild(link);
-      link.click();
+      link.dispatchEvent(new MouseEvent("click", { bubbles: false, cancelable: true }));
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
       setStatus(err.message);
     }
