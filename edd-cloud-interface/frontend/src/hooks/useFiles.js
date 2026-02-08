@@ -197,8 +197,9 @@ export function useFiles() {
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = file.name;
+      link.style.display = "none";
       document.body.appendChild(link);
-      link.dispatchEvent(new MouseEvent("click", { bubbles: false, cancelable: true }));
+      link.click();
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
