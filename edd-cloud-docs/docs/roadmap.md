@@ -11,6 +11,7 @@ sidebar_position: 10
 - [ ] **L4 load balancer pre-ingress** - Add TCP/UDP load balancer layer for distributed gateway deployment
 - [ ] **Connection pooling** - Reuse backend connections to reduce latency
 - [ ] **HTTP/2 support** - Enable gRPC and improved multiplexing
+- [ ] **Distributed gateway** - Run multiple gateway replicas across backend nodes with MetalLB load balancing. Removes gateway dependency on s0
 
 ### Distributed Gateway Architecture (Future)
 
@@ -32,6 +33,7 @@ flowchart TB
 - [ ] **Storage load balancing** - Distribute chunks based on capacity, I/O load, memory, and CPU heuristics
 - [ ] **Programmatic API** - Upload and download files via REST API for external integrations
 - [ ] **Chunkserver advertise-host flag** - Separate bind address from advertise address to enable Kubernetes deployments without hostNetwork
+- [ ] **Distributed GFS master** - Run multiple GFS master replicas with leader election and WAL replication for metadata high availability. Eliminates the single point of failure on s0
 
 ## Compute Improvements
 
@@ -57,8 +59,6 @@ flowchart TB
 - [ ] **Service health monitoring** - External uptime checks for critical endpoints
 - [ ] **Pod anti-affinity rules** - Spread critical service replicas across nodes
 - [x] **CI/CD deployment failure alerts** - Remove silent `|| true` from kubectl commands
-- [ ] **Distributed GFS master** - Run multiple GFS master replicas with leader election and WAL replication for metadata high availability. Eliminates the single point of failure on s0
-- [ ] **Distributed gateway** - Run multiple gateway replicas across backend nodes with MetalLB load balancing. Removes gateway dependency on s0
 
 ## Monitoring
 
