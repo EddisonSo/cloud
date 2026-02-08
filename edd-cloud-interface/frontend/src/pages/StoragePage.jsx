@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Modal } from "@/components/common";
 import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { TAB_COPY } from "@/lib/constants";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { buildStorageBase } from "@/lib/api";
-import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2, Server } from "lucide-react";
+import { buildStorageBase, buildNotificationsBase, getAuthHeaders } from "@/lib/api";
+import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2, Server, BellOff, Bell } from "lucide-react";
 
 export function StoragePage() {
   const copy = TAB_COPY.storage;
@@ -72,6 +73,38 @@ export function StoragePage() {
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [overwriteFileName, setOverwriteFileName] = useState("");
   const [storageStatus, setStorageStatus] = useState(null);
+  const [nsMuted, setNsMuted] = useState(false);
+  const [muteLoading, setMuteLoading] = useState(false);
+
+  const loadMuteStatus = useCallback(async (ns) => {
+    try {
+      const res = await fetch(`${buildNotificationsBase()}/api/notifications/mutes`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const mutes = await res.json();
+        setNsMuted(mutes.some((m) => m.category === "storage" && m.scope === ns));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleMute = async () => {
+    setMuteLoading(true);
+    try {
+      const res = await fetch(`${buildNotificationsBase()}/api/notifications/mutes`, {
+        method: nsMuted ? "DELETE" : "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ category: "storage", scope: activeNamespace }),
+      });
+      if (res.ok) setNsMuted(!nsMuted);
+    } catch {
+      // ignore
+    } finally {
+      setMuteLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadNamespaces();
@@ -85,6 +118,7 @@ export function StoragePage() {
   useEffect(() => {
     if (showNamespaceView && activeNamespace) {
       loadFiles(activeNamespace);
+      setNsMuted(false);
     }
   }, [showNamespaceView, activeNamespace, loadFiles]);
 
@@ -265,7 +299,7 @@ export function StoragePage() {
                     </p>
                   </div>
                   {user && (
-                    <Button variant="ghost" size="icon" onClick={() => setShowSettingsModal(true)}>
+                    <Button variant="ghost" size="icon" onClick={() => { setShowSettingsModal(true); loadMuteStatus(activeNamespace); }}>
                       <Settings className="w-4 h-4" />
                     </Button>
                   )}
@@ -424,6 +458,22 @@ export function StoragePage() {
               </p>
             </div>
           </button>
+          <div
+            className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary transition-colors"
+          >
+            {nsMuted ? <BellOff className="w-4 h-4 text-muted-foreground" /> : <Bell className="w-4 h-4 text-muted-foreground" />}
+            <div className="flex-1">
+              <span className="text-sm font-medium">Notifications</span>
+              <p className="text-xs text-muted-foreground">
+                {nsMuted ? "Muted — no upload or delete notifications" : "Active — receive notifications for this namespace"}
+              </p>
+            </div>
+            <Switch
+              checked={!nsMuted}
+              onCheckedChange={toggleMute}
+              disabled={muteLoading}
+            />
+          </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="w-full flex items-center gap-3 p-3 rounded-md bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive"

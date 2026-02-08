@@ -11,7 +11,6 @@ import {
   HealthPage,
   AdminPage,
   ServiceAccountsPage,
-  SettingsPage,
   NotFoundPage,
 } from "@/pages";
 
@@ -40,7 +39,6 @@ function App() {
               <Route path="/service-accounts/:id" element={<ServiceAccountsPage />} />
               <Route path="/auth-token" element={<Navigate to="/service-accounts" replace />} />
               <Route path="/auth-token/tokens" element={<Navigate to="/service-accounts/tokens" replace />} />
-              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>

@@ -35,7 +35,6 @@ export const NAV_ITEMS = [
     ],
   },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
-  { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
 ];
 
 export const ADMIN_NAV_ITEM = {
@@ -80,11 +79,6 @@ export const TAB_COPY = {
     eyebrow: "Auth",
     title: "Service Accounts",
     lead: "Create service accounts with scoped permissions and generate tokens for programmatic API access.",
-  },
-  settings: {
-    eyebrow: "Preferences",
-    title: "Settings",
-    lead: "Manage notification preferences and other account settings.",
   },
 };
 
