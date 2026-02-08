@@ -181,30 +181,22 @@ export function useFiles() {
     }
   }, [loadFiles]);
 
-  const downloadFile = useCallback(async (file) => {
+  const downloadFile = useCallback((file) => {
     const transferId = createTransferId();
+    const token = getAuthToken();
 
-    const downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
-
-    // Use fetch + blob to avoid cross-origin <a> navigation which kills SSE connections
-    try {
-      const response = await fetch(downloadUrl, { headers: getAuthHeaders() });
-      if (!response.ok) throw new Error("Download failed");
-      const blob = new Blob([await response.blob()], {
-        type: response.headers.get("Content-Type") || "application/octet-stream",
-      });
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = file.name;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-    } catch (err) {
-      setStatus(err.message);
+    let downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    if (token) {
+      downloadUrl += `&token=${encodeURIComponent(token)}`;
     }
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = file.name;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }, []);
 
   const deleteFile = useCallback(async (file, namespace, onComplete) => {
