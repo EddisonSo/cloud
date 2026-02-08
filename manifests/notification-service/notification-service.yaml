@@ -14,7 +14,7 @@ spec:
         app: notification-service
     spec:
       nodeSelector:
-        db-role: primary
+        core-services: "true"
       containers:
         - name: notification-service
           image: eddisonso/ecloud-notifications:latest
