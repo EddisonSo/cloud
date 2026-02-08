@@ -57,7 +57,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers \
       "id": "abc12345",
       "name": "my-app",
       "status": "running",
-      "hostname": "abc12345.compute.eddisonso.com",
+      "hostname": "abc12345.compute.cloud.eddisonso.com",
       "memory_mb": 512,
       "memory_used_mb": 256,
       "storage_gb": 5,
@@ -66,7 +66,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers \
       "created_at": "2024-01-15T10:30:00Z",
       "ssh_enabled": true,
       "https_enabled": false,
-      "ssh_command": "ssh root@abc12345.compute.eddisonso.com"
+      "ssh_command": "ssh root@abc12345.compute.cloud.eddisonso.com"
     }
   ]
 }
@@ -110,7 +110,7 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers \
   "id": "abc12345",
   "name": "my-app",
   "status": "pending",
-  "hostname": "abc12345.compute.eddisonso.com",
+  "hostname": "abc12345.compute.cloud.eddisonso.com",
   "memory_mb": 512,
   "storage_gb": 5,
   "instance_type": "nano",
@@ -145,7 +145,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers/abc12345 \
   "id": "abc12345",
   "name": "my-app",
   "status": "running",
-  "hostname": "abc12345.compute.eddisonso.com",
+  "hostname": "abc12345.compute.cloud.eddisonso.com",
   "memory_mb": 512,
   "memory_used_mb": 256,
   "storage_gb": 5,
@@ -154,7 +154,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers/abc12345 \
   "created_at": "2024-01-15T10:30:00Z",
   "ssh_enabled": true,
   "https_enabled": false,
-  "ssh_command": "ssh root@abc12345.compute.eddisonso.com"
+  "ssh_command": "ssh root@abc12345.compute.cloud.eddisonso.com"
 }
 ```
 
@@ -209,7 +209,7 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sta
   "id": "abc12345",
   "name": "my-app",
   "status": "pending",
-  "hostname": "abc12345.compute.eddisonso.com",
+  "hostname": "abc12345.compute.cloud.eddisonso.com",
   "memory_mb": 512,
   "storage_gb": 5,
   "instance_type": "nano",
@@ -244,7 +244,7 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sto
   "id": "abc12345",
   "name": "my-app",
   "status": "stopped",
-  "hostname": "abc12345.compute.eddisonso.com",
+  "hostname": "abc12345.compute.cloud.eddisonso.com",
   "memory_mb": 512,
   "storage_gb": 5,
   "instance_type": "nano",

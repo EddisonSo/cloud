@@ -551,7 +551,7 @@ func containerToResponse(c *db.Container) containerResponse {
 	if len(shortID) > 8 {
 		shortID = shortID[:8]
 	}
-	hostname := fmt.Sprintf("%s.compute.eddisonso.com", shortID)
+	hostname := fmt.Sprintf("%s.compute.cloud.eddisonso.com", shortID)
 
 	resp := containerResponse{
 		ID:           c.ID,
