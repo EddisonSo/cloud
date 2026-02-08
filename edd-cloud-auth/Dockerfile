@@ -3,7 +3,7 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /build
 
 # Install dependencies
-RUN apk add --no-cache git protobuf-dev
+RUN apk add --no-cache git protobuf-dev make
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 # Copy go-gfs dependency

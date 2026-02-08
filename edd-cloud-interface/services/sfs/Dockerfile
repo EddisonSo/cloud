@@ -4,7 +4,7 @@ ENV GOTOOLCHAIN=auto
 ENV CGO_ENABLED=0
 WORKDIR /src
 
-RUN apk add --no-cache protobuf-dev make
+RUN apt-get update && apt-get install -y --no-install-recommends protobuf-compiler make && rm -rf /var/lib/apt/lists/*
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 COPY go-gfs /go-gfs
