@@ -18,9 +18,13 @@ func init() {
 }
 
 // GetSecret retrieves the shared secret for signing and verifying JWTs.
+// When token is nil (signing path), returns the secret directly.
+// When token is non-nil (verification path), validates the signing method.
 func GetSecret(token *jwt.Token) (any, error) {
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	if token != nil {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 	}
 	return jwtSecret, nil
 }
