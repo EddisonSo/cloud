@@ -81,7 +81,7 @@ curl -X POST https://storage.cloud.eddisonso.com/storage/namespaces \
 
 ### DELETE /storage/namespaces/:name
 
-Delete a namespace and all its files.
+Delete a namespace and all its files. Triggers a "Namespace Deleted" notification.
 
 **Auth:** Session / API token
 **Token Scope:** `storage.<uid>.namespaces.<name>` with `delete`
@@ -198,7 +198,7 @@ curl -X POST "https://storage.cloud.eddisonso.com/storage/upload?namespace=my-fi
 }
 ```
 
-Returns `409` if the file already exists and `overwrite` is not set.
+Returns `409` if the file already exists and `overwrite` is not set. Triggers a "File Uploaded" notification.
 
 ---
 
@@ -228,7 +228,7 @@ curl -o report.pdf \
 
 ### DELETE /storage/delete
 
-Delete a file.
+Delete a file. Triggers a "File Deleted" notification.
 
 **Auth:** Session / API token
 **Token Scope:** `storage.<uid>.files.<namespace>` with `delete`

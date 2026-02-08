@@ -56,6 +56,9 @@ All REST endpoints require a `Bearer` JWT in the `Authorization` header.
 | `GET` | `/api/notifications/unread-count` | Get count of unread notifications |
 | `POST` | `/api/notifications/{id}/read` | Mark a specific notification as read |
 | `POST` | `/api/notifications/read-all` | Mark all notifications as read |
+| `GET` | `/api/notifications/mutes` | List user's muted notification scopes |
+| `PUT` | `/api/notifications/mutes` | Mute notifications for a category/scope |
+| `DELETE` | `/api/notifications/mutes` | Unmute notifications for a category/scope |
 | `GET` | `/healthz` | Health check |
 
 ### WebSocket
@@ -87,6 +90,7 @@ Notifications are returned ordered by `created_at DESC` (newest first).
   "message": "Container 'dev-box' is now running",
   "link": "/compute/containers/abc",
   "category": "compute",
+  "scope": "",
   "read": false,
   "created_at": "2026-02-08T14:30:00Z"
 }
@@ -107,6 +111,44 @@ Notifications are returned ordered by `created_at DESC` (newest first).
   "status": "ok"
 }
 ```
+
+### Notification Mutes
+
+**`GET /api/notifications/mutes`** — List all muted scopes for the authenticated user.
+
+```json
+[
+  {
+    "id": 1,
+    "user_id": "abc123",
+    "category": "storage",
+    "scope": "my-files",
+    "created_at": "2026-02-08T14:30:00Z"
+  }
+]
+```
+
+**`PUT /api/notifications/mutes`** — Mute a category/scope combination.
+
+Request body:
+```json
+{
+  "category": "storage",
+  "scope": "my-files"
+}
+```
+
+**`DELETE /api/notifications/mutes`** — Unmute a category/scope combination.
+
+Request body:
+```json
+{
+  "category": "storage",
+  "scope": "my-files"
+}
+```
+
+Both `category` and `scope` are required. Returns `{"status": "ok"}` on success.
 
 ## WebSocket Connection
 
@@ -167,6 +209,7 @@ message Notification {
   string message = 4;
   string link = 5;
   string category = 6;
+  string scope = 7;           // Optional scope within category (e.g., storage namespace)
 }
 ```
 
@@ -187,16 +230,19 @@ err = pub.Notify(ctx, userID, "Container Ready",
     "Container 'dev-box' is now running",
     "/compute/containers/abc",
     "compute",
+    "",              // scope (empty for non-scoped notifications)
 )
 ```
 
+The `scope` parameter enables per-scope muting. For storage notifications, pass the namespace name as the scope so users can mute notifications from specific namespaces.
+
 ## Notification Categories
 
-| Category | Source | Examples |
-|----------|--------|----------|
-| `compute` | Compute Service | Container started, container stopped, build completed |
-| `storage` | Storage Service | Upload completed, namespace created |
-| `auth` | Auth Service | Password changed, new login detected |
+| Category | Source | Scope | Examples |
+|----------|--------|-------|----------|
+| `compute` | Compute Service | (none) | Container started, container stopped |
+| `storage` | Storage Service | namespace name | File uploaded, file deleted, namespace deleted |
+| `auth` | Auth Service | (none) | Service account created, service account deleted |
 
 ## Database Schema
 
@@ -208,15 +254,30 @@ CREATE TABLE notifications (
     message TEXT NOT NULL,
     link TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '',
+    scope TEXT NOT NULL DEFAULT '',
     read BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_notifications_user_unread
     ON notifications (user_id, read, created_at DESC);
+
+CREATE TABLE notification_mutes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, category, scope)
+);
+
+CREATE INDEX idx_notification_mutes_user
+    ON notification_mutes (user_id);
 ```
 
 The composite index on `(user_id, read, created_at DESC)` optimizes the most common query patterns: listing a user's notifications and counting unread items.
+
+The `notification_mutes` table stores per-user mute preferences. When a notification arrives with a matching `(category, scope)`, it is silently dropped by the consumer.
 
 ## Configuration
 
