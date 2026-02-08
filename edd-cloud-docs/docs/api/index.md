@@ -19,7 +19,7 @@ All authenticated endpoints accept a JWT in the `Authorization: Bearer <token>` 
 - [**Auth API**](auth) — Login, sessions, and API token management
 - [**Compute API**](compute) — Containers, SSH keys, ingress, and terminal access
 - [**Storage API**](storage) — Namespaces, file upload/download, and public access
-- [**Notifications**](/docs/services/notifications) — Real-time notifications, mute preferences, and WebSocket push
+- [**Notifications**](../services/notifications) — Real-time notifications, mute preferences, and WebSocket push
 
 ---
 
