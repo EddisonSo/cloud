@@ -190,13 +190,11 @@ export function useFiles() {
       downloadUrl += `&token=${encodeURIComponent(token)}`;
     }
 
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = file.name;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = downloadUrl;
+    document.body.appendChild(iframe);
+    setTimeout(() => iframe.remove(), 60000);
   }, []);
 
   const deleteFile = useCallback(async (file, namespace, onComplete) => {
