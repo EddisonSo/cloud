@@ -62,9 +62,9 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node(s) | Services |
 |---------|----------|
-| s0 | gfs-master, postgres-primary, postgres-replica-s0 |
+| s0 | gateway, gfs-master, notification-service, postgres-primary, postgres-replica-s0 |
 | rp1 | postgres-replica, haproxy |
-| rp2, rp3, rp4 | gateway, auth-service, edd-compute, log-service, NATS, cluster-monitor, simple-file-share, notification-service, edd-cloud-docs, postgres-replicas |
+| rp2, rp3, rp4 | auth-service, edd-compute, log-service, NATS, cluster-monitor, simple-file-share, edd-cloud-docs, postgres-replicas |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
 ## Network Architecture

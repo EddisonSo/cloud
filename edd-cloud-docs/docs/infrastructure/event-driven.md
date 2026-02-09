@@ -23,10 +23,10 @@ Auth-service is the single source of truth for user data. Other services maintai
 │  (auth_db)  │                                    │
 └─────────────┘                     ┌──────────────┼──────────────┐
                                     ▼              ▼              ▼
-                              ┌──────────┐  ┌──────────┐  ┌─────────┐
-                              │   SFS    │  │ Compute  │  │ Gateway │
-                              │ (sfs_db) │  │(compute) │  │(gateway)│
-                              └──────────┘  └──────────┘  └─────────┘
+                              ┌──────────┐  ┌──────────┐  ┌─────────┐  ┌──────────────┐
+                              │   SFS    │  │ Compute  │  │ Gateway │  │ Notifications│
+                              │ (sfs_db) │  │(compute) │  │(gateway)│  │(notifications)│
+                              └──────────┘  └──────────┘  └─────────┘  └──────────────┘
 ```
 
 ## Service Boundaries
@@ -39,6 +39,7 @@ Each service owns its data and publishes events for others to consume:
 | **SFS** | `sfs_db` | namespaces, files, user_cache | `sfs.*` | `auth.user.*` |
 | **Compute** | `compute_db` | containers, ssh_keys, user_cache | `compute.*` | `auth.user.*` |
 | **Gateway** | `gateway_db` | routes, ingress_rules | `gateway.*` | `compute.container.*` |
+| **Notifications** | `notifications_db` | notifications, mutes | - | `notify.>` |
 
 ## Event Flow Examples
 

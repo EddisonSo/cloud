@@ -22,7 +22,7 @@ flowchart TB
 
     NATS --> SFS[SFS]
     NATS --> Gateway[Gateway]
-    NATS --> Other[...]
+    NATS --> Notif[Notifications]
 ```
 
 ## JetStream Streams
@@ -33,6 +33,7 @@ flowchart TB
 | `COMPUTE` | `compute.>` | 7 days | Container and SSH key events |
 | `GATEWAY` | `gateway.>` | 7 days | Routing events |
 | `SFS` | `sfs.>` | 7 days | Namespace and file events |
+| `NOTIFICATIONS` | `notify.>` | 7 days | Push notifications to users |
 
 ## Configuration
 

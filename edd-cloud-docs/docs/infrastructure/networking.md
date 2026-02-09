@@ -78,6 +78,7 @@ eddisonso.com
 ├── storage.cloud.eddisonso.com     # Storage API (SFS)
 ├── compute.cloud.eddisonso.com     # Compute API
 ├── health.cloud.eddisonso.com      # Health/Monitoring API + Log streaming
+├── notifications.cloud.eddisonso.com  # Notification API + WebSocket push
 └── docs.cloud.eddisonso.com        # Documentation site
 ```
 
@@ -128,6 +129,7 @@ The gateway determines the backend target based on the `Host` header and request
 | `compute.cloud.eddisonso.com` | `/` | edd-compute:80 |
 | `health.cloud.eddisonso.com` | `/` | cluster-monitor:80 |
 | `health.cloud.eddisonso.com` | `/logs` | log-service:80 |
+| `notifications.cloud.eddisonso.com` | `/` | notification-service:80 |
 | `docs.cloud.eddisonso.com` | `/` | edd-cloud-docs:80 |
 
 Route configuration is managed in the `gateway-routes` ConfigMap (`edd-gateway/manifests/gateway-routes.yaml`).
@@ -178,6 +180,7 @@ Services are split across subdomains to avoid browser connection limits (6 per d
 | `storage.cloud.eddisonso.com` | File uploads/downloads, SSE progress |
 | `compute.cloud.eddisonso.com` | Container CRUD, WebSocket status |
 | `health.cloud.eddisonso.com` | Metrics SSE, log streaming SSE |
+| `notifications.cloud.eddisonso.com` | Notification API, WebSocket push |
 
 ## Internal Network
 
@@ -218,6 +221,8 @@ GFS chunkservers run with `hostNetwork: true` on s1, s2, and s3, binding directl
 | edd-compute | ClusterIP | 80 | HTTP |
 | cluster-monitor | ClusterIP | 80 | HTTP |
 | log-service | ClusterIP | 50051, 80 | gRPC, HTTP |
+| notification-service | ClusterIP | 80 | HTTP, WebSocket |
+| edd-cloud-docs | ClusterIP | 80 | HTTP |
 | gfs-master | ClusterIP | 9000 | gRPC |
 | gfs-chunkserver-N | hostNetwork | 8080, 8081 | TCP, gRPC |
 | postgres | ClusterIP | 5432 | PostgreSQL |
