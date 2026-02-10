@@ -13,17 +13,19 @@ export function NamespaceCard({
     <div
       onClick={() => onSelect?.(namespace.name)}
       className={cn(
-        "flex flex-col gap-3 p-4 rounded-lg border cursor-pointer transition-all",
-        "bg-secondary hover:border-primary",
-        isActive && "border-primary bg-primary/10",
+        "grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer transition-all hover:bg-secondary/80",
+        isActive && "border border-primary bg-primary/10",
         visibility < 2 && "opacity-80"
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-semibold text-sm">{namespace.name}</h3>
-        </div>
+      <div className="flex items-center gap-2 min-w-0">
+        <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="font-medium truncate">{namespace.name}</span>
+      </div>
+      <div className="text-center text-sm text-muted-foreground">
+        {namespace.count} {namespace.count === 1 ? "file" : "files"}
+      </div>
+      <div className="text-center">
         {visibility === 0 && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
             Private
@@ -34,10 +36,12 @@ export function NamespaceCard({
             Unlisted
           </span>
         )}
+        {visibility === 2 && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-500">
+            Public
+          </span>
+        )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {namespace.count} {namespace.count === 1 ? "file" : "files"}
-      </p>
     </div>
   );
 }

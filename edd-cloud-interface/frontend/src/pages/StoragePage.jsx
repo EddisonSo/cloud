@@ -223,28 +223,38 @@ export function StoragePage() {
               </Button>
             )}
 
-            {/* Namespace Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {namespacesLoading ? (
-                <>
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="p-4 rounded-lg border border-border bg-card">
-                      <Skeleton className="h-5 w-24 mb-2" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                  ))}
-                </>
-              ) : (
-                namespaces.map((ns) => (
+            {/* Namespace List */}
+            {namespacesLoading ? (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-3 bg-secondary rounded-md">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-16 mx-auto" />
+                    <Skeleton className="h-4 w-14 mx-auto" />
+                  </div>
+                ))}
+              </div>
+            ) : namespaces.length === 0 ? (
+              <p className="text-muted-foreground py-4">No namespaces yet. Create one to start uploading files.</p>
+            ) : (
+              <div className="space-y-2">
+                {/* Header */}
+                <div className="grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div>Name</div>
+                  <div className="text-center">Files</div>
+                  <div className="text-center">Visibility</div>
+                </div>
+                {/* Rows */}
+                {namespaces.map((ns) => (
                   <NamespaceCard
                     key={ns.name}
                     namespace={ns}
                     isActive={activeNamespace === ns.name}
                     onSelect={handleOpenNamespace}
                   />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Chunkserver count */}
             {storageStatus && (
