@@ -159,10 +159,13 @@ curl https://auth.cloud.eddisonso.com/api/tokens \
     },
     "expires_at": 1720000000,
     "created_at": 1712224000,
-    "last_used_at": 1712300000
+    "last_used_at": 1712300000,
+    "service_account_id": null
   }
 ]
 ```
+
+For tokens bound to a service account, `service_account_id` will contain the service account ID instead of `null`.
 
 ---
 

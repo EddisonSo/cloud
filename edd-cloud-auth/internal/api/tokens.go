@@ -35,13 +35,14 @@ type createTokenRequest struct {
 }
 
 type tokenResponse struct {
-	ID         string              `json:"id"`
-	Name       string              `json:"name"`
-	Scopes     map[string][]string `json:"scopes"`
-	ExpiresAt  int64               `json:"expires_at"`
-	LastUsedAt int64               `json:"last_used_at"`
-	CreatedAt  int64               `json:"created_at"`
-	Token      string              `json:"token,omitempty"` // Only on creation
+	ID               string              `json:"id"`
+	Name             string              `json:"name"`
+	Scopes           map[string][]string `json:"scopes"`
+	ExpiresAt        int64               `json:"expires_at"`
+	LastUsedAt       int64               `json:"last_used_at"`
+	CreatedAt        int64               `json:"created_at"`
+	ServiceAccountID *string             `json:"service_account_id,omitempty"`
+	Token            string              `json:"token,omitempty"` // Only on creation
 }
 
 func (h *Handler) handleCreateToken(w http.ResponseWriter, r *http.Request) {
@@ -169,12 +170,13 @@ func (h *Handler) handleListTokens(w http.ResponseWriter, r *http.Request) {
 	resp := make([]tokenResponse, 0, len(tokens))
 	for _, t := range tokens {
 		resp = append(resp, tokenResponse{
-			ID:         t.ID,
-			Name:       t.Name,
-			Scopes:     t.Scopes,
-			ExpiresAt:  t.ExpiresAt,
-			LastUsedAt: t.LastUsedAt,
-			CreatedAt:  t.CreatedAt,
+			ID:               t.ID,
+			Name:             t.Name,
+			Scopes:           t.Scopes,
+			ExpiresAt:        t.ExpiresAt,
+			LastUsedAt:       t.LastUsedAt,
+			CreatedAt:        t.CreatedAt,
+			ServiceAccountID: t.ServiceAccountID,
 		})
 	}
 
