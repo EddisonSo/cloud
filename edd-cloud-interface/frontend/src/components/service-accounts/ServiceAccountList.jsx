@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildAuthBase, getAuthHeaders } from "@/lib/api";
-import { scopeSummary, PermissionPicker } from "./PermissionPicker";
+import { PermissionPicker } from "./PermissionPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, KeyRound } from "lucide-react";
 
@@ -61,15 +61,12 @@ export function ServiceAccountList() {
           <CardHeader>
             <Skeleton className="h-5 w-36" />
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="p-3 rounded-md border border-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-                <Skeleton className="h-3 w-48 mb-1" />
-                <Skeleton className="h-3 w-28" />
+              <div key={i} className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-16 mx-auto" />
+                <Skeleton className="h-4 w-20 mx-auto" />
               </div>
             ))}
           </CardContent>
@@ -109,24 +106,29 @@ export function ServiceAccountList() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
+              {/* Header */}
+              <div className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Name</div>
+                <div className="text-center">Tokens</div>
+                <div className="text-center">Created</div>
+              </div>
+              {/* Rows */}
               {accounts.map((sa) => (
                 <button
                   key={sa.id}
                   onClick={() => navigate(`/service-accounts/${sa.id}`)}
-                  className="w-full text-left flex items-center justify-between p-3 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                  className="w-full grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer transition-all hover:bg-secondary/80"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{sa.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {sa.token_count} token{sa.token_count !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-0.5">
-                      <p>{scopeSummary(sa.scopes)}</p>
-                      <p>Created {formatDate(sa.created_at)}</p>
-                    </div>
+                  <div className="flex items-center gap-2 min-w-0 text-left">
+                    <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate">{sa.name}</span>
+                  </div>
+                  <div className="text-center text-sm text-muted-foreground">
+                    {sa.token_count} {sa.token_count === 1 ? "token" : "tokens"}
+                  </div>
+                  <div className="text-center text-sm text-muted-foreground">
+                    {formatDate(sa.created_at)}
                   </div>
                 </button>
               ))}
