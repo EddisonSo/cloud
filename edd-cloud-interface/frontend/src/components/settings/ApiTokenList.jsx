@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   buildAuthBase,
   getAuthHeaders,
@@ -93,14 +92,13 @@ export function ApiTokenList() {
           <CardHeader>
             <Skeleton className="h-5 w-28" />
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="p-3 rounded-md border border-border">
-                <div className="flex items-center gap-2 mb-1">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <Skeleton className="h-3 w-52" />
+              <div key={i} className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-20 mx-auto" />
+                <Skeleton className="h-4 w-16 mx-auto" />
+                <Skeleton className="h-4 w-20 mx-auto" />
               </div>
             ))}
           </CardContent>
@@ -177,33 +175,46 @@ export function ApiTokenList() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {tokens.map((token) => (
-                <div
-                  key={token.id}
-                  className="p-3 rounded-md border border-border bg-secondary/30"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">{token.name}</span>
-                    {token.service_account_id && saMap[token.service_account_id] && (
-                      <Badge variant="outline" className="text-xs">
-                        {saMap[token.service_account_id]}
-                      </Badge>
-                    )}
-                    {!token.service_account_id && (
-                      <Badge variant="secondary" className="text-xs">standalone</Badge>
-                    )}
-                    {token.expires_at > 0 && token.expires_at < Date.now() / 1000 && (
-                      <Badge variant="destructive" className="text-xs">Expired</Badge>
-                    )}
+            <div className="space-y-2">
+              {/* Header */}
+              <div className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div>Name</div>
+                <div className="text-center">Account</div>
+                <div className="text-center">Expires</div>
+                <div className="text-center">Created</div>
+              </div>
+              {/* Rows */}
+              {tokens.map((token) => {
+                const expired = token.expires_at > 0 && token.expires_at < Date.now() / 1000;
+                return (
+                  <div
+                    key={token.id}
+                    className={`grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md items-center${expired ? " opacity-60" : ""}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium truncate">{token.name}</span>
+                    </div>
+                    <div className="text-center text-sm text-muted-foreground truncate">
+                      {token.service_account_id && saMap[token.service_account_id]
+                        ? saMap[token.service_account_id]
+                        : "standalone"}
+                    </div>
+                    <div className="text-center text-sm">
+                      {expired ? (
+                        <span className="text-destructive">Expired</span>
+                      ) : token.expires_at > 0 ? (
+                        <span className="text-muted-foreground">{formatRelative(token.expires_at)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Never</span>
+                      )}
+                    </div>
+                    <div className="text-center text-sm text-muted-foreground">
+                      {formatDate(token.created_at)}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Created {formatDate(token.created_at)}
-                    {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
-                    {token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
