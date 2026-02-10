@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ function formatRelative(unix) {
 }
 
 export function ApiTokenList() {
+  const navigate = useNavigate();
   const [tokens, setTokens] = useState([]);
   const [serviceAccounts, setServiceAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,7 +165,7 @@ export function ApiTokenList() {
       {/* Token list */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Active tokens</CardTitle>
+          <CardTitle className="text-base">Active Tokens</CardTitle>
         </CardHeader>
         <CardContent>
           {tokens.length === 0 ? (
@@ -195,10 +197,17 @@ export function ApiTokenList() {
                       <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
                       <span className="font-medium truncate">{token.name}</span>
                     </div>
-                    <div className="text-center text-sm text-muted-foreground truncate">
-                      {token.service_account_id && saMap[token.service_account_id]
-                        ? saMap[token.service_account_id]
-                        : "standalone"}
+                    <div className="text-center text-sm truncate">
+                      {token.service_account_id && saMap[token.service_account_id] ? (
+                        <button
+                          onClick={() => navigate(`/service-accounts/${token.service_account_id}`)}
+                          className="text-primary hover:underline cursor-pointer"
+                        >
+                          {saMap[token.service_account_id]}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">standalone</span>
+                      )}
                     </div>
                     <div className="text-center text-sm">
                       {expired ? (
