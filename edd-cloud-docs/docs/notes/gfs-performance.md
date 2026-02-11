@@ -17,6 +17,8 @@ Performance findings from load testing file retrieval through the storage API (`
 
 ### Throughput Scaling
 
+**Before fixes** (gateway 500m CPU, HAProxy 100m CPU, PostgreSQL 500m CPU):
+
 | Concurrency | Ops/sec | Throughput | Notes |
 |-------------|---------|------------|-------|
 | 10 (keep-alive) | 44 | ~54 Mb/s | Single clean run |
@@ -25,6 +27,15 @@ Performance findings from load testing file retrieval through the storage API (`
 | 10 (no keep-alive) | 41 | ~50 Mb/s | New TLS connection per request |
 | 1000 (keep-alive) | 121 | ~147 Mb/s | Approaching network cap |
 | 1000 (no keep-alive) | 108 | ~133 Mb/s | ~9% overhead from TLS handshakes |
+
+**After fixes** (gateway 2000m, HAProxy 500m, PostgreSQL 1000m):
+
+| Concurrency | Ops/sec | Throughput | Notes |
+|-------------|---------|------------|-------|
+| 5 (no keep-alive) | 96 | ~118 Mb/s | +140% vs before |
+| 10 (no keep-alive) | 91 | ~112 Mb/s | +117% vs before |
+| 25 (no keep-alive) | 63 | ~77 Mb/s | Bandwidth/TLS limited |
+| 50 (no keep-alive) | 61 | ~75 Mb/s | +69% vs before |
 
 ### Per-Request Latency Breakdown
 
@@ -86,7 +97,7 @@ client -> gateway (TLS termination + reverse proxy)
 
 ## Latency Under Concurrency
 
-Latency distribution measured with per-request timing (15s runs, no keep-alive):
+Latency distribution measured with per-request timing (15s runs, no keep-alive). **Before CPU limit fixes:**
 
 | Workers | Ops/sec | p50 | p90 | p99 | max |
 |---------|---------|-----|-----|-----|-----|
@@ -96,7 +107,7 @@ Latency distribution measured with per-request timing (15s runs, no keep-alive):
 | 5 | 99 | 39ms | 90ms | 204ms | 26s |
 | 10 | 40 | 109ms | 612ms | 977ms | 1.3s |
 
-Throughput scales linearly from 1-5 workers (22→99 ops/sec) then collapses at 10. The health endpoint (19 bytes) scales to 333 ops/sec at 10 workers with p99 under 50ms — proving the issue is bandwidth, not server capacity.
+Throughput scaled linearly from 1-5 workers (22→99 ops/sec) then collapsed at 10. Root cause was CFS CPU throttling on HAProxy and PostgreSQL (see below).
 
 ### Control: Health Endpoint (no GFS, 19 bytes)
 
@@ -108,26 +119,63 @@ Throughput scales linearly from 1-5 workers (22→99 ops/sec) then collapses at 
 
 Linear scaling, no tail latency. All internal components (gateway, TLS, backend services) have ample headroom.
 
-## Primary Bottleneck: External Bandwidth (200 Mb/s)
+## Primary Bottleneck: CFS CPU Throttling (resolved)
 
-At 5 workers × 99 ops/sec × 155KB = ~120 Mb/s — the external link is 60% full. Adding more workers causes TCP queuing and tail latency explodes.
+The throughput cliff at 5-6 workers was caused by **Linux CFS CPU throttling** on the database path. Every file download queries PostgreSQL for namespace visibility (`canAccessNamespace`), and both HAProxy and PostgreSQL had tight CPU limits.
 
-**Layer-by-layer isolation** confirmed this:
+### Root Cause: CPU Cgroup Throttling
+
+When a pod exceeds its CPU limit, the CFS scheduler pauses all its processes for the remainder of the 100ms period. This caused ~90ms latency spikes on every throttled query.
+
+| Component | Old CPU Limit | Throttle Events | Effect |
+|-----------|---------------|-----------------|--------|
+| HAProxy | **100m** | 8,456 | 53.6% of queries >10ms at c=10 |
+| PostgreSQL | **500m** | 3,784 | 27.1% of queries >10ms at c=10 |
+
+### Evidence
+
+**DB query benchmarks (inside SFS pod, namespace lookup query):**
+
+| Target | c=1 ops/sec | c=10 ops/sec | Spike rate at c=10 |
+|--------|-------------|--------------|-------------------|
+| Via HAProxy (100m CPU) | 165 | 168 (flat!) | 53.6% |
+| Direct to PostgreSQL (500m CPU) | 746 | 381 | 27.1% |
+
+HAProxy at 100m was the primary bottleneck — only 10% of a CPU core for proxying all database traffic.
+
+### Fix Applied
+
+| Component | Before | After |
+|-----------|--------|-------|
+| Gateway | 500m | **2000m** |
+| HAProxy | 100m | **500m** |
+| PostgreSQL | 500m | **1000m** |
+
+**After fix — DB query throughput through HAProxy:**
+
+| Workers | Before (ops/sec) | After (ops/sec) | Improvement |
+|---------|------------------|-----------------|-------------|
+| c=1 | 165 | 631 | 3.8x |
+| c=3 | 134 | 892 | 6.7x |
+| c=5 | 152 | 828 | 5.4x |
+| c=10 | 168 | 874 | 5.2x |
+
+Spike rate at c=10 dropped from 53.6% to 13.6%.
+
+### Layer-by-Layer Isolation
 
 | Test | Ops/sec (10 workers) | p50 | Conclusion |
 |------|---------------------|-----|------------|
-| Full stack (gateway + TLS) | 40 | 109ms | - |
-| Direct to SFS (in-cluster, no TLS) | 43 | 108ms | Gateway/TLS add <5% overhead |
+| Full stack (gateway + TLS) | 91 | — | After fix |
+| Direct to SFS (in-cluster, no TLS) | 43 | 108ms | Before fix; gateway/TLS add <5% overhead |
 | Health endpoint (no GFS) | 333 | 30ms | GFS path adds ~7ms per request internally |
 | GFS read (inside SFS pod, 10 concurrent) | 550 | 17ms | Internal GFS capacity far exceeds external link |
 
-The gateway and TLS are not significant contributors. The GFS read path adds only ~7ms internally, but under concurrent external load the 200 Mb/s bandwidth cap causes TCP queuing and tail latency explosion.
+## Remaining Bottlenecks
 
-## Secondary Bottlenecks
+### 1. External Bandwidth (200 Mb/s)
 
-### 1. Gateway CPU Limit (resolved)
-
-The gateway was configured with a 500m CPU limit. Under load it hit 492m/500m — fully saturated. Raising the limit to 2000m resolved this.
+At peak throughput (96 ops/sec × 155KB = ~118 Mb/s), the external link is ~59% utilized. TLS handshake overhead (~17ms per connection with no keep-alive) limits per-worker bandwidth utilization.
 
 ### 2. Duplicate GFS Master Calls
 
@@ -137,11 +185,11 @@ Each file read makes **two** gRPC calls to the GFS master:
 
 The SDK has a `getCachedChunks` method for caching chunk locations, but `ReadToWithNamespace` calls the master directly instead of using it.
 
-### 3. Gateway Forces Connection: close
+### 4. Gateway Forces Connection: close
 
 The gateway injects `Connection: close` on every proxied request and opens a new TCP connection to the backend per request. This prevents HTTP keep-alive between gateway and backend.
 
-### 4. No Caching Layer
+### 5. No Caching Layer
 
 There is no caching at the SFS level. Every request reads from GFS end-to-end, even for the same file requested thousands of times.
 
