@@ -28,7 +28,7 @@ Performance findings from load testing file retrieval through the storage API (`
 
 ### Per-Request Latency Breakdown
 
-From a single request with `curl`:
+From a single external request with `curl`:
 
 | Phase | Time | % of Total |
 |-------|------|------------|
@@ -40,6 +40,37 @@ From a single request with `curl`:
 | **Total** | **87ms** | |
 
 Only **6%** of the request time is spent transferring data. The rest is overhead.
+
+### Internal GFS Read Path Breakdown
+
+Measured by running benchmarks directly inside the SFS pod (eliminating all external network overhead):
+
+| Operation | p50 | Description |
+|-----------|-----|-------------|
+| `GetFile` gRPC | 0.67ms | Master metadata lookup |
+| `GetChunkLocations` gRPC | 0.71ms | Master chunk location lookup |
+| Chunkserver TCP read (155KB) | ~5.5ms | Connect + transfer from chunkserver |
+| **Full GFS read** (all combined) | **6.4ms** | Two gRPC calls + chunkserver read |
+| **SFS handler simulation** | **6.9ms** | GetFile + Full Read (what the HTTP handler does) |
+| SFS HTTP overhead (no GFS) | 3.7ms | Handler routing, response writing |
+| **Total in-cluster HTTP request** | **~11ms** | SFS HTTP + GFS read |
+
+The GFS master is fast (~8000 ops/sec for metadata lookups). The chunkserver TCP read dominates the internal path.
+
+**Internal capacity: 550 ops/sec** (10 concurrent) = 83 MB/s through GFS — far exceeding the 200 Mb/s external link.
+
+### External Overhead Stack
+
+For a single external request (~46ms):
+
+```
+GFS read (master + chunkserver):    ~7ms
+SFS HTTP handler:                   ~4ms
+Gateway TCP proxy:                  ~1ms
+TLS handshake:                     ~17ms
+TCP + DNS:                         ~17ms
+Total:                             ~46ms
+```
 
 ## Request Path
 
@@ -87,9 +118,10 @@ At 5 workers × 99 ops/sec × 155KB = ~120 Mb/s — the external link is 60% ful
 |------|---------------------|-----|------------|
 | Full stack (gateway + TLS) | 40 | 109ms | - |
 | Direct to SFS (in-cluster, no TLS) | 43 | 108ms | Gateway/TLS add <5% overhead |
-| Health endpoint (no GFS) | 333 | 30ms | GFS path adds ~80ms per request |
+| Health endpoint (no GFS) | 333 | 30ms | GFS path adds ~7ms per request internally |
+| GFS read (inside SFS pod, 10 concurrent) | 550 | 17ms | Internal GFS capacity far exceeds external link |
 
-The gateway and TLS are not significant contributors. The GFS read path adds ~80ms per request (two gRPC master calls + chunkserver TCP), but the dominant bottleneck under concurrent load is the external bandwidth cap.
+The gateway and TLS are not significant contributors. The GFS read path adds only ~7ms internally, but under concurrent external load the 200 Mb/s bandwidth cap causes TCP queuing and tail latency explosion.
 
 ## Secondary Bottlenecks
 
@@ -138,7 +170,7 @@ GFS is well-suited for workloads like **log aggregation** (used by `log-service`
 
 For the **storage service** serving many small files to users:
 
-- Every read pays the full metadata round-trip (~20-30ms) regardless of file size
+- Every read pays the metadata round-trip (~1.4ms for two gRPC calls) regardless of file size
 - For a 1KB file, useful data transfer is <1% of total request time
 - No built-in caching or HTTP-aware optimizations (range requests, ETags, etc.)
 
