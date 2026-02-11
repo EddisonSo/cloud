@@ -177,13 +177,17 @@ Spike rate at c=10 dropped from 53.6% to 13.6%.
 
 At peak throughput (96 ops/sec × 155KB = ~118 Mb/s), the external link is ~59% utilized. TLS handshake overhead (~17ms per connection with no keep-alive) limits per-worker bandwidth utilization.
 
-### 2. Duplicate GFS Master Calls
+### 2. ~~Duplicate GFS Master Calls~~ (RESOLVED)
 
-Each file read makes **two** gRPC calls to the GFS master:
+**Before:** Each file read made **two** gRPC calls to the GFS master:
 1. `GetFile()` — to get file size for `Content-Length` header
 2. `GetChunkLocations()` — to find which chunkserver holds the data
 
-The SDK has a `getCachedChunks` method for caching chunk locations, but `ReadToWithNamespace` calls the master directly instead of using it.
+**After:** Both calls eliminated by:
+- Using `getCachedChunks()` instead of `GetChunkLocations()` in `ReadToWithNamespace()`
+- Adding `FileSizeWithNamespace()` that computes size from cached chunk locations
+
+Now each download makes zero fresh master calls if chunks are cached (5-minute TTL).
 
 ### 4. Gateway Forces Connection: close
 
@@ -222,8 +226,19 @@ For the **storage service** serving many small files to users:
 - For a 1KB file, useful data transfer is less than 1% of total request time
 - No built-in caching or HTTP-aware optimizations (range requests, ETags, etc.)
 
+### 3. ~~Per-Request Database Queries~~ (RESOLVED)
+
+**Before:** Every file download performed a database query to check namespace visibility (`canAccessNamespace`), which under concurrent load caused ~90ms latency spikes when HAProxy was throttled.
+
+**After:** Namespace visibility information is now cached in-memory with a 30-second TTL:
+- Cache hit: no database round-trip
+- Cache miss: single query, result cached for future requests
+- Invalidation: automatic on namespace visibility updates
+
+This eliminates the database as a bottleneck on the download path.
+
 ## Potential Improvements
 
-1. **Use cached chunk locations on read path** — the SDK already has `getCachedChunks`, just needs to be wired into `ReadToWithNamespace`
+1. ~~**Use cached chunk locations on read path**~~ ✅ **DONE** — `ReadToWithNamespace` now uses `getCachedChunks()`
 2. **Add an in-memory/on-disk cache at the SFS layer** — skip GFS entirely for hot files
 3. **HTTP caching headers** — allow browsers and proxies to cache responses (ETag, Cache-Control)

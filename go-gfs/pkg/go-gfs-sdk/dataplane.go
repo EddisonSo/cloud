@@ -36,10 +36,24 @@ func (c *Client) ReadTo(ctx context.Context, path string, w io.Writer) (int64, e
 	return c.ReadToWithNamespace(ctx, path, "", w)
 }
 
+// FileSizeWithNamespace returns the total file size from cached chunk locations.
+// This avoids a separate GetFile gRPC call when chunk locations are already cached.
+func (c *Client) FileSizeWithNamespace(ctx context.Context, path, namespace string) (uint64, error) {
+	chunks, err := c.getCachedChunks(ctx, path, normalizeNamespace(namespace))
+	if err != nil {
+		return 0, err
+	}
+	var total uint64
+	for _, chunk := range chunks {
+		total += chunk.Size
+	}
+	return total, nil
+}
+
 // ReadToWithNamespace streams file contents to the provided writer with a namespace.
 // Chunks are read sequentially and streamed directly to the writer without buffering.
 func (c *Client) ReadToWithNamespace(ctx context.Context, path, namespace string, w io.Writer) (int64, error) {
-	chunks, err := c.GetChunkLocationsWithNamespace(ctx, path, namespace)
+	chunks, err := c.getCachedChunks(ctx, path, normalizeNamespace(namespace))
 	if err != nil {
 		return 0, err
 	}

@@ -56,6 +56,13 @@ func generateNanoID() (string, error) {
 	return string(bytes), nil
 }
 
+// nsVisibility holds cached namespace visibility info.
+type nsVisibility struct {
+	visibility int
+	ownerID    *string
+	fetchedAt  time.Time
+}
+
 type server struct {
 	client           *gfs.Client
 	prefix           string
@@ -75,6 +82,8 @@ type server struct {
 	tkCache          *tokenCache
 	idStore          *identityStore
 	notifier         *notifypub.Publisher
+	nsCacheMu        sync.RWMutex
+	nsCache          map[string]*nsVisibility
 }
 
 // JWTClaims represents the claims in a JWT token
@@ -204,6 +213,7 @@ func main() {
 		sseConns:   make(map[string]chan progressMessage),
 		tkCache:    newTokenCache(),
 		idStore:    newIdentityStore(db),
+		nsCache:    make(map[string]*nsVisibility),
 	}
 
 	// Initialize user sync from auth-service
@@ -1056,8 +1066,8 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
-	// Get file info for Content-Length
-	info, err := s.client.GetFileWithNamespace(ctx, file, s.gfsNamespace(namespace))
+	// Get file size from cached chunk locations (avoids separate GetFile gRPC call)
+	fileSize, err := s.client.FileSizeWithNamespace(ctx, file, s.gfsNamespace(namespace))
 	if err != nil {
 		serveErrorPage(w, http.StatusNotFound, "File Not Found",
 			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
@@ -1071,8 +1081,8 @@ func (s *server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", contentType)
-	if info.Size > 0 {
-		w.Header().Set("Content-Length", strconv.FormatUint(info.Size, 10))
+	if fileSize > 0 {
+		w.Header().Set("Content-Length", strconv.FormatUint(fileSize, 10))
 	}
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
@@ -1116,8 +1126,8 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
-	// Get file info for Content-Length
-	info, err := s.client.GetFileWithNamespace(ctx, file, s.gfsNamespace(namespace))
+	// Get file size from cached chunk locations (avoids separate GetFile gRPC call)
+	fileSize, err := s.client.FileSizeWithNamespace(ctx, file, s.gfsNamespace(namespace))
 	if err != nil {
 		serveErrorPage(w, http.StatusNotFound, "File Not Found",
 			fmt.Sprintf("The file \"%s\" was not found in namespace \"%s\".", file, namespace))
@@ -1131,8 +1141,8 @@ func (s *server) handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(file)))
-	if info.Size > 0 {
-		w.Header().Set("Content-Length", strconv.FormatUint(info.Size, 10))
+	if fileSize > 0 {
+		w.Header().Set("Content-Length", strconv.FormatUint(fileSize, 10))
 	}
 
 	if _, err := s.client.ReadToWithNamespace(ctx, file, s.gfsNamespace(namespace), w); err != nil {
@@ -1567,6 +1577,10 @@ func (s *server) updateNamespaceVisibility(name string, visibility int) error {
 	if updated == 0 {
 		return fmt.Errorf("namespace not found")
 	}
+	// Invalidate visibility cache
+	s.nsCacheMu.Lock()
+	delete(s.nsCache, name)
+	s.nsCacheMu.Unlock()
 	return nil
 }
 
@@ -1582,15 +1596,38 @@ func (s *server) namespaceExists(name string) (bool, error) {
 // - Private (0): Only owner can access
 // - Visible (1): Anyone can access via direct URL (not advertised)
 // - Public (2): Anyone can access (advertised in list)
-func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
-	// Get namespace info
-	var visibility int
-	var ownerID *string
+const nsVisibilityCacheTTL = 30 * time.Second
+
+// getNsVisibility returns cached namespace visibility info, fetching from DB if stale or missing.
+func (s *server) getNsVisibility(namespace string) (visibility int, ownerID *string, found bool) {
+	s.nsCacheMu.RLock()
+	cached, ok := s.nsCache[namespace]
+	s.nsCacheMu.RUnlock()
+
+	if ok && time.Since(cached.fetchedAt) < nsVisibilityCacheTTL {
+		return cached.visibility, cached.ownerID, true
+	}
+
+	var vis int
+	var oid *string
 	err := s.db.QueryRow(
 		`SELECT visibility, owner_id FROM namespaces WHERE name = $1`,
 		namespace,
-	).Scan(&visibility, &ownerID)
+	).Scan(&vis, &oid)
 	if err != nil {
+		return 0, nil, false
+	}
+
+	s.nsCacheMu.Lock()
+	s.nsCache[namespace] = &nsVisibility{visibility: vis, ownerID: oid, fetchedAt: time.Now()}
+	s.nsCacheMu.Unlock()
+
+	return vis, oid, true
+}
+
+func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
+	visibility, ownerID, found := s.getNsVisibility(namespace)
+	if !found {
 		// Namespace doesn't exist in DB - allow access (e.g., default namespace)
 		return true
 	}
@@ -1619,12 +1656,8 @@ func (s *server) isNamespaceOwner(r *http.Request, namespace string) bool {
 		return false
 	}
 
-	var ownerID *string
-	err := s.db.QueryRow(
-		`SELECT owner_id FROM namespaces WHERE name = $1`,
-		namespace,
-	).Scan(&ownerID)
-	if err != nil {
+	_, ownerID, found := s.getNsVisibility(namespace)
+	if !found {
 		// Namespace doesn't exist - deny ownership
 		return false
 	}
