@@ -167,7 +167,7 @@ Spike rate at c=10 dropped from 53.6% to 13.6%.
 | Test | Ops/sec (10 workers) | p50 | Conclusion |
 |------|---------------------|-----|------------|
 | Full stack (gateway + TLS) | 91 | — | After fix |
-| Direct to SFS (in-cluster, no TLS) | 43 | 108ms | Before fix; gateway/TLS add <5% overhead |
+| Direct to SFS (in-cluster, no TLS) | 43 | 108ms | Before fix; gateway/TLS add less than 5% overhead |
 | Health endpoint (no GFS) | 333 | 30ms | GFS path adds ~7ms per request internally |
 | GFS read (inside SFS pod, 10 concurrent) | 550 | 17ms | Internal GFS capacity far exceeds external link |
 
@@ -219,7 +219,7 @@ GFS is well-suited for workloads like **log aggregation** (used by `log-service`
 For the **storage service** serving many small files to users:
 
 - Every read pays the metadata round-trip (~1.4ms for two gRPC calls) regardless of file size
-- For a 1KB file, useful data transfer is <1% of total request time
+- For a 1KB file, useful data transfer is less than 1% of total request time
 - No built-in caching or HTTP-aware optimizations (range requests, ETags, etc.)
 
 ## Potential Improvements
