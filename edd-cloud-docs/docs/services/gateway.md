@@ -41,6 +41,7 @@ The gateway auto-detects protocols on extra ports by inspecting the first bytes:
 - **SSH Tunneling**: Provides SSH access to containers via port 2222
 - **WebSocket Support**: Proxies WebSocket connections for real-time features
 - **HTTP→HTTPS Redirect**: Automatic upgrade for core services
+- **Client IP Forwarding**: Injects `X-Forwarded-For` header with real client IP for backend services
 
 ## Architecture
 

@@ -269,7 +269,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		headers = rewriteRequestPath(headers, path, targetPath)
 	}
 
-	// Add X-Forwarded-Proto header for TLS-terminated requests
+	// Forward the real client IP and protocol to backends
+	headers = addHeader(headers, "X-Forwarded-For", stripPort(clientAddr))
 	headers = addHeader(headers, "X-Forwarded-Proto", "https")
 	// Force connection close for regular requests, but keep alive for SSE/WebSocket
 	if !strings.HasPrefix(path, "/sse/") && !strings.HasPrefix(path, "/ws/") {

@@ -148,6 +148,8 @@ func (s *Server) handleHTTP(conn net.Conn) {
 		headers = modifiedHeaders
 	}
 
+	// Forward the real client IP to backends
+	headers = addHeader(headers, "X-Forwarded-For", stripPort(clientAddr))
 	// Force connection close - gateway doesn't support HTTP keep-alive yet
 	headers = addHeader(headers, "Connection", "close")
 
@@ -159,6 +161,15 @@ func (s *Server) handleHTTP(conn net.Conn) {
 
 	// Proxy the connection with response logging
 	proxyWithResponseLogging(conn, backend, initialData, method, hostname, path, backendAddr)
+}
+
+// stripPort removes the port from an address string (e.g. "1.2.3.4:5678" -> "1.2.3.4").
+func stripPort(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
 }
 
 // extractHostHeader finds the Host header value in HTTP headers.
