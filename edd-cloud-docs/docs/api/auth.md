@@ -27,6 +27,8 @@ curl -X POST https://auth.cloud.eddisonso.com/api/login \
 ```
 
 **Response:**
+
+If the user has no 2FA configured:
 ```json
 {
   "username": "alice",
@@ -36,6 +38,16 @@ curl -X POST https://auth.cloud.eddisonso.com/api/login \
   "token": "eyJhbGci..."
 }
 ```
+
+If the user has security keys registered (2FA required):
+```json
+{
+  "requires_2fa": true,
+  "challenge_token": "eyJhbGci..."
+}
+```
+
+Use the `challenge_token` with the WebAuthn login endpoints to complete 2FA.
 
 ---
 
@@ -76,6 +88,335 @@ Acknowledge logout (client removes token).
 **Example request:**
 ```bash
 curl -X POST https://auth.cloud.eddisonso.com/api/logout
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## WebAuthn (2FA Login)
+
+### POST /api/webauthn/login/begin
+
+Begin WebAuthn authentication ceremony (2FA). Requires a challenge token from the initial login response.
+
+**Auth:** Challenge token
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| Authorization | string | header | Yes | `Bearer <challenge_token>` |
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/webauthn/login/begin \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+{
+  "options": {
+    "challenge": "...",
+    "timeout": 60000,
+    "rpId": "cloud.eddisonso.com",
+    "allowCredentials": [...]
+  },
+  "state": "ceremony_state_token"
+}
+```
+
+Pass `options` to `navigator.credentials.get()` in the browser, then send the credential to `/api/webauthn/login/finish`.
+
+---
+
+### POST /api/webauthn/login/finish
+
+Complete WebAuthn authentication and receive a session token.
+
+**Auth:** None
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| state | string | body | Yes | State token from begin response |
+| credential | object | body | Yes | Serialized credential from browser |
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/webauthn/login/finish \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "ceremony_state_token",
+    "credential": {...}
+  }'
+```
+
+**Response:**
+```json
+{
+  "username": "alice",
+  "display_name": "Alice",
+  "user_id": "abc123",
+  "is_admin": false,
+  "token": "eyJhbGci..."
+}
+```
+
+---
+
+## User Settings
+
+### GET /api/settings/keys
+
+List all security keys (WebAuthn credentials) for the authenticated user.
+
+**Auth:** Session
+
+**Example request:**
+```bash
+curl https://auth.cloud.eddisonso.com/api/settings/keys \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+{
+  "keys": [
+    {
+      "id": "base64_credential_id",
+      "name": "YubiKey 5",
+      "authenticator_type": "Security Key",
+      "created_at": 1712224000
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/settings/keys/add/begin
+
+Begin WebAuthn registration ceremony to add a new security key.
+
+**Auth:** Session
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/add/begin \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+{
+  "options": {
+    "challenge": "...",
+    "rp": {"name": "Edd Cloud", "id": "cloud.eddisonso.com"},
+    "user": {...},
+    "pubKeyCredParams": [...],
+    "timeout": 60000
+  },
+  "state": "ceremony_state_token"
+}
+```
+
+---
+
+### POST /api/settings/keys/add/finish
+
+Complete WebAuthn registration and save the new security key.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| state | string | body | Yes | State token from begin response |
+| credential | object | body | Yes | Serialized credential from browser |
+| name | string | body | No | Custom name for the key (default: "") |
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/add/finish \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "ceremony_state_token",
+    "credential": {...},
+    "name": "YubiKey 5"
+  }'
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### POST /api/settings/keys/delete
+
+Delete a security key.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| id | string | body | Yes | Base64-encoded credential ID |
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/delete \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"id": "base64_credential_id"}'
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### POST /api/settings/keys/rename
+
+Rename a security key.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| id | string | body | Yes | Base64-encoded credential ID |
+| name | string | body | Yes | New name for the key |
+
+**Example request:**
+```bash
+curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/rename \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"id": "base64_credential_id", "name": "Work YubiKey"}'
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### PUT /api/settings/profile
+
+Update display name for the authenticated user.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| display_name | string | body | Yes | New display name |
+
+**Example request:**
+```bash
+curl -X PUT https://auth.cloud.eddisonso.com/api/settings/profile \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"display_name": "Alice Smith"}'
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### PUT /api/settings/password
+
+Change password for the authenticated user.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| current_password | string | body | Yes | Current password |
+| new_password | string | body | Yes | New password |
+
+**Example request:**
+```bash
+curl -X PUT https://auth.cloud.eddisonso.com/api/settings/password \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"current_password": "old", "new_password": "new"}'
+```
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+### GET /api/settings/sessions
+
+List all active sessions for the authenticated user.
+
+**Auth:** Session
+
+**Example request:**
+```bash
+curl https://auth.cloud.eddisonso.com/api/settings/sessions \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+{
+  "sessions": [
+    {
+      "id": 123,
+      "ip_address": "203.0.113.42",
+      "created_at": 1712224000,
+      "is_current": true
+    },
+    {
+      "id": 122,
+      "ip_address": "198.51.100.10",
+      "created_at": 1712220000,
+      "is_current": false
+    }
+  ]
+}
+```
+
+---
+
+### DELETE /api/settings/sessions/\{id\}
+
+Revoke a session by ID.
+
+**Auth:** Session
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| id | integer | path | Yes | Session ID |
+
+**Example request:**
+```bash
+curl -X DELETE https://auth.cloud.eddisonso.com/api/settings/sessions/122 \
+  -H "Authorization: Bearer eyJhbGci..."
 ```
 
 **Response:**

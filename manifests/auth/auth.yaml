@@ -57,6 +57,10 @@ spec:
                   key: SERVICE_API_KEY
             - name: NATS_URL
               value: "nats://nats:4222"
+            - name: WEBAUTHN_RP_ID
+              value: "cloud.eddisonso.com"
+            - name: WEBAUTHN_RP_ORIGINS
+              value: "https://cloud.eddisonso.com"
           ports:
             - containerPort: 8080
               name: http

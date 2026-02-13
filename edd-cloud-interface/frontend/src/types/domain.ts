@@ -231,6 +231,22 @@ export interface AdminNamespace extends Namespace {
   owner_id?: number | null;
 }
 
+// ── Settings ─────────────────────────────────────────────
+
+export interface SecurityKey {
+  id: string;
+  name: string;
+  authenticator_type: string;
+  created_at: number;
+}
+
+export interface UserSession {
+  id: number;
+  ip_address: string;
+  created_at: number;
+  is_current: boolean;
+}
+
 // ── Notification Mute ────────────────────────────────────
 
 export interface NotificationMute {

@@ -23,6 +23,16 @@ type sessionResponse struct {
 	Token       string `json:"token,omitempty"`
 }
 
+type loginResponse struct {
+	Username       string `json:"username,omitempty"`
+	DisplayName    string `json:"display_name,omitempty"`
+	UserID         string `json:"user_id,omitempty"`
+	IsAdmin        bool   `json:"is_admin,omitempty"`
+	Token          string `json:"token,omitempty"`
+	Requires2FA    bool   `json:"requires_2fa,omitempty"`
+	ChallengeToken string `json:"challenge_token,omitempty"`
+}
+
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -62,7 +72,38 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
+	// Check if user has security keys (2FA required)
+	credCount, err := h.db.CountCredentialsByUserID(user.UserID)
+	if err != nil {
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if credCount > 0 {
+		// Issue short-lived challenge token for 2FA
+		challengeClaims := TwoFAClaims{
+			UserID: user.UserID,
+			Type:   "2fa_challenge",
+			RegisteredClaims: jwt.RegisteredClaims{
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+				IssuedAt:  jwt.NewNumericDate(time.Now()),
+			},
+		}
+		challengeToken := jwt.NewWithClaims(jwt.SigningMethodHS256, challengeClaims)
+		challengeTokenStr, err := challengeToken.SignedString(h.jwtSecret)
+		if err != nil {
+			writeError(w, "failed to create challenge", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, loginResponse{
+			Requires2FA:    true,
+			ChallengeToken: challengeTokenStr,
+		})
+		return
+	}
+
+	// No 2FA — proceed with normal login
 	expires := time.Now().Add(h.sessionTTL)
 	claims := JWTClaims{
 		Username:    user.Username,
@@ -94,7 +135,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		h.publisher.PublishSessionCreated(session.ID, user.UserID, expires)
 	}
 
-	writeJSON(w, sessionResponse{
+	writeJSON(w, loginResponse{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		UserID:      user.UserID,

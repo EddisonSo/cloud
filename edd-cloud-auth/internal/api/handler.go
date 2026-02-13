@@ -1,18 +1,25 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"eddisonso.com/edd-cloud-auth/internal/db"
 	"eddisonso.com/edd-cloud-auth/internal/events"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type contextKey string
+
+const claimsKey contextKey = "claims"
 
 type Handler struct {
 	db            *db.DB
@@ -23,6 +30,8 @@ type Handler struct {
 	serviceAPIKey string
 	ipLimiter     *rateLimiter
 	userLimiter   *rateLimiter
+	webauthn      *webauthn.WebAuthn
+	ceremonies    sync.Map
 }
 
 type Config struct {
@@ -32,6 +41,7 @@ type Config struct {
 	SessionTTL    time.Duration
 	AdminUser     string
 	ServiceAPIKey string
+	WebAuthn      *webauthn.WebAuthn
 }
 
 func NewHandler(cfg Config) *Handler {
@@ -44,6 +54,7 @@ func NewHandler(cfg Config) *Handler {
 		serviceAPIKey: cfg.ServiceAPIKey,
 		ipLimiter:     newRateLimiter(20, 15*time.Minute),
 		userLimiter:   newRateLimiter(10, 15*time.Minute),
+		webauthn:      cfg.WebAuthn,
 	}
 }
 
@@ -78,6 +89,21 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/users", h.adminOnly(h.handleCreateUser))
 	mux.HandleFunc("DELETE /admin/users", h.adminOnly(h.handleDeleteUser))
 	mux.HandleFunc("GET /admin/sessions", h.adminOnly(h.handleListSessions))
+
+	// Settings endpoints (session auth required)
+	mux.HandleFunc("GET /api/settings/keys", h.requireAuth(h.handleListKeys))
+	mux.HandleFunc("POST /api/settings/keys/add/begin", h.requireAuth(h.handleAddKeyBegin))
+	mux.HandleFunc("POST /api/settings/keys/add/finish", h.requireAuth(h.handleAddKeyFinish))
+	mux.HandleFunc("POST /api/settings/keys/delete", h.requireAuth(h.handleDeleteKey))
+	mux.HandleFunc("POST /api/settings/keys/rename", h.requireAuth(h.handleRenameKey))
+	mux.HandleFunc("PUT /api/settings/profile", h.requireAuth(h.handleUpdateProfile))
+	mux.HandleFunc("PUT /api/settings/password", h.requireAuth(h.handleChangePassword))
+	mux.HandleFunc("GET /api/settings/sessions", h.requireAuth(h.handleListUserSessions))
+	mux.HandleFunc("DELETE /api/settings/sessions/{id}", h.requireAuth(h.handleRevokeSession))
+
+	// WebAuthn 2FA login endpoints (public, rate-limited)
+	mux.HandleFunc("POST /api/webauthn/login/begin", h.handleWebAuthnLoginBegin)
+	mux.HandleFunc("POST /api/webauthn/login/finish", h.handleWebAuthnLoginFinish)
 
 	// Health check
 	mux.HandleFunc("GET /healthz", h.handleHealthz)
@@ -119,6 +145,23 @@ func (h *Handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := h.validateToken(r)
+		if !ok {
+			writeError(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+func (h *Handler) getClaims(r *http.Request) *JWTClaims {
+	claims, _ := r.Context().Value(claimsKey).(*JWTClaims)
+	return claims
 }
 
 func (h *Handler) validateToken(r *http.Request) (*JWTClaims, bool) {

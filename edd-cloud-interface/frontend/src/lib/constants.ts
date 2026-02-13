@@ -5,6 +5,7 @@ import {
   Database,
   Activity,
   Settings,
+  UserCog,
   Box,
   Key,
   KeyRound
@@ -36,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
+  { id: "settings", label: "Settings", icon: UserCog, path: "/settings" },
 ];
 
 export const ADMIN_NAV_ITEM: NavItem = {
@@ -80,6 +82,11 @@ export const TAB_COPY: Record<string, TabCopy> = {
     eyebrow: "Auth",
     title: "Service Accounts",
     lead: "Create service accounts with scoped permissions and generate tokens for programmatic API access.",
+  },
+  settings: {
+    eyebrow: "Account",
+    title: "Settings",
+    lead: "Manage security keys, profile, and active sessions.",
   },
 } as const;
 

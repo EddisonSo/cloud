@@ -13,6 +13,8 @@ import (
 	"eddisonso.com/edd-cloud-auth/internal/db"
 	"eddisonso.com/edd-cloud-auth/internal/events"
 	"eddisonso.com/go-gfs/pkg/gfslog"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -92,6 +94,29 @@ func main() {
 		slog.Info("NATS_URL not set, events will not be published")
 	}
 
+	// Initialize WebAuthn
+	rpID := os.Getenv("WEBAUTHN_RP_ID")
+	if rpID == "" {
+		rpID = "cloud.eddisonso.com"
+	}
+	rpOriginsStr := os.Getenv("WEBAUTHN_RP_ORIGINS")
+	var rpOrigins []string
+	if rpOriginsStr != "" {
+		rpOrigins = strings.Split(rpOriginsStr, ",")
+	} else {
+		rpOrigins = []string{"https://cloud.eddisonso.com"}
+	}
+
+	wauthn, err := webauthn.New(&webauthn.Config{
+		RPDisplayName:         "Edd Cloud",
+		RPID:                  rpID,
+		RPOrigins:             rpOrigins,
+		AttestationPreference: protocol.PreferDirectAttestation,
+	})
+	if err != nil {
+		log.Fatalf("failed to initialize webauthn: %v", err)
+	}
+
 	// Create handler
 	handler := api.NewHandler(api.Config{
 		DB:            database,
@@ -100,11 +125,21 @@ func main() {
 		SessionTTL:    *sessionTTL,
 		AdminUser:     adminUsername,
 		ServiceAPIKey: serviceAPIKey,
+		WebAuthn:      wauthn,
 	})
 
 	// Setup routes
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
+
+	// Start ceremony cleanup goroutine
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			handler.CleanupCeremonies()
+		}
+	}()
 
 	// Add middleware
 	finalHandler := corsMiddleware(logRequests(mux))

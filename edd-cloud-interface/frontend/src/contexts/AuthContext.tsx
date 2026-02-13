@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { buildAuthBase, getAuthToken, setAuthToken, clearAuthToken } from "@/lib/api";
 import { clearAllCaches } from "@/lib/cache";
+import {
+  parseRequestOptions,
+  serializeAssertionResponse,
+  getCredential,
+} from "@/lib/webauthn";
 import type { JwtPayload } from "@/types";
 
 interface AuthContextValue {
@@ -9,17 +14,22 @@ interface AuthContextValue {
   displayName: string | null;
   isAdmin: boolean;
   loading: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<boolean | "2fa">;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  challengeToken: string | null;
+  complete2FA: () => Promise<boolean>;
+  cancel2FA: () => void;
 }
 
 interface LoginResponse {
   token?: string;
-  username: string;
+  username?: string;
   user_id?: string;
   display_name?: string;
   is_admin?: boolean;
+  requires_2fa?: boolean;
+  challenge_token?: string;
 }
 
 interface SessionResponse {
@@ -37,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
 
   // Decode JWT payload without validation (validation happens server-side)
   const decodeToken = (token: string): JwtPayload | null => {
@@ -116,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkSession();
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<boolean | "2fa"> => {
     const response = await fetch(`${buildAuthBase()}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -127,14 +138,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(error || "Login failed");
     }
     const data: LoginResponse = await response.json();
+
+    if (data.requires_2fa && data.challenge_token) {
+      setChallengeToken(data.challenge_token);
+      return "2fa";
+    }
+
     if (data.token) {
       setAuthToken(data.token);
     }
-    setUser(data.username);
+    setUser(data.username || null);
     setUserId(data.user_id || null);
-    setDisplayName(data.display_name || data.username);
+    setDisplayName(data.display_name || data.username || null);
     setIsAdmin(data.is_admin || false);
     return true;
+  };
+
+  const complete2FA = async (): Promise<boolean> => {
+    if (!challengeToken) throw new Error("No 2FA challenge in progress");
+
+    // Step 1: Begin WebAuthn login
+    const beginRes = await fetch(`${buildAuthBase()}/api/webauthn/login/begin`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${challengeToken}` },
+    });
+    if (!beginRes.ok) {
+      throw new Error("Failed to start 2FA challenge");
+    }
+    const { options, state } = await beginRes.json();
+
+    // Step 2: Get credential from browser
+    const parsed = parseRequestOptions(options);
+    const credential = await getCredential(parsed);
+    const serialized = serializeAssertionResponse(credential);
+
+    // Step 3: Finish WebAuthn login
+    const finishRes = await fetch(`${buildAuthBase()}/api/webauthn/login/finish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state, credential: serialized }),
+    });
+    if (!finishRes.ok) {
+      throw new Error("Security key verification failed");
+    }
+    const data: LoginResponse = await finishRes.json();
+
+    if (data.token) {
+      setAuthToken(data.token);
+    }
+    setUser(data.username || null);
+    setUserId(data.user_id || null);
+    setDisplayName(data.display_name || data.username || null);
+    setIsAdmin(data.is_admin || false);
+    setChallengeToken(null);
+    return true;
+  };
+
+  const cancel2FA = () => {
+    setChallengeToken(null);
   };
 
   const logout = async (): Promise<void> => {
@@ -152,6 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserId(null);
     setDisplayName(null);
     setIsAdmin(false);
+    setChallengeToken(null);
     clearAllCaches();
   };
 
@@ -164,6 +226,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     checkSession,
+    challengeToken,
+    complete2FA,
+    cancel2FA,
   };
 
   return (

@@ -7,10 +7,11 @@ toolchain go1.24.13
 require (
 	eddisonso.com/go-gfs v0.0.0
 	eddisonso.com/notification-service v0.0.0
+	github.com/go-webauthn/webauthn v0.15.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/lib/pq v1.10.9
 	github.com/nats-io/nats.go v1.38.0
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.43.0
 )
 
 replace eddisonso.com/go-gfs => ../go-gfs
@@ -18,12 +19,18 @@ replace eddisonso.com/go-gfs => ../go-gfs
 replace eddisonso.com/notification-service => ../notification-service
 
 require (
+	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/go-webauthn/x v0.1.26 // indirect
+	github.com/google/go-tpm v0.9.6 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	golang.org/x/net v0.38.0 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
+	golang.org/x/net v0.45.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
 	google.golang.org/grpc v1.73.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

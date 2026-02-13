@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusDot } from "@/components/common";
+import { Shield } from "lucide-react";
 import type { NavItem } from "@/types";
 
 interface SidebarProps {
@@ -16,10 +17,12 @@ interface SidebarProps {
 
 export function Sidebar({ healthOk = true }: SidebarProps) {
   const location = useLocation();
-  const { user, displayName, isAdmin, login, logout } = useAuth();
+  const { user, displayName, isAdmin, login, logout, challengeToken, complete2FA, cancel2FA } = useAuth();
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [twoFAState, setTwoFAState] = useState<"idle" | "waiting" | "error">("idle");
+  const [twoFAError, setTwoFAError] = useState("");
 
   const navItems: NavItem[] = isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
@@ -28,12 +31,57 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
     setLoginError("");
     setLoggingIn(true);
     try {
-      await login(loginForm.username, loginForm.password);
-      setLoginForm({ username: "", password: "" });
+      const result = await login(loginForm.username, loginForm.password);
+      if (result === "2fa") {
+        setLoginForm({ username: "", password: "" });
+        // 2FA will be handled by the effect below
+      } else {
+        setLoginForm({ username: "", password: "" });
+      }
     } catch (err) {
       setLoginError((err as Error).message);
     } finally {
       setLoggingIn(false);
+    }
+  };
+
+  // Auto-trigger WebAuthn when challenge token appears
+  useEffect(() => {
+    if (!challengeToken) {
+      setTwoFAState("idle");
+      return;
+    }
+
+    const run2FA = async () => {
+      setTwoFAState("waiting");
+      setTwoFAError("");
+      try {
+        await complete2FA();
+        setTwoFAState("idle");
+      } catch (err) {
+        setTwoFAState("error");
+        setTwoFAError((err as Error).message);
+      }
+    };
+
+    run2FA();
+  }, [challengeToken]);
+
+  const handleCancel2FA = () => {
+    cancel2FA();
+    setTwoFAState("idle");
+    setTwoFAError("");
+  };
+
+  const handleRetry2FA = async () => {
+    setTwoFAState("waiting");
+    setTwoFAError("");
+    try {
+      await complete2FA();
+      setTwoFAState("idle");
+    } catch (err) {
+      setTwoFAState("error");
+      setTwoFAError((err as Error).message);
     }
   };
 
@@ -110,14 +158,17 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
 
         {user ? (
           <>
-            <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
+            <NavLink
+              to="/settings"
+              className="flex items-center gap-3 p-3 bg-secondary rounded-lg hover:bg-accent transition-colors"
+            >
               <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold">
                 {(displayName || user).charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{displayName || user}</div>
               </div>
-            </div>
+            </NavLink>
             <Button
               variant="ghost"
               className="w-full mt-3 justify-center"
@@ -126,6 +177,36 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
               Sign out
             </Button>
           </>
+        ) : challengeToken ? (
+          // 2FA challenge UI
+          <div className="space-y-3">
+            <div className="flex flex-col items-center gap-2 p-4 bg-secondary rounded-lg text-center">
+              <Shield className="w-6 h-6 text-primary" />
+              {twoFAState === "waiting" ? (
+                <>
+                  <p className="text-sm font-medium">Touch your security key</p>
+                  <p className="text-xs text-muted-foreground">
+                    Waiting for verification...
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-destructive">Verification failed</p>
+                  <p className="text-xs text-muted-foreground">{twoFAError}</p>
+                  <Button size="sm" onClick={handleRetry2FA} className="mt-1">
+                    Retry
+                  </Button>
+                </>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              className="w-full justify-center"
+              onClick={handleCancel2FA}
+            >
+              Cancel
+            </Button>
+          </div>
         ) : (
           <form onSubmit={handleLogin} className="space-y-3">
             <div className="space-y-2">

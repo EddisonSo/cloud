@@ -89,6 +89,17 @@ func (db *DB) migrate() error {
 		`ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS service_account_id TEXT REFERENCES service_accounts(id) ON DELETE CASCADE`,
 		`ALTER TABLE api_tokens ALTER COLUMN scopes DROP NOT NULL`,
 		`ALTER TABLE service_accounts ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1`,
+		`CREATE TABLE IF NOT EXISTS webauthn_credentials (
+			id BYTEA PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+			name TEXT NOT NULL DEFAULT '',
+			public_key BYTEA NOT NULL,
+			attestation_type TEXT NOT NULL,
+			aaguid BYTEA,
+			sign_count INTEGER NOT NULL DEFAULT 0,
+			created_at BIGINT NOT NULL DEFAULT 0
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_webauthn_creds_user ON webauthn_credentials(user_id)`,
 	}
 
 	for _, m := range migrations {

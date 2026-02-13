@@ -132,3 +132,11 @@ func (db *DB) UpdateUser(userID string, displayName string) error {
 	}
 	return nil
 }
+
+func (db *DB) UpdatePassword(userID, passwordHash string) error {
+	_, err := db.Exec(`UPDATE users SET password_hash = $1 WHERE user_id = $2`, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	return nil
+}
