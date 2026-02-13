@@ -62,6 +62,8 @@ MetalLB runs in L2 mode, responding to ARP requests for allocated virtual IPs. W
 
 The gateway service is the primary consumer of MetalLB, receiving VIP `192.168.3.200` for all external traffic on ports 80, 443, and 2222.
 
+**Client Source IP Preservation**: The gateway LoadBalancer uses `externalTrafficPolicy: Local`, which directs kube-proxy to preserve the real client IP address instead of SNAT-ing it to the node IP. Without this, all connections would appear to originate from internal node IPs (e.g., 192.168.3.100), breaking session tracking and IP-based security features.
+
 ### Disabled Components
 
 The following K3s defaults are explicitly disabled in `/etc/rancher/k3s/config.yaml`:
