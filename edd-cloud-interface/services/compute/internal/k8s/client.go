@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -550,56 +551,64 @@ type ResourceUsage struct {
 func (c *Client) GetResourceUsage(ctx context.Context, namespace string) (*ResourceUsage, error) {
 	usage := &ResourceUsage{}
 
-	// Get memory usage from pod metrics (requires metrics-server)
-	// Use raw REST client to query metrics API
-	result := c.clientset.CoreV1().RESTClient().Get().
-		AbsPath("/apis/metrics.k8s.io/v1beta1").
-		Namespace(namespace).
-		Resource("pods").
-		Name("container").
-		Do(ctx)
+	var wg sync.WaitGroup
 
-	if result.Error() == nil {
-		raw, err := result.Raw()
-		if err == nil {
-			// Parse memory from response - format: {"containers":[{"usage":{"memory":"123456Ki"}}]}
-			memStr := extractJSONField(string(raw), "memory")
-			if memStr != "" {
-				usage.MemoryUsedMB = parseMemoryToMB(memStr)
+	// Get memory usage from pod metrics (requires metrics-server)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		result := c.clientset.CoreV1().RESTClient().Get().
+			AbsPath("/apis/metrics.k8s.io/v1beta1").
+			Namespace(namespace).
+			Resource("pods").
+			Name("container").
+			Do(ctx)
+
+		if result.Error() == nil {
+			raw, err := result.Raw()
+			if err == nil {
+				memStr := extractJSONField(string(raw), "memory")
+				if memStr != "" {
+					usage.MemoryUsedMB = parseMemoryToMB(memStr)
+				}
 			}
 		}
-	}
+	}()
 
 	// Get disk usage by exec'ing df command
-	cmd := []string{"/bin/sh", "-c", "df -B1 /root 2>/dev/null | tail -1 | awk '{print $3}'"}
-	req := c.clientset.CoreV1().RESTClient().Post().
-		Resource("pods").
-		Name("container").
-		Namespace(namespace).
-		SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Container: "main",
-			Command:   cmd,
-			Stdin:     false,
-			Stdout:    true,
-			Stderr:    true,
-			TTY:       false,
-		}, scheme.ParameterCodec)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cmd := []string{"/bin/sh", "-c", "df -B1 /root 2>/dev/null | tail -1 | awk '{print $3}'"}
+		req := c.clientset.CoreV1().RESTClient().Post().
+			Resource("pods").
+			Name("container").
+			Namespace(namespace).
+			SubResource("exec").
+			VersionedParams(&corev1.PodExecOptions{
+				Container: "main",
+				Command:   cmd,
+				Stdin:     false,
+				Stdout:    true,
+				Stderr:    true,
+				TTY:       false,
+			}, scheme.ParameterCodec)
 
-	exec, err := remotecommand.NewSPDYExecutor(c.config, "POST", req.URL())
-	if err == nil {
-		var stdout, stderr bytes.Buffer
-		if err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
-			Stdout: &stdout,
-			Stderr: &stderr,
-		}); err == nil {
-			// Parse bytes used
-			var bytesUsed int64
-			fmt.Sscanf(strings.TrimSpace(stdout.String()), "%d", &bytesUsed)
-			usage.StorageUsedGB = float64(bytesUsed) / (1024 * 1024 * 1024)
+		exec, err := remotecommand.NewSPDYExecutor(c.config, "POST", req.URL())
+		if err == nil {
+			var stdout, stderr bytes.Buffer
+			if err := exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}); err == nil {
+				var bytesUsed int64
+				fmt.Sscanf(strings.TrimSpace(stdout.String()), "%d", &bytesUsed)
+				usage.StorageUsedGB = float64(bytesUsed) / (1024 * 1024 * 1024)
+			}
 		}
-	}
+	}()
 
+	wg.Wait()
 	return usage, nil
 }
 
