@@ -32,12 +32,7 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
     setLoggingIn(true);
     try {
       const result = await login(loginForm.username, loginForm.password);
-      if (result === "2fa") {
-        setLoginForm({ username: "", password: "" });
-        // 2FA will be handled by the effect below
-      } else {
-        setLoginForm({ username: "", password: "" });
-      }
+      setLoginForm({ username: "", password: "" });
     } catch (err) {
       setLoginError((err as Error).message);
     } finally {
@@ -45,26 +40,11 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
     }
   };
 
-  // Auto-trigger WebAuthn when challenge token appears
+  // Reset 2FA state when challenge token is cleared
   useEffect(() => {
     if (!challengeToken) {
       setTwoFAState("idle");
-      return;
     }
-
-    const run2FA = async () => {
-      setTwoFAState("waiting");
-      setTwoFAError("");
-      try {
-        await complete2FA();
-        setTwoFAState("idle");
-      } catch (err) {
-        setTwoFAState("error");
-        setTwoFAError((err as Error).message);
-      }
-    };
-
-    run2FA();
   }, [challengeToken]);
 
   const handleCancel2FA = () => {
@@ -189,12 +169,22 @@ export function Sidebar({ healthOk = true }: SidebarProps) {
                     Waiting for verification...
                   </p>
                 </>
-              ) : (
+              ) : twoFAState === "error" ? (
                 <>
                   <p className="text-sm font-medium text-destructive">Verification failed</p>
                   <p className="text-xs text-muted-foreground">{twoFAError}</p>
                   <Button size="sm" onClick={handleRetry2FA} className="mt-1">
                     Retry
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium">Security key required</p>
+                  <p className="text-xs text-muted-foreground">
+                    Click below to verify with your key
+                  </p>
+                  <Button size="sm" onClick={handleRetry2FA} className="mt-2">
+                    Verify
                   </Button>
                 </>
               )}
