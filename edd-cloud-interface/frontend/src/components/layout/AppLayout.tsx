@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { Shield } from "lucide-react";
 
 export function AppLayout() {
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, login, challengeToken, complete2FA, cancel2FA } = useAuth();
   const { health } = useHealth(user, true);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [twoFAState, setTwoFAState] = useState<"idle" | "waiting" | "error">("idle");
+  const [twoFAError, setTwoFAError] = useState("");
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -31,7 +34,25 @@ export function AppLayout() {
     }
   };
 
-  // Show login only after auth check confirms user is not logged in
+  const handleVerify2FA = async () => {
+    setTwoFAState("waiting");
+    setTwoFAError("");
+    try {
+      await complete2FA();
+      setTwoFAState("idle");
+    } catch (err) {
+      setTwoFAState("error");
+      setTwoFAError((err as Error).message);
+    }
+  };
+
+  const handleCancel2FA = () => {
+    cancel2FA();
+    setTwoFAState("idle");
+    setTwoFAError("");
+  };
+
+  // Show login or 2FA only after auth check confirms user is not logged in
   if (!authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -43,6 +64,36 @@ export function AppLayout() {
             <CardTitle>Sign in to Edd Cloud</CardTitle>
           </CardHeader>
           <CardContent>
+            {challengeToken ? (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <Shield className="w-10 h-10 text-primary" />
+                {twoFAState === "waiting" ? (
+                  <>
+                    <p className="text-sm font-medium">Touch your security key</p>
+                    <p className="text-xs text-muted-foreground">Waiting for verification...</p>
+                  </>
+                ) : twoFAState === "error" ? (
+                  <>
+                    <p className="text-sm font-medium text-destructive">Verification failed</p>
+                    <p className="text-xs text-muted-foreground">{twoFAError}</p>
+                    <Button size="sm" onClick={handleVerify2FA} className="mt-2">
+                      Retry
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium">Security key required</p>
+                    <p className="text-xs text-muted-foreground">Click below to verify with your key</p>
+                    <Button onClick={handleVerify2FA} className="mt-2">
+                      Verify with security key
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleCancel2FA} className="mt-2">
+                  Cancel
+                </Button>
+              </div>
+            ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="login-username">Username</Label>
@@ -72,6 +123,7 @@ export function AppLayout() {
                 <p className="text-sm text-destructive text-center">{loginError}</p>
               )}
             </form>
+            )}
           </CardContent>
         </Card>
       </div>
