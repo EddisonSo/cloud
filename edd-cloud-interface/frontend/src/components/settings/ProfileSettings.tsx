@@ -76,8 +76,8 @@ export function ProfileSettings() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleNameSave} className="space-y-4">
-            <div className="grid grid-cols-[140px_1fr] items-center gap-x-4 max-w-md">
-              <Label htmlFor="display-name" className="text-right text-muted-foreground">Name</Label>
+            <div className="space-y-1.5 max-w-sm">
+              <Label htmlFor="display-name" className="text-muted-foreground text-xs uppercase tracking-wide">Name</Label>
               <Input
                 id="display-name"
                 value={name}
@@ -85,13 +85,11 @@ export function ProfileSettings() {
                 placeholder="Your display name"
               />
             </div>
-            {nameError && <p className="text-sm text-destructive ml-[156px]">{nameError}</p>}
-            {nameSuccess && <p className="text-sm text-success ml-[156px]">Display name updated.</p>}
-            <div className="ml-[156px]">
-              <Button type="submit" disabled={nameSaving}>
-                {nameSaving ? "Saving..." : "Save"}
-              </Button>
-            </div>
+            {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+            {nameSuccess && <p className="text-sm text-success">Display name updated.</p>}
+            <Button type="submit" disabled={nameSaving}>
+              {nameSaving ? "Saving..." : "Save"}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -103,43 +101,47 @@ export function ProfileSettings() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handlePasswordSave} className="space-y-4">
-            <div className="grid grid-cols-[140px_1fr] items-center gap-4 max-w-md">
-              <Label htmlFor="current-password" className="text-right text-muted-foreground">Current password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPw}
-                onChange={(e) => setCurrentPw(e.target.value)}
-                autoComplete="current-password"
-              />
-              <Label htmlFor="new-password" className="text-right text-muted-foreground">New password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-                autoComplete="new-password"
-              />
-              <Label htmlFor="confirm-password" className="text-right text-muted-foreground">Confirm password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPw}
-                onChange={(e) => setConfirmPw(e.target.value)}
-                autoComplete="new-password"
-              />
+            <div className="grid gap-4 max-w-sm">
+              <div className="space-y-1.5">
+                <Label htmlFor="current-password" className="text-muted-foreground text-xs uppercase tracking-wide">Current password</Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-password" className="text-muted-foreground text-xs uppercase tracking-wide">New password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password" className="text-muted-foreground text-xs uppercase tracking-wide">Confirm password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
             </div>
-            {pwError && <p className="text-sm text-destructive ml-[156px]">{pwError}</p>}
+            {pwError && <p className="text-sm text-destructive">{pwError}</p>}
             {pwSuccess && (
-              <p className="text-sm text-success ml-[156px]">
+              <p className="text-sm text-success">
                 Password changed successfully.
               </p>
             )}
-            <div className="ml-[156px]">
-              <Button type="submit" disabled={pwSaving}>
-                {pwSaving ? "Changing..." : "Change password"}
-              </Button>
-            </div>
+            <Button type="submit" disabled={pwSaving}>
+              {pwSaving ? "Changing..." : "Change password"}
+            </Button>
           </form>
         </CardContent>
       </Card>
