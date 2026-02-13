@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type ServiceAccount struct {
@@ -35,6 +37,8 @@ func (db *DB) CreateServiceAccount(userID, name string, scopes map[string][]stri
 	if err != nil {
 		return nil, fmt.Errorf("insert service account: %w", err)
 	}
+
+	db.invalidatePermissionsCache()
 
 	return &ServiceAccount{
 		ID:        id,
@@ -108,6 +112,9 @@ func (db *DB) UpdateServiceAccountScopes(id, userID string, scopes map[string][]
 	if err != nil {
 		return 0, fmt.Errorf("update service account scopes: %w", err)
 	}
+
+	db.invalidatePermissionsCache()
+
 	return newVersion, nil
 }
 
@@ -123,10 +130,21 @@ func (db *DB) DeleteServiceAccount(id, userID string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("delete service account: %w", err)
 	}
+
+	db.invalidatePermissionsCache()
+
 	return version, nil
 }
 
 func (db *DB) ListAllServiceAccountPermissions() ([]*ServiceAccount, error) {
+	db.permMu.RLock()
+	if db.permissionsCacheValid {
+		cached := db.permissionsCache
+		db.permMu.RUnlock()
+		return cached, nil
+	}
+	db.permMu.RUnlock()
+
 	rows, err := db.Query(`
 		SELECT id, user_id, name, scopes, created_at, COALESCE(version, 1)
 		FROM service_accounts ORDER BY created_at DESC
@@ -148,7 +166,44 @@ func (db *DB) ListAllServiceAccountPermissions() ([]*ServiceAccount, error) {
 		}
 		accounts = append(accounts, sa)
 	}
-	return accounts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	db.permMu.Lock()
+	db.permissionsCache = accounts
+	db.permissionsCacheValid = true
+	db.permMu.Unlock()
+
+	return accounts, nil
+}
+
+func (db *DB) CountTokensByServiceAccounts(saIDs []string) (map[string]int, error) {
+	if len(saIDs) == 0 {
+		return map[string]int{}, nil
+	}
+
+	rows, err := db.Query(`
+		SELECT service_account_id, COUNT(*)
+		FROM api_tokens
+		WHERE service_account_id = ANY($1)
+		GROUP BY service_account_id
+	`, pq.Array(saIDs))
+	if err != nil {
+		return nil, fmt.Errorf("count tokens by service accounts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int, len(saIDs))
+	for rows.Next() {
+		var id string
+		var count int
+		if err := rows.Scan(&id, &count); err != nil {
+			return nil, fmt.Errorf("scan token count: %w", err)
+		}
+		counts[id] = count
+	}
+	return counts, rows.Err()
 }
 
 func (db *DB) CountServiceAccountTokens(saID string) (int, error) {

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"sync"
 
 	_ "github.com/lib/pq"
 )
@@ -25,6 +26,14 @@ func GenerateNanoID() (string, error) {
 
 type DB struct {
 	*sql.DB
+
+	userMu         sync.RWMutex
+	usersByUsername map[string]*User
+	usersByID      map[string]*User
+
+	permMu              sync.RWMutex
+	permissionsCache      []*ServiceAccount
+	permissionsCacheValid bool
 }
 
 func Open(connStr string) (*DB, error) {
@@ -38,7 +47,11 @@ func Open(connStr string) (*DB, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	db := &DB{sqlDB}
+	db := &DB{
+		DB:             sqlDB,
+		usersByUsername: make(map[string]*User),
+		usersByID:      make(map[string]*User),
+	}
 	if err := db.migrate(); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -109,6 +122,19 @@ func (db *DB) migrate() error {
 	}
 
 	return nil
+}
+
+func (db *DB) clearUserCache() {
+	db.userMu.Lock()
+	db.usersByUsername = make(map[string]*User)
+	db.usersByID = make(map[string]*User)
+	db.userMu.Unlock()
+}
+
+func (db *DB) invalidatePermissionsCache() {
+	db.permMu.Lock()
+	db.permissionsCacheValid = false
+	db.permMu.Unlock()
 }
 
 // InitDefaultUser creates the default admin user if it doesn't exist

@@ -16,6 +16,13 @@ type User struct {
 }
 
 func (db *DB) GetUserByUsername(username string) (*User, error) {
+	db.userMu.RLock()
+	if cached, ok := db.usersByUsername[username]; ok {
+		db.userMu.RUnlock()
+		return cached, nil
+	}
+	db.userMu.RUnlock()
+
 	u := &User{}
 	err := db.QueryRow(`
 		SELECT user_id, username, password_hash, COALESCE(display_name, username), COALESCE(created_at, NOW())
@@ -27,10 +34,23 @@ func (db *DB) GetUserByUsername(username string) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query user: %w", err)
 	}
+
+	db.userMu.Lock()
+	db.usersByUsername[u.Username] = u
+	db.usersByID[u.UserID] = u
+	db.userMu.Unlock()
+
 	return u, nil
 }
 
 func (db *DB) GetUserByID(userID string) (*User, error) {
+	db.userMu.RLock()
+	if cached, ok := db.usersByID[userID]; ok {
+		db.userMu.RUnlock()
+		return cached, nil
+	}
+	db.userMu.RUnlock()
+
 	u := &User{}
 	err := db.QueryRow(`
 		SELECT user_id, username, password_hash, COALESCE(display_name, username), COALESCE(created_at, NOW())
@@ -42,6 +62,12 @@ func (db *DB) GetUserByID(userID string) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query user: %w", err)
 	}
+
+	db.userMu.Lock()
+	db.usersByUsername[u.Username] = u
+	db.usersByID[u.UserID] = u
+	db.userMu.Unlock()
+
 	return u, nil
 }
 
@@ -102,6 +128,8 @@ func (db *DB) CreateUser(username, passwordHash, displayName string) (*User, err
 		return nil, fmt.Errorf("failed to generate unique user_id: %w", err)
 	}
 
+	db.clearUserCache()
+
 	return &User{
 		UserID:      userID,
 		Username:    username,
@@ -122,6 +150,8 @@ func (db *DB) DeleteUser(userID string) error {
 		return fmt.Errorf("user not found")
 	}
 
+	db.clearUserCache()
+
 	return nil
 }
 
@@ -130,6 +160,7 @@ func (db *DB) UpdateUser(userID string, displayName string) error {
 	if err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
+	db.clearUserCache()
 	return nil
 }
 
@@ -138,5 +169,6 @@ func (db *DB) UpdatePassword(userID, passwordHash string) error {
 	if err != nil {
 		return fmt.Errorf("update password: %w", err)
 	}
+	db.clearUserCache()
 	return nil
 }

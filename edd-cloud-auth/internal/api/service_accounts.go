@@ -110,14 +110,24 @@ func (h *Handler) handleListServiceAccounts(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	saIDs := make([]string, len(accounts))
+	for i, sa := range accounts {
+		saIDs[i] = sa.ID
+	}
+
+	tokenCounts, err := h.db.CountTokensByServiceAccounts(saIDs)
+	if err != nil {
+		writeError(w, "failed to count tokens", http.StatusInternalServerError)
+		return
+	}
+
 	resp := make([]serviceAccountResponse, 0, len(accounts))
 	for _, sa := range accounts {
-		count, _ := h.db.CountServiceAccountTokens(sa.ID)
 		resp = append(resp, serviceAccountResponse{
 			ID:         sa.ID,
 			Name:       sa.Name,
 			Scopes:     sa.Scopes,
-			TokenCount: count,
+			TokenCount: tokenCounts[sa.ID],
 			CreatedAt:  sa.CreatedAt,
 		})
 	}
