@@ -99,7 +99,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/settings/profile", h.requireAuth(h.handleUpdateProfile))
 	mux.HandleFunc("PUT /api/settings/password", h.requireAuth(h.handleChangePassword))
 	mux.HandleFunc("GET /api/settings/sessions", h.requireAuth(h.handleListUserSessions))
-	mux.HandleFunc("DELETE /api/settings/sessions/{id}", h.requireAuth(h.handleRevokeSession))
 
 	// WebAuthn 2FA login endpoints (public, rate-limited)
 	mux.HandleFunc("POST /api/webauthn/login/begin", h.handleWebAuthnLoginBegin)

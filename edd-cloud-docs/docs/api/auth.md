@@ -401,30 +401,7 @@ curl https://auth.cloud.eddisonso.com/api/settings/sessions \
 }
 ```
 
----
-
-### DELETE /api/settings/sessions/\{id\}
-
-Revoke a session by ID.
-
-**Auth:** Session
-
-| Param | Type | In | Required | Description |
-|-------|------|----|----------|-------------|
-| id | integer | path | Yes | Session ID |
-
-**Example request:**
-```bash
-curl -X DELETE https://auth.cloud.eddisonso.com/api/settings/sessions/122 \
-  -H "Authorization: Bearer eyJhbGci..."
-```
-
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
+Sessions automatically expire when their JWT token expires. There is no manual revocation endpoint.
 
 ---
 

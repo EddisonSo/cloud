@@ -125,26 +125,6 @@ func (db *DB) ListSessionsByUserID(userID string) ([]*Session, error) {
 	return sessions, nil
 }
 
-func (db *DB) DeleteSessionByID(sessionID int64, userID string) error {
-	result, err := db.Exec(`DELETE FROM sessions WHERE id = $1 AND user_id = $2`, sessionID, userID)
-	if err != nil {
-		return fmt.Errorf("delete session: %w", err)
-	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return fmt.Errorf("session not found")
-	}
-	return nil
-}
-
-func (db *DB) DeleteOtherSessions(userID, currentToken string) error {
-	_, err := db.Exec(`DELETE FROM sessions WHERE user_id = $1 AND token != $2`, userID, currentToken)
-	if err != nil {
-		return fmt.Errorf("delete other sessions: %w", err)
-	}
-	return nil
-}
-
 func (db *DB) CleanupExpiredSessions() (int64, error) {
 	now := time.Now().Unix()
 	result, err := db.Exec(`DELETE FROM sessions WHERE expires_at <= $1`, now)

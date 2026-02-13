@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -170,10 +169,6 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke all other sessions
-	currentToken := h.extractToken(r)
-	_ = h.db.DeleteOtherSessions(claims.UserID, currentToken)
-
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -209,34 +204,3 @@ func (h *Handler) handleListUserSessions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, result)
 }
 
-func (h *Handler) handleRevokeSession(w http.ResponseWriter, r *http.Request) {
-	claims := h.getClaims(r)
-
-	idStr := r.PathValue("id")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		writeError(w, "invalid session id", http.StatusBadRequest)
-		return
-	}
-
-	// Check it's not the current session
-	currentToken := h.extractToken(r)
-	sessions, err := h.db.ListSessionsByUserID(claims.UserID)
-	if err != nil {
-		writeError(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	for _, s := range sessions {
-		if s.ID == sessionID && s.Token == currentToken {
-			writeError(w, "cannot revoke current session", http.StatusBadRequest)
-			return
-		}
-	}
-
-	if err := h.db.DeleteSessionByID(sessionID, claims.UserID); err != nil {
-		writeError(w, "session not found", http.StatusNotFound)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}

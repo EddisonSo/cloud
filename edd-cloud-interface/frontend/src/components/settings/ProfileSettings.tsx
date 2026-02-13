@@ -137,7 +137,7 @@ export function ProfileSettings() {
             {pwError && <p className="text-sm text-destructive">{pwError}</p>}
             {pwSuccess && (
               <p className="text-sm text-success">
-                Password changed. Other sessions have been revoked.
+                Password changed successfully.
               </p>
             )}
             <Button type="submit" disabled={pwSaving}>

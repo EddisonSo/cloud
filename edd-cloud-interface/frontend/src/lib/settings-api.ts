@@ -83,13 +83,3 @@ export async function fetchSessions(): Promise<UserSession[]> {
   return res.json();
 }
 
-export async function revokeSession(sessionId: number): Promise<void> {
-  const res = await fetch(`${base()}/api/settings/sessions/${sessionId}`, {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to revoke session");
-  }
-}
