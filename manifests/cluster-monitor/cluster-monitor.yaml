@@ -60,7 +60,7 @@ spec:
             - "-discord-webhook"
             - "$(DISCORD_WEBHOOK_URL)"
             - "-log-service-http"
-            - "log-service:8080"
+            - "log-service:80"
           env:
             - name: POD_NAME
               valueFrom:
