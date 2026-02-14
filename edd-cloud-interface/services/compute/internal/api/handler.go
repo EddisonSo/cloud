@@ -1,14 +1,12 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
@@ -111,24 +109,19 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
-
 	type containerResponse struct {
-		ID            string   `json:"id"`
-		UserID        string   `json:"user_id"`
-		Owner         string   `json:"owner"`
-		Name          string   `json:"name"`
-		Hostname      string   `json:"hostname"`
-		Status        string   `json:"status"`
-		ExternalIP    string   `json:"external_ip,omitempty"`
-		MemoryMB      int      `json:"memory_mb"`
-		MemoryUsedMB  *int64   `json:"memory_used_mb,omitempty"`
-		StorageGB     int      `json:"storage_gb"`
-		StorageUsedGB *float64 `json:"storage_used_gb,omitempty"`
-		CreatedAt     int64    `json:"created_at"`
-		SSHEnabled    bool     `json:"ssh_enabled"`
-		HTTPSEnabled  bool     `json:"https_enabled"`
+		ID           string `json:"id"`
+		UserID       string `json:"user_id"`
+		Owner        string `json:"owner"`
+		Name         string `json:"name"`
+		Hostname     string `json:"hostname"`
+		Status       string `json:"status"`
+		ExternalIP   string `json:"external_ip,omitempty"`
+		MemoryMB     int    `json:"memory_mb"`
+		StorageGB    int    `json:"storage_gb"`
+		CreatedAt    int64  `json:"created_at"`
+		SSHEnabled   bool   `json:"ssh_enabled"`
+		HTTPSEnabled bool   `json:"https_enabled"`
 	}
 
 	resp := make([]containerResponse, 0, len(containers))
@@ -137,9 +130,8 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 		if c.ExternalIP.Valid {
 			ip = c.ExternalIP.String
 		}
-		// Construct hostname from container ID
 		hostname := c.ID[:8] + ".cloud.eddisonso.com"
-		cr := containerResponse{
+		resp = append(resp, containerResponse{
 			ID:           c.ID,
 			UserID:       c.UserID,
 			Owner:        c.Owner,
@@ -152,16 +144,7 @@ func (h *Handler) AdminListContainers(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:    c.CreatedAt.Unix(),
 			SSHEnabled:   c.SSHEnabled,
 			HTTPSEnabled: c.HTTPSEnabled,
-		}
-		// Fetch usage for running containers
-		if c.Status == "running" {
-			if usage, err := h.k8s.GetResourceUsage(ctx, c.Namespace); err == nil {
-				cr.MemoryUsedMB = &usage.MemoryUsedMB
-				rounded := float64(int(usage.StorageUsedGB*10)) / 10
-				cr.StorageUsedGB = &rounded
-			}
-		}
-		resp = append(resp, cr)
+		})
 	}
 
 	writeJSON(w, resp)
