@@ -833,8 +833,10 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store
 					Namespace:    pod.Namespace,
 					RestartCount: cs.RestartCount,
 				}
-				if cs.LastTerminationState.Terminated != nil &&
-					cs.LastTerminationState.Terminated.Reason == "OOMKilled" {
+				if (cs.LastTerminationState.Terminated != nil &&
+					cs.LastTerminationState.Terminated.Reason == "OOMKilled") ||
+					(cs.State.Terminated != nil &&
+						cs.State.Terminated.Reason == "OOMKilled") {
 					ps.OOMKilled = true
 				}
 				podStatuses = append(podStatuses, ps)
