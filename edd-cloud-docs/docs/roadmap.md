@@ -12,6 +12,7 @@ sidebar_position: 10
 - [ ] **Connection pooling** - Reuse backend connections to reduce latency
 - [ ] **HTTP/2 support** - Enable gRPC and improved multiplexing
 - [ ] **Distributed gateway** - Run multiple gateway replicas across backend nodes with MetalLB load balancing. Removes gateway dependency on s0
+- [ ] **Migrate to C++** - Rewrite gateway in C++ for deterministic memory deallocation; Go's GC does not reclaim connection buffers fast enough under high connection churn, causing heap growth even with bounded allocations
 
 ### Distributed Gateway Architecture (Future)
 
@@ -63,7 +64,7 @@ flowchart TB
 ## Monitoring
 
 - [ ] **Distributed tracing** - Request tracing across services
-- [ ] **Alerting** - Automated alerts for service health
+- [x] **Alerting** - Automated alerts for service health (Discord webhook via cluster-monitor)
 - [ ] **Log aggregation** - Searchable log storage
 - [ ] **Distributed logging aggregation** - Replicate log entries across log service replicas so all instances share the same ring buffers and subscribers; enables horizontal scaling without splitting logs across pods
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth

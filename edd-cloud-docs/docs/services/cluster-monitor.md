@@ -12,6 +12,7 @@ The Cluster Monitor service provides real-time metrics and health information fo
 - **Pod Metrics**: Resource usage per pod
 - **Health Status**: Node conditions and pressure indicators
 - **Real-time Streaming**: SSE-based metrics updates
+- **Automated Alerting**: Discord webhook notifications for cluster health issues
 
 ## Architecture
 
@@ -132,6 +133,38 @@ eventSource.onmessage = (event) => {
 
 Metrics are fetched from the Kubernetes API every 5 seconds (configurable).
 
+## Alerting
+
+Cluster Monitor includes automated alerting via Discord webhooks for the following conditions:
+
+### Alert Rules
+
+| Alert Type | Trigger Condition | Severity | Cooldown |
+|-----------|-------------------|----------|----------|
+| High CPU | Node CPU > 90% for 2 consecutive checks | Critical | 5 minutes |
+| High Memory | Node memory > 85% | Warning | 5 minutes |
+| High Disk | Node disk > 90% | Warning | 15 minutes |
+| Node Condition | Node has MemoryPressure/DiskPressure | Critical | 5 minutes |
+| OOMKilled | Container terminated with OOMKilled | Critical | 5 minutes |
+| Pod Restart | Pod restart count increased | Warning | 5 minutes |
+| Critical Log | Logs contain "panic", "fatal", "crash" | Critical | 5 minutes |
+| Error Burst | 5+ errors in 30s window | Warning | 5 minutes |
+
+### Discord Webhook Setup
+
+Alerts are sent to Discord via webhook. Configure the webhook URL as a Kubernetes secret:
+
+```bash
+kubectl create secret generic discord-webhook-url \
+  --from-literal=WEBHOOK_URL='https://discord.com/api/webhooks/...'
+```
+
+The webhook URL is mounted via `secretKeyRef` in the cluster-monitor deployment.
+
+### Log-based Alerts
+
+Cluster Monitor subscribes to the log-service WebSocket (`/ws/logs?level=ERROR`) to detect critical errors and error bursts in real-time across all services.
+
 ## Configuration
 
 | Flag | Description | Default |
@@ -139,3 +172,6 @@ Metrics are fetched from the Kubernetes API every 5 seconds (configurable).
 | `-addr` | Listen address | `:8080` |
 | `-refresh` | Metrics refresh interval | `5s` |
 | `-log-service` | Log service address | - |
+| `-log-service-http` | Log service HTTP address for WebSocket subscription | - |
+| `-discord-webhook` | Discord webhook URL for alerts | - |
+| `-alert-cooldown` | Default alert cooldown duration | `5m` |
