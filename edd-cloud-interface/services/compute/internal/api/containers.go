@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
@@ -79,35 +78,10 @@ func (h *Handler) ListContainers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
 	resp := make([]containerResponse, len(containers))
-	var wg sync.WaitGroup
 	for i, c := range containers {
-		wg.Add(1)
-		go func(i int, c *db.Container) {
-			defer wg.Done()
-			// Sync status from K8s for non-terminal containers
-			if c.Status == "initializing" || c.Status == "pending" {
-				if status, err := h.k8s.GetPodStatus(ctx, c.Namespace); err == nil && status != "" && status != c.Status {
-					c.Status = status
-					h.db.UpdateContainerStatus(c.ID, status)
-				}
-			}
-			cr := containerToResponse(c)
-			// Fetch usage for running containers
-			if c.Status == "running" {
-				if usage, err := h.k8s.GetResourceUsage(ctx, c.Namespace); err == nil {
-					cr.MemoryUsedMB = &usage.MemoryUsedMB
-					rounded := float64(int(usage.StorageUsedGB*10)) / 10
-					cr.StorageUsedGB = &rounded
-				}
-			}
-			resp[i] = cr
-		}(i, c)
+		resp[i] = containerToResponse(c)
 	}
-	wg.Wait()
 
 	writeJSON(w, map[string]any{"containers": resp})
 }
