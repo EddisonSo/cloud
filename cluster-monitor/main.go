@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"eddisonso.com/cluster-monitor/internal/graph"
+	"eddisonso.com/cluster-monitor/internal/alerting"
 	"eddisonso.com/cluster-monitor/internal/timeseries"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"github.com/golang-jwt/jwt/v5"
@@ -313,6 +314,9 @@ func main() {
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "cluster-monitor", "Log source name (e.g., pod name)")
 	apiServer := flag.String("api-server", "", "Kubernetes API server address (e.g., https://k3s.eddisonso.com:6443)")
+	discordWebhook := flag.String("discord-webhook", "", "Discord webhook URL for alerts")
+	alertCooldown := flag.Duration("alert-cooldown", 5*time.Minute, "Default alert cooldown duration")
+	logServiceHTTP := flag.String("log-service-http", "", "Log service HTTP address for WebSocket subscription (e.g., log-service:8080)")
 	flag.Parse()
 
 	initJWTSecret()
@@ -348,8 +352,35 @@ func main() {
 	// Initialize cache and metrics store, start background workers
 	cache := NewMetricsCache()
 	metricsStore := timeseries.NewMetricsStore(0) // Default capacity (24h at 5s intervals)
-	go clusterInfoWorker(clientset, cache, metricsStore, *refreshInterval)
-	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval)
+
+	// Alerting
+	discord := alerting.NewDiscordSender(*discordWebhook)
+	fireAlert := func(a alerting.Alert) {
+		slog.Warn("alert fired", "title", a.Title, "message", a.Message)
+		if err := discord.Send(a); err != nil {
+			slog.Error("failed to send Discord alert", "error", err)
+		}
+	}
+
+	evaluator := alerting.NewEvaluator(alerting.EvaluatorConfig{
+		CPUThreshold:    90,
+		MemThreshold:    85,
+		DiskThreshold:   90,
+		DefaultCooldown: *alertCooldown,
+	}, fireAlert)
+
+	logDetector := alerting.NewLogDetector(alerting.LogDetectorConfig{
+		BurstThreshold: 5,
+		BurstWindow:    30 * time.Second,
+		Cooldown:       *alertCooldown,
+	}, fireAlert)
+
+	if *logServiceHTTP != "" {
+		go alerting.SubscribeLogService(*logServiceHTTP, logDetector)
+	}
+
+	go clusterInfoWorker(clientset, cache, metricsStore, *refreshInterval, evaluator)
+	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval, evaluator)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/cluster-info", func(w http.ResponseWriter, r *http.Request) {
@@ -430,19 +461,19 @@ func main() {
 }
 
 // clusterInfoWorker fetches cluster metrics at the configured interval
-func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration) {
+func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, evaluator *alerting.Evaluator) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchClusterInfo(clientset, cache, store)
+	fetchClusterInfo(clientset, cache, store, evaluator)
 
 	for range ticker.C {
-		fetchClusterInfo(clientset, cache, store)
+		fetchClusterInfo(clientset, cache, store, evaluator)
 	}
 }
 
-func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore) {
+func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, evaluator *alerting.Evaluator) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -581,22 +612,43 @@ func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, stor
 			DiskPercent: nm.DiskPercent,
 		})
 	}
+
+	// Evaluate alert rules
+	if evaluator != nil {
+		var nodes []alerting.NodeSnapshot
+		for _, nm := range nodeMetrics {
+			var conditions []string
+			for _, c := range nm.Conditions {
+				if c.Status == "True" {
+					conditions = append(conditions, c.Type)
+				}
+			}
+			nodes = append(nodes, alerting.NodeSnapshot{
+				Name:        nm.Name,
+				CPUPercent:  nm.CPUPercent,
+				MemPercent:  nm.MemoryPercent,
+				DiskPercent: nm.DiskPercent,
+				Conditions:  conditions,
+			})
+		}
+		evaluator.EvaluateCluster(alerting.ClusterSnapshot{Nodes: nodes})
+	}
 }
 
 // podMetricsWorker fetches pod metrics at the configured interval
-func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration) {
+func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, evaluator *alerting.Evaluator) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchPodMetrics(clientset, cache, store)
+	fetchPodMetrics(clientset, cache, store, evaluator)
 
 	for range ticker.C {
-		fetchPodMetrics(clientset, cache, store)
+		fetchPodMetrics(clientset, cache, store, evaluator)
 	}
 }
 
-func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore) {
+func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, evaluator *alerting.Evaluator) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -769,6 +821,26 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store
 			MemBytes:  pm.MemoryUsage,
 			DiskBytes: pm.DiskUsage,
 		})
+	}
+
+	// Evaluate pod alerts
+	if evaluator != nil {
+		var podStatuses []alerting.PodStatus
+		for _, pod := range allPods {
+			for _, cs := range pod.Status.ContainerStatuses {
+				ps := alerting.PodStatus{
+					Name:         pod.Name,
+					Namespace:    pod.Namespace,
+					RestartCount: cs.RestartCount,
+				}
+				if cs.LastTerminationState.Terminated != nil &&
+					cs.LastTerminationState.Terminated.Reason == "OOMKilled" {
+					ps.OOMKilled = true
+				}
+				podStatuses = append(podStatuses, ps)
+			}
+		}
+		evaluator.EvaluatePods(alerting.PodSnapshot{Pods: podStatuses})
 	}
 }
 
