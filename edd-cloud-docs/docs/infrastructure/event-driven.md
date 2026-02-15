@@ -35,13 +35,13 @@ Each service owns its data and publishes events for others to consume:
 
 | Service | Database | Owns | Publishes | Subscribes |
 |---------|----------|------|-----------|------------|
-| **Auth** | `auth_db` | users, sessions | `auth.user.*` | - |
-| **SFS** | `sfs_db` | namespaces, files, user_cache | `sfs.*` | `auth.user.*` |
-| **Compute** | `compute_db` | containers, ssh_keys, user_cache | `compute.*` | `auth.user.*` |
-| **Gateway** | `gateway_db` | routes, ingress_rules | `gateway.*` | `compute.container.*` |
-| **Notifications** | `notifications_db` | notifications, mutes | - | `notify.>` |
-| **Cluster Monitor** | - | cluster metrics (in-memory) | `cluster.metrics`, `cluster.pods` | - |
-| **Log Service** | - | logs (in-memory ring buffer + GFS) | `log.error.*` | - |
+| **Auth** | `auth_db` | users, sessions | `auth.user.*` (AUTH stream) | - |
+| **SFS** | `sfs_db` | namespaces, files, user_cache | - | `auth.user.*` |
+| **Compute** | `compute_db` | containers, ssh_keys, user_cache | - | `auth.user.*` |
+| **Gateway** | `gateway_db` | routes, ingress_rules | - | - |
+| **Notifications** | `notifications_db` | notifications, mutes | `notify.*` (NOTIFICATIONS stream) | `notify.>` |
+| **Cluster Monitor** | - | cluster metrics (in-memory) | `cluster.metrics`, `cluster.pods` (CLUSTER stream) | - |
+| **Log Service** | - | logs (in-memory ring buffer + GFS) | `log.error.*` (LOGS stream) | - |
 | **Alerting** | - | alert rules, cooldown state (in-memory) | - | `cluster.>`, `log.error.>` |
 
 ## Event Flow Examples

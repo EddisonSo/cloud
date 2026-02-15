@@ -166,6 +166,7 @@ Cluster Monitor creates the CLUSTER stream on startup if it doesn't exist. Publi
 |------|-------------|---------|
 | `-addr` | Listen address | `:8080` |
 | `-refresh` | Metrics refresh interval | `5s` |
+| `-api-server` | Kubernetes API server address | - |
 | `-log-service` | Log service gRPC address for structured logging | - |
 | `-log-source` | Log source name (pod name) | `cluster-monitor` |
 | `-nats` | NATS server URL | `nats://nats:4222` |

@@ -40,8 +40,7 @@ flowchart TB
     Storage --> HAProxy
     Compute --> HAProxy
     Notif --> HAProxy
-    HAProxy --> PGPrimary[PostgreSQL Primary<br/>s0]
-    HAProxy --> PGReplica[PostgreSQL Replica<br/>rp1]
+    HAProxy --> PGPrimary[PostgreSQL Primary<br/>rp1 promoted]
 ```
 
 ## Node Layout
@@ -50,8 +49,8 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node | Architecture | OS | Role | Labels |
 |------|-------------|-----|------|--------|
-| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, GFS master | `db-role=primary`, `core-services=true` |
-| rp1 | arm64 | Debian 11 (kernel 6.1) | Database replica, HAProxy | `db-role=replica` |
+| s0 | amd64 | Debian 13 (kernel 6.12) | Gateway, GFS master | `core-services=true`, `gfs-master=true` |
+| rp1 | arm64 | Debian 11 (kernel 6.1) | Database primary (promoted), HAProxy | `db-role=replica` |
 | rp2 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp3 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp4 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
@@ -63,9 +62,9 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node(s) | Services |
 |---------|----------|
-| s0 | gateway, gfs-master, notification-service, postgres-primary, postgres-replica-s0 |
-| rp1 | postgres-replica, haproxy |
-| rp2, rp3, rp4 | auth-service, edd-compute, log-service, NATS, cluster-monitor, alerting-service, simple-file-share, edd-cloud-docs, postgres-replicas |
+| s0 | gateway, gfs-master |
+| rp1 | postgres-replica (primary), haproxy |
+| rp2, rp3, rp4 | auth-service, edd-compute, log-service, cluster-monitor, alerting-service, notification-service, simple-file-share, edd-cloud-docs, nats |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
 ## Network Architecture
@@ -106,7 +105,7 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 
 | Service | Type | Ports | Protocol |
 |---------|------|-------|----------|
-| gateway | LoadBalancer | 22, 80, 443, 8000-8999 | SSH/HTTP/HTTPS/Container ingress |
+| gateway | LoadBalancer | 80, 443, 2222, 8000-8999 | HTTP/HTTPS/SSH/Container ingress |
 | auth-service | ClusterIP | 80 | HTTP |
 | simple-file-share-backend | ClusterIP | 80 | HTTP |
 | simple-file-share-frontend | ClusterIP | 80 | HTTP |
@@ -114,9 +113,9 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 | cluster-monitor | ClusterIP | 80 | HTTP |
 | log-service | ClusterIP | 50051, 80 | gRPC, HTTP |
 | notification-service | ClusterIP | 80 | HTTP, WebSocket |
-| alerting-service | ClusterIP | - | Internal (NATS consumer) |
+| alerting-service | ClusterIP | 80 | HTTP (health checks), NATS consumer |
 | gfs-master | ClusterIP | 9000 | gRPC |
-| gfs-chunkserver-N | hostNetwork | 8080, 8081 | TCP, gRPC |
+| gfs-chunkserver-N | hostNetwork | 9080, 9081 | TCP (client), TCP (replication) |
 | postgres | ClusterIP | 5432 | PostgreSQL |
 | haproxy | ClusterIP | 5432 | PostgreSQL |
 | nats | ClusterIP | 4222, 8222 | NATS, HTTP |
@@ -190,11 +189,10 @@ This handles scenarios like:
 
 ### Service Databases
 
-PostgreSQL runs in a high-availability configuration with streaming replication:
+PostgreSQL runs on rp1 in a promoted-replica configuration. The original primary on s0 is disabled (0 replicas) following the [January 2026 node failure](./incidents/2026-01-25-s0-node-failure). The deployment is named `postgres-replica` for PVC/service compatibility, but operates as the primary.
 
-- **Primary**: s0
-- **Replicas**: rp1, rp2, rp3, rp4, s0 (5 replica pods for read scaling and redundancy)
-- **HAProxy**: Runs on rp1, provides connection pooling and automatic failover
+- **Primary**: rp1 (promoted from replica)
+- **HAProxy**: Runs on rp1, provides connection pooling and health checking
 
 Each service owns its own database for loose coupling:
 
@@ -212,13 +210,14 @@ Services communicate asynchronously via NATS JetStream:
 
 ```mermaid
 flowchart TB
-    Auth[Auth Service] --> NATS[NATS JetStream]
-    Compute[Compute Service] --> NATS
+    Auth[Auth Service] -->|auth.user.*| NATS[NATS JetStream]
+    ClusterMon[Cluster Monitor] -->|cluster.*| NATS
+    LogSvc[Log Service] -->|log.error.*| NATS
 
-    NATS --> SFS[Storage Service]
-    NATS --> Gateway[Gateway]
-    NATS --> Compute2[Compute Service]
-    NATS --> Notif[Notification Service]
+    NATS -->|auth.user.*| SFS[Storage Service]
+    NATS -->|auth.user.*| Compute[Compute Service]
+    NATS -->|notify.*| Notif[Notification Service]
+    NATS -->|cluster.*, log.error.*| Alerting[Alerting Service]
 ```
 
 ### Event Subjects
@@ -227,8 +226,7 @@ flowchart TB
 |-----------------|-------------|
 | `auth.user.{id}.created` | User created |
 | `auth.user.{id}.deleted` | User deleted |
-| `compute.container.{id}.started` | Container started |
-| `compute.container.{id}.stopped` | Container stopped |
+| `auth.user.{id}.updated` | User profile updated |
 | `notify.{user_id}` | Push notification to user |
 | `cluster.metrics` | Node CPU, memory, disk metrics |
 | `cluster.pods` | Pod restart count, OOM status |
@@ -266,9 +264,17 @@ See [Event-Driven Architecture](./infrastructure/event-driven) for details.
 
 | Secret | Purpose |
 |--------|---------|
-| `postgres-credentials` | PostgreSQL connection string |
-| `edd-cloud-auth` | JWT signing secret |
-| `eddisonso-wildcard-tls` | TLS certificates |
+| `postgres-credentials` | PostgreSQL admin and replication passwords |
+| `compute-db-credentials` | Compute service database access |
+| `auth-db-credentials` | Auth service database access |
+| `sfs-db-credentials` | File sharing service database access |
+| `notification-db-credentials` | Notification service database access |
+| `edd-cloud-auth` | JWT_SECRET, default credentials |
+| `edd-cloud-admin` | Admin username (shared across services) |
+| `service-api-key` | Inter-service authentication key |
+| `gfs-jwt-secret` | GFS JWT signing secret |
+| `discord-webhook-url` | Discord webhook for alerting |
+| `eddisonso-wildcard-tls` | Wildcard TLS certificate |
 | `regcred` | Docker registry credentials |
 
 ### CORS

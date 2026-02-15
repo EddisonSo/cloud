@@ -57,10 +57,9 @@ MetalLB runs in L2 mode, responding to ARP requests for allocated virtual IPs. W
 
 | Pool | Range | Purpose |
 |------|-------|---------|
-| default-pool | 192.168.3.200 | Gateway VIP |
-| compute-pool | 192.168.3.150-200 | Compute namespace services |
+| compute-pool | 192.168.3.150-192.168.3.200 | Gateway VIP + compute namespace services |
 
-The gateway service is the primary consumer of MetalLB, receiving VIP `192.168.3.200` for all external traffic on ports 80, 443, and 2222.
+The gateway service sets `loadBalancerIP: 192.168.3.200` to receive a stable VIP from the pool for all external traffic on ports 80, 443, and 2222.
 
 **Client Source IP Preservation**: The gateway LoadBalancer uses `externalTrafficPolicy: Local`, which directs kube-proxy to preserve the real client IP address instead of SNAT-ing it to the node IP. Without this, all connections would appear to originate from internal node IPs (e.g., 192.168.3.100), breaking session tracking and IP-based security features.
 
@@ -208,9 +207,9 @@ GFS chunkservers run with `hostNetwork: true` on s1, s2, and s3, binding directl
 
 | Chunkserver | Address | Ports |
 |-------------|---------|-------|
-| s1 | 192.168.3.101 | 8080 (data), 8081 (gRPC) |
-| s2 | 192.168.3.102 | 8080 (data), 8081 (gRPC) |
-| s3 | 192.168.3.103 | 8080 (data), 8081 (gRPC) |
+| s1 | 192.168.3.101 | 9080 (client), 9081 (replication) |
+| s2 | 192.168.3.102 | 9080 (client), 9081 (replication) |
+| s3 | 192.168.3.103 | 9080 (client), 9081 (replication) |
 
 ### Internal Service Ports
 
@@ -226,7 +225,7 @@ GFS chunkservers run with `hostNetwork: true` on s1, s2, and s3, binding directl
 | notification-service | ClusterIP | 80 | HTTP, WebSocket |
 | edd-cloud-docs | ClusterIP | 80 | HTTP |
 | gfs-master | ClusterIP | 9000 | gRPC |
-| gfs-chunkserver-N | hostNetwork | 8080, 8081 | TCP, gRPC |
+| gfs-chunkserver-N | hostNetwork | 9080, 9081 | TCP (client), TCP (replication) |
 | postgres | ClusterIP | 5432 | PostgreSQL |
 | haproxy | ClusterIP | 5432 | PostgreSQL |
 | nats | ClusterIP | 4222, 8222 | NATS, HTTP monitoring |

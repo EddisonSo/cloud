@@ -17,23 +17,24 @@ NATS is used for:
 
 ```mermaid
 flowchart TB
-    Auth[Auth] --> NATS[NATS JetStream]
-    Compute[Compute] --> NATS
+    Auth[Auth] -->|auth.user.*| NATS[NATS JetStream]
+    ClusterMon[Cluster Monitor] -->|cluster.*| NATS
+    LogSvc[Log Service] -->|log.error.*| NATS
 
-    NATS --> SFS[SFS]
-    NATS --> Gateway[Gateway]
-    NATS --> Notif[Notifications]
+    NATS -->|auth.user.*| SFS[SFS]
+    NATS -->|auth.user.*| Compute[Compute]
+    NATS -->|notify.*| Notif[Notifications]
+    NATS -->|cluster.*, log.error.*| Alerting[Alerting]
 ```
 
 ## JetStream Streams
 
-| Stream | Subjects | Retention | Description |
-|--------|----------|-----------|-------------|
-| `AUTH` | `auth.>` | 7 days | User and session events |
-| `COMPUTE` | `compute.>` | 7 days | Container and SSH key events |
-| `GATEWAY` | `gateway.>` | 7 days | Routing events |
-| `SFS` | `sfs.>` | 7 days | Namespace and file events |
-| `NOTIFICATIONS` | `notify.>` | 7 days | Push notifications to users |
+| Stream | Subjects | Created By | Retention | Description |
+|--------|----------|------------|-----------|-------------|
+| `AUTH` | `auth.>` | auth-service | 7 days | User and session events |
+| `CLUSTER` | `cluster.>` | cluster-monitor | 7 days | Node metrics and pod status |
+| `LOGS` | `log.>` | log-service | 7 days | Error-level log events |
+| `NOTIFICATIONS` | `notify.>` | notification-service | 7 days | Push notifications to users |
 
 ## Configuration
 

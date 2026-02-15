@@ -134,11 +134,10 @@ The stored restart count is only updated upward, never downward, preventing the 
 | `-nats` | NATS server URL | `nats://nats:4222` |
 | `-discord-webhook` | Discord webhook URL for alerts | - |
 | `-alert-cooldown` | Default alert cooldown duration | `5m` |
-| `-cpu-threshold` | CPU alert threshold (%) | `90` |
-| `-mem-threshold` | Memory alert threshold (%) | `85` |
-| `-disk-threshold` | Disk alert threshold (%) | `90` |
-| `-error-burst-threshold` | Error count for burst detection | `5` |
-| `-error-burst-window` | Time window for burst detection | `30s` |
+| `-log-service-grpc` | Log service gRPC address for structured logging | - |
+| `-log-source` | Log source name (pod name) | `alerting-service` |
+
+Alert thresholds are hardcoded: CPU 90%, memory 85%, disk 90%, error burst 5 errors in 30s.
 
 ## Deployment
 

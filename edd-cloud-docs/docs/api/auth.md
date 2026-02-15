@@ -250,12 +250,7 @@ curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/add/finish \
   }'
 ```
 
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
+**Response:** `200 OK` with empty body.
 
 ---
 
@@ -277,12 +272,7 @@ curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/delete \
   -d '{"id": "base64_credential_id"}'
 ```
 
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
+**Response:** `200 OK` with empty body.
 
 ---
 
@@ -305,12 +295,7 @@ curl -X POST https://auth.cloud.eddisonso.com/api/settings/keys/rename \
   -d '{"id": "base64_credential_id", "name": "Work YubiKey"}'
 ```
 
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
+**Response:** `200 OK` with empty body.
 
 ---
 
@@ -335,7 +320,9 @@ curl -X PUT https://auth.cloud.eddisonso.com/api/settings/profile \
 **Response:**
 ```json
 {
-  "status": "ok"
+  "username": "alice",
+  "display_name": "Alice Smith",
+  "user_id": "abc123"
 }
 ```
 
@@ -360,12 +347,7 @@ curl -X PUT https://auth.cloud.eddisonso.com/api/settings/password \
   -d '{"current_password": "old", "new_password": "new"}'
 ```
 
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
+**Response:** `200 OK` with empty body.
 
 ---
 
@@ -383,22 +365,20 @@ curl https://auth.cloud.eddisonso.com/api/settings/sessions \
 
 **Response:**
 ```json
-{
-  "sessions": [
-    {
-      "id": 123,
-      "ip_address": "203.0.113.42",
-      "created_at": 1712224000,
-      "is_current": true
-    },
-    {
-      "id": 122,
-      "ip_address": "198.51.100.10",
-      "created_at": 1712220000,
-      "is_current": false
-    }
-  ]
-}
+[
+  {
+    "id": 123,
+    "ip_address": "203.0.113.42",
+    "created_at": 1712224000,
+    "is_current": true
+  },
+  {
+    "id": 122,
+    "ip_address": "198.51.100.10",
+    "created_at": 1712220000,
+    "is_current": false
+  }
+]
 ```
 
 Sessions automatically expire when their JWT token expires. There is no manual revocation endpoint.
