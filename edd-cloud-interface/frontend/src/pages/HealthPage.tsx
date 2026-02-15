@@ -147,9 +147,9 @@ export function HealthPage() {
   const filteredPods = useMemo(() => {
     if (!podMetrics.pods) return [];
     return podMetrics.pods.filter((pod) => {
-      const ns = pod.namespace || "default";
-      // Show all pods in default namespace (core services)
-      if (ns === "default") return true;
+      const ns = pod.namespace || "core";
+      // Show all pods in core namespace (core services)
+      if (ns === "core") return true;
       // For compute-* namespaces, only show user's own containers
       // Namespace format: compute-{user_id}-{container_id}
       if (ns.startsWith("compute-") && userId) {
