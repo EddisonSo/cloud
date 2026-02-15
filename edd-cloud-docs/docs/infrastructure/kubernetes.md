@@ -10,8 +10,8 @@ Edd Cloud runs on a K3s Kubernetes cluster with mixed architecture nodes. All wo
 
 | Node | Architecture | Labels | Role |
 |------|--------------|--------|------|
-| s0 | amd64 | `db-role=primary`, `core-services=true`, `gfs-master=true` | Database primary, GFS master, gateway |
-| rp1 | arm64 | `db-role=replica` | Database replica, HAProxy |
+| s0 | amd64 | `db-role=primary`, `core-services=true`, `gfs-master=true` | Database primary, GFS master, gateway, HAProxy |
+| rp1 | arm64 | `db-role=replica` | Database replica |
 | rp2 | arm64 | `backend=true`, `core-services=true` | Backend services |
 | rp3 | arm64 | `backend=true` | Backend services |
 | rp4 | arm64 | `backend=true` | Backend services |
@@ -71,7 +71,7 @@ nodeSelector:
 
 - postgres (primary, s0)
 - postgres-replica (rp1)
-- haproxy (connection pooling, rp1)
+- haproxy (connection pooling, s0)
 
 ### NATS
 
@@ -102,7 +102,7 @@ edd-cloud-docs               2/2     rp{2-4}
 alerting-service             1/1     rp{2-4}
 nats                         1/1     (size=mini)
 postgres-replica             1/1     rp1
-haproxy                      1/1     rp1
+haproxy                      1/1     s0
 ```
 
 ### Database
@@ -128,13 +128,13 @@ nodeSelector:
   db-role: replica
 ```
 
-HAProxy provides connection pooling and failover on rp1:
+HAProxy provides connection pooling and failover on s0 (co-located with the primary for minimal latency):
 
 ```yaml
-# HAProxy on rp1
+# HAProxy on s0
 replicas: 1
 nodeSelector:
-  db-role: replica
+  db-role: primary
 ```
 
 ### GFS Chunkservers

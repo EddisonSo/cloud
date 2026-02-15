@@ -50,7 +50,7 @@ spec:
         app: haproxy
     spec:
       nodeSelector:
-        db-role: replica
+        db-role: primary
       containers:
         - name: haproxy
           image: haproxy:2.9-alpine

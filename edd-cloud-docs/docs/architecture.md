@@ -36,7 +36,7 @@ flowchart TB
     GFSMaster --> Chunk2[Chunkserver<br/>s2]
     GFSMaster --> Chunk3[Chunkserver<br/>s3]
 
-    Auth --> HAProxy[HAProxy<br/>rp1]
+    Auth --> HAProxy[HAProxy<br/>s0]
     Storage --> HAProxy
     Compute --> HAProxy
     Notif --> HAProxy
@@ -50,8 +50,8 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node | Architecture | OS | Role | Labels |
 |------|-------------|-----|------|--------|
-| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, GFS master, gateway | `db-role=primary`, `core-services=true`, `gfs-master=true` |
-| rp1 | arm64 | Debian 11 (kernel 6.1) | Database replica, HAProxy | `db-role=replica` |
+| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, GFS master, gateway, HAProxy | `db-role=primary`, `core-services=true`, `gfs-master=true` |
+| rp1 | arm64 | Debian 11 (kernel 6.1) | Database replica | `db-role=replica` |
 | rp2 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp3 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp4 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
@@ -63,8 +63,8 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node(s) | Services |
 |---------|----------|
-| s0 | gateway, gfs-master, postgres (primary) |
-| rp1 | postgres-replica, haproxy |
+| s0 | gateway, gfs-master, postgres (primary), haproxy |
+| rp1 | postgres-replica |
 | rp2, rp3, rp4 | auth-service, edd-compute, log-service, cluster-monitor, alerting-service, notification-service, simple-file-share, edd-cloud-docs, nats |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
@@ -194,7 +194,7 @@ PostgreSQL runs in a primary-replica configuration with streaming replication:
 
 - **Primary**: s0 (`postgres` deployment)
 - **Replica**: rp1 (`postgres-replica` deployment, streaming from s0)
-- **HAProxy**: Runs on rp1, provides connection pooling and automatic failover
+- **HAProxy**: Runs on s0 (co-located with primary), provides connection pooling and automatic failover
 
 Each service owns its own database for loose coupling:
 

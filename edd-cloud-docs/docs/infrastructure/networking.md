@@ -20,7 +20,7 @@ flowchart LR
     Gateway -->|SSH tunnel| Containers[User Containers<br/>rp2/rp3/rp4]
 
     subgraph Pod Network - Calico VXLAN
-        Services <-->|ClusterIP| DB[PostgreSQL / HAProxy<br/>s0 / rp1]
+        Services <-->|ClusterIP| DB[PostgreSQL / HAProxy<br/>s0]
         Services <-->|gRPC| GFS[GFS Chunkservers<br/>s1/s2/s3 hostNetwork]
         Services <-->|NATS| Events[NATS JetStream]
     end
@@ -262,7 +262,7 @@ sequenceDiagram
     participant KP as kube-proxy / iptables
     participant Gateway as edd-gateway pod (s0)
     participant Service as Backend Service (rp2-4)
-    participant DB as PostgreSQL via HAProxy (rp1)
+    participant DB as PostgreSQL via HAProxy (s0)
 
     Note over Client,MetalLB: L2 Address Resolution
     Client->>MetalLB: ARP: who has 192.168.3.200?
