@@ -233,9 +233,9 @@ export function StoragePage() {
             {namespacesLoading ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-3 bg-secondary rounded-md">
+                  <div key={i} className="flex items-center justify-between px-4 py-3 bg-secondary rounded-md sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4">
                     <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-16 mx-auto" />
+                    <Skeleton className="hidden sm:block h-4 w-16 mx-auto" />
                     <Skeleton className="h-4 w-14 mx-auto" />
                   </div>
                 ))}
@@ -244,8 +244,8 @@ export function StoragePage() {
               <p className="text-muted-foreground py-4">No namespaces yet. Create one to start uploading files.</p>
             ) : (
               <div className="space-y-2">
-                {/* Header */}
-                <div className="grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {/* Header - hidden on mobile */}
+                <div className="hidden sm:grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <div>Name</div>
                   <div className="text-center">Files</div>
                   <div className="text-center">Visibility</div>

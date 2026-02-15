@@ -13,7 +13,8 @@ import { Shield } from "lucide-react";
 export function AppLayout() {
   const { user, loading: authLoading, login, challengeToken, complete2FA, cancel2FA } = useAuth();
   const { health } = useHealth(user, true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
@@ -132,13 +133,13 @@ export function AppLayout() {
   return (
     <div className="min-h-screen">
       <TopBar onToggleSidebar={() => setSidebarCollapsed((c) => !c)} />
-      <Sidebar healthOk={health.cluster_ok} collapsed={sidebarCollapsed} />
+      <Sidebar healthOk={health.cluster_ok} collapsed={sidebarCollapsed} onClose={() => setSidebarCollapsed(true)} />
       <main
         className={`pt-14 min-h-screen transition-[margin] ${
-          sidebarCollapsed ? "ml-0" : "ml-[240px]"
+          sidebarCollapsed ? "ml-0" : "md:ml-[240px]"
         }`}
       >
-        <div className="p-6">
+        <div className="p-4 md:p-6">
           <Outlet />
         </div>
       </main>

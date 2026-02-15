@@ -98,8 +98,8 @@ export function SshKeyList({
         <p className="text-muted-foreground py-4">No SSH keys yet. Add one to access your containers.</p>
       ) : (
         <div className="space-y-2">
-          {/* Header */}
-          <div className="grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {/* Header - hidden on mobile */}
+          <div className="hidden sm:grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <div className="text-center">Name</div>
             <div className="text-center">Public Key</div>
             <div className="text-center">Actions</div>
@@ -108,12 +108,13 @@ export function SshKeyList({
           {sshKeys.map((key) => (
             <div
               key={key.id}
-              className="grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+              className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md sm:grid sm:grid-cols-[1fr_3fr_80px] sm:gap-4 sm:items-center"
             >
-              <div className="text-center">
-                <span className="font-medium truncate block">{key.name}</span>
+              <div className="sm:text-center">
+                <span className="text-xs text-muted-foreground sm:hidden">Name: </span>
+                <span className="font-medium truncate">{key.name}</span>
               </div>
-              <div className="min-w-0 flex items-center justify-center gap-2">
+              <div className="min-w-0 flex items-center gap-2 sm:justify-center">
                 <span className="text-xs text-muted-foreground font-mono truncate">
                   {key.public_key?.slice(0, 50)}...
                 </span>
@@ -127,7 +128,7 @@ export function SshKeyList({
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
               </div>
-              <div className="flex justify-center">
+              <div className="flex sm:justify-center">
                 <Button
                   variant="ghost"
                   size="icon"

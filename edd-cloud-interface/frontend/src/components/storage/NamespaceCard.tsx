@@ -20,7 +20,7 @@ export function NamespaceCard({
     <div
       onClick={() => onSelect?.(namespace.name)}
       className={cn(
-        "grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer transition-all hover:bg-secondary/80",
+        "flex items-center justify-between px-4 py-3 bg-secondary rounded-md cursor-pointer transition-all hover:bg-secondary/80 sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4",
         isActive && "border border-primary bg-primary/10",
         visibility < 2 && "opacity-80"
       )}
@@ -29,7 +29,7 @@ export function NamespaceCard({
         <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
         <span className="font-medium truncate">{namespace.name}</span>
       </div>
-      <div className="text-center text-sm text-muted-foreground">
+      <div className="hidden sm:block text-center text-sm text-muted-foreground">
         {namespace.count} {namespace.count === 1 ? "file" : "files"}
       </div>
       <div className="text-center">

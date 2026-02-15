@@ -47,53 +47,48 @@ export function ContainerList({
   }
 
   return (
-    <table className="w-full">
-      <thead>
-        <tr className="border-b border-border">
-          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Name
-          </th>
-          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Status
-          </th>
-          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Hostname
-          </th>
-          <th className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Actions
-          </th>
-        </tr>
-      </thead>
-      <tbody>
+    <div className="w-full">
+      {/* Header - hidden on mobile */}
+      <div className="hidden md:grid grid-cols-[2fr_1fr_2fr_1.5fr] gap-4 px-4 md:px-5 py-3 border-b border-border">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</div>
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</div>
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Hostname</div>
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider text-right">Actions</div>
+      </div>
+      {/* Rows */}
+      <div className="divide-y divide-border/50">
         {containers.map((container) => {
           const action = actions[container.id];
           const isRunning = container.status === "running";
           const isStopped = container.status === "stopped";
 
           return (
-            <tr
+            <div
               key={container.id}
-              className="border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
+              className="flex flex-col gap-2 px-4 md:px-5 py-3 cursor-pointer hover:bg-accent/50 transition-colors md:grid md:grid-cols-[2fr_1fr_2fr_1.5fr] md:gap-4 md:items-center"
               onClick={() => onSelect?.(container)}
             >
-              <td className="px-5 py-3">
+              <div className="flex items-center justify-between md:block min-w-0">
                 <div className="min-w-0">
                   <span className="text-sm font-medium block truncate">{container.name}</span>
                   <span className="text-xs text-muted-foreground font-mono">{container.id.slice(0, 8)}</span>
                 </div>
-              </td>
-              <td className="px-5 py-3">
+                <div className="md:hidden">
+                  <StatusChip status={container.status} />
+                </div>
+              </div>
+              <div className="hidden md:block">
                 <StatusChip status={container.status} />
-              </td>
-              <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+              </div>
+              <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
                 {container.hostname ? (
                   <CopyableText text={container.hostname} mono className="text-sm" />
                 ) : (
                   <span className="text-sm text-muted-foreground">&mdash;</span>
                 )}
-              </td>
-              <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                <div className="flex gap-1 justify-end">
+              </div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <div className="flex gap-1 md:justify-end">
                   {isRunning && (
                     <>
                       <Button
@@ -149,11 +144,11 @@ export function ContainerList({
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
-              </td>
-            </tr>
+              </div>
+            </div>
           );
         })}
-      </tbody>
-    </table>
+      </div>
+    </div>
   );
 }

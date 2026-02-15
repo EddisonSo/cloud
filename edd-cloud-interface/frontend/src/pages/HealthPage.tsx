@@ -245,7 +245,7 @@ export function HealthPage() {
         <div className="p-5">
           {loading ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden md:grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div className="text-center">Node</div>
                 <div className="text-center">Status</div>
                 <div className="text-center">CPU</div>
@@ -253,7 +253,7 @@ export function HealthPage() {
                 <div className="text-center">Disk</div>
               </div>
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                <div key={i} className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md md:grid md:grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] md:gap-4 md:items-center">
                   <Skeleton className="h-5 w-20 mx-auto" />
                   <Skeleton className="h-5 w-16 mx-auto" />
                   <Skeleton className="h-2 w-full" />
@@ -270,8 +270,8 @@ export function HealthPage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {/* Header - hidden on mobile */}
+              <div className="hidden md:grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <SortHeader column="name" sortColumn={nodeSort.column} sortDir={nodeSort.dir} onSort={handleNodeSort}>
                   Node
                 </SortHeader>
@@ -310,18 +310,24 @@ export function HealthPage() {
                 return (
                   <div
                     key={node.name || idx}
-                    className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                    className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md md:grid md:grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] md:gap-4 md:items-center"
                   >
-                    <div className="font-medium truncate text-center" title={node.name}>
-                      {node.name}
+                    <div className="flex items-center justify-between md:block">
+                      <div className="font-medium truncate md:text-center" title={node.name}>
+                        {node.name}
+                      </div>
+                      <div className="md:hidden">
+                        <StatusChip status={isHealthy ? "healthy" : "warning"} />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="hidden md:flex items-center justify-center gap-2">
                       <StatusChip status={isHealthy ? "healthy" : "warning"} />
                     </div>
                     <div
                       className="space-y-1 text-center cursor-pointer"
                       onClick={() => setShowPercent(!showPercent)}
                     >
+                      <span className="text-xs text-muted-foreground md:hidden">CPU</span>
                       <Progress value={node.cpu_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
                         {showPercent
@@ -333,6 +339,7 @@ export function HealthPage() {
                       className="space-y-1 text-center cursor-pointer"
                       onClick={() => setShowPercent(!showPercent)}
                     >
+                      <span className="text-xs text-muted-foreground md:hidden">Memory</span>
                       <Progress value={node.memory_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
                         {showPercent
@@ -344,6 +351,7 @@ export function HealthPage() {
                       className="space-y-1 text-center cursor-pointer"
                       onClick={() => setShowPercent(!showPercent)}
                     >
+                      <span className="text-xs text-muted-foreground md:hidden">Disk</span>
                       <Progress value={node.disk_percent || 0} className="h-2" />
                       <span className="text-xs text-muted-foreground">
                         {showPercent
@@ -373,14 +381,14 @@ export function HealthPage() {
         <div className="p-5">
           {loading ? (
             <div className="space-y-2">
-              <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Pod</div>
                 <div className="text-center">CPU</div>
                 <div className="text-center">Memory</div>
                 <div className="text-center">Disk</div>
               </div>
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center">
+                <div key={i} className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md md:grid md:grid-cols-[2fr_1.2fr_1.2fr_1fr] md:gap-4 md:items-center">
                   <Skeleton className="h-5 w-32" />
                   <Skeleton className="h-2 w-full" />
                   <Skeleton className="h-2 w-full" />
@@ -409,8 +417,8 @@ export function HealthPage() {
                     <span className="text-base font-bold">{nodeName}</span>
                     <span className="text-sm text-muted-foreground ml-2">({pods.length} pods)</span>
                   </div>
-                  {/* Column Header */}
-                  <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {/* Column Header - hidden on mobile */}
+                  <div className="hidden md:grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     <SortHeader column="name" sortColumn={podSort.column} sortDir={podSort.dir} onSort={handlePodSort} className="justify-start">
                       Pod
                     </SortHeader>
@@ -441,7 +449,7 @@ export function HealthPage() {
                     return (
                       <div
                         key={pod.name || idx}
-                        className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                        className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md md:grid md:grid-cols-[2fr_1.2fr_1.2fr_1fr] md:gap-4 md:items-center"
                       >
                         <div className="font-semibold text-foreground truncate" title={pod.name}>
                           {pod.name}
@@ -450,6 +458,7 @@ export function HealthPage() {
                           className="space-y-1 text-center cursor-pointer"
                           onClick={() => setShowPercent(!showPercent)}
                         >
+                          <span className="text-xs text-muted-foreground md:hidden">CPU</span>
                           <Progress value={cpuPercent} className="h-2" />
                           <span className="text-xs text-muted-foreground">
                             {showPercent
@@ -461,6 +470,7 @@ export function HealthPage() {
                           className="space-y-1 text-center cursor-pointer"
                           onClick={() => setShowPercent(!showPercent)}
                         >
+                          <span className="text-xs text-muted-foreground md:hidden">Memory</span>
                           <Progress value={memPercent} className="h-2" />
                           <span className="text-xs text-muted-foreground">
                             {showPercent
@@ -472,6 +482,7 @@ export function HealthPage() {
                           className="space-y-1 text-center cursor-pointer"
                           onClick={() => setShowPercent(!showPercent)}
                         >
+                          <span className="text-xs text-muted-foreground md:hidden">Disk</span>
                           <Progress value={diskPercent} className="h-2" />
                           <span className="text-xs text-muted-foreground">
                             {showPercent

@@ -96,7 +96,7 @@ export function ContainerDetail({
           <h2 className="text-sm font-semibold">Container Info</h2>
         </div>
         <div className="p-5">
-          <div className="grid grid-cols-3 gap-6 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
                 ID
@@ -128,7 +128,7 @@ export function ContainerDetail({
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 mt-6 pt-4 border-t border-border">
+          <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-border">
             {isRunning && (
               <>
                 <Button variant="outline" onClick={() => onTerminal?.(container)}>

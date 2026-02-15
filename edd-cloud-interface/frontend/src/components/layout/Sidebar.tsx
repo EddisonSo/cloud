@@ -10,9 +10,10 @@ import type { NavItem } from "@/types";
 interface SidebarProps {
   healthOk?: boolean;
   collapsed?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
+export function Sidebar({ healthOk = true, collapsed = false, onClose }: SidebarProps) {
   const location = useLocation();
   const { isAdmin } = useAuth();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -40,7 +41,13 @@ export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
   if (collapsed) return null;
 
   return (
-    <aside className="fixed top-14 left-0 bottom-0 w-[240px] bg-card border-r border-border overflow-y-auto z-40">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        onClick={onClose}
+      />
+    <aside className="fixed top-14 left-0 bottom-0 w-[240px] bg-card border-r border-border overflow-y-auto z-50 md:z-40">
       <nav className="flex flex-col py-3">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -79,6 +86,7 @@ export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
                         <NavLink
                           key={subItem.id}
                           to={subItem.path}
+                          onClick={onClose}
                           className={cn(
                             "flex items-center gap-3 pl-12 pr-5 py-1.5 text-[13px] transition-colors relative",
                             "text-muted-foreground hover:text-foreground hover:bg-accent/50",
@@ -102,6 +110,7 @@ export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
             <NavLink
               key={item.id}
               to={item.path}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 px-5 py-2 text-[13px] font-medium transition-colors relative",
                 "text-muted-foreground hover:text-foreground hover:bg-accent/50",
@@ -121,5 +130,6 @@ export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
         })}
       </nav>
     </aside>
+    </>
   );
 }

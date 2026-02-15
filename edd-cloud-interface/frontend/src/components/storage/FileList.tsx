@@ -40,8 +40,8 @@ export function FileList({
 
   return (
     <div className="space-y-2">
-      {/* Header */}
-      <div className="grid grid-cols-[2fr_3fr_1fr_1.5fr_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {/* Header - hidden on mobile */}
+      <div className="hidden md:grid grid-cols-[2fr_3fr_1fr_1.5fr_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         <div className="text-center">Name</div>
         <div className="text-center">Link</div>
         <div className="text-center">Size</div>
@@ -57,16 +57,16 @@ export function FileList({
         return (
           <div
             key={fileKey}
-            className="grid grid-cols-[2fr_3fr_1fr_1.5fr_100px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+            className="flex items-center justify-between px-4 py-3 bg-secondary rounded-md md:grid md:grid-cols-[2fr_3fr_1fr_1.5fr_100px] md:gap-4"
           >
-            <div className="min-w-0 text-center">
+            <div className="min-w-0 md:text-center">
               <span className="font-medium truncate block">{file.name}</span>
             </div>
-            <div className="flex justify-center min-w-0">
+            <div className="hidden md:flex justify-center min-w-0">
               <CopyableText text={fileUrl} mono className="text-xs truncate" />
             </div>
-            <div className="text-sm text-muted-foreground text-center">{formatBytes(file.size)}</div>
-            <div className="text-sm text-muted-foreground text-center">{formatTimestamp(file.modified)}</div>
+            <div className="hidden md:block text-sm text-muted-foreground text-center">{formatBytes(file.size)}</div>
+            <div className="hidden md:block text-sm text-muted-foreground text-center">{formatTimestamp(file.modified)}</div>
             <div className="flex gap-2 justify-center">
               <Button
                 variant="ghost"
