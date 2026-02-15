@@ -59,7 +59,7 @@ jobs:
               - 'edd-cloud-interface/services/sfs/**'
               - 'go-gfs/**'
             logging:
-              - 'edd-cloud-interface/services/logging/**'
+              - 'log-service/**'
               - 'go-gfs/**'
               - 'proto/**'
             compute:
@@ -171,7 +171,7 @@ jobs:
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
-            -f edd-cloud-interface/services/logging/Dockerfile \
+            -f log-service/Dockerfile \
             -t ${LOGGING_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
