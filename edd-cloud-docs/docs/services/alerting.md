@@ -45,7 +45,7 @@ flowchart TB
 
 | Alert Type | Trigger Condition | Severity | Cooldown |
 |-----------|-------------------|----------|----------|
-| OOMKilled | Container terminated with OOMKilled | Critical | 5 minutes |
+| OOMKilled | Container terminated with OOMKilled | Critical | Per-event (tracks restart count) |
 | Pod Restart | Pod restart count increased | Warning | 5 minutes |
 
 ### Log Alerts
@@ -112,6 +112,16 @@ The cooldown tracker prevents duplicate alerts within a time window:
 Different alert types have different cooldowns:
 - **Disk alerts**: 15 minutes (disk usage changes slowly)
 - **All other alerts**: 5 minutes
+
+### OOMKilled Deduplication
+
+OOMKilled alerts use **restart count tracking** instead of time-based cooldown:
+
+1. When an OOM is detected, record the pod's restart count
+2. Subsequent snapshots with the same restart count are ignored (same OOM event)
+3. Only fire again when restart count increases (new OOM event)
+
+This prevents duplicate alerts for the same OOM event, which persists in the pod's `LastTerminationState` indefinitely.
 
 ## Configuration
 

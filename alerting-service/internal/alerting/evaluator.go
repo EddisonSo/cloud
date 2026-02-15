@@ -44,8 +44,9 @@ type Evaluator struct {
 	config      EvaluatorConfig
 	cooldown    *CooldownTracker
 	onAlert     AlertFunc
-	prevCPUHigh map[string]bool  // node → was CPU high on previous check
-	podRestarts map[string]int32 // "namespace/name" → last known restart count
+	prevCPUHigh    map[string]bool  // node → was CPU high on previous check
+	podRestarts    map[string]int32 // "namespace/name" → last known restart count
+	oomAlertedAt   map[string]int32 // "namespace/name" → restart count when OOM was alerted
 }
 
 func NewEvaluator(config EvaluatorConfig, onAlert AlertFunc) *Evaluator {
@@ -56,8 +57,9 @@ func NewEvaluator(config EvaluatorConfig, onAlert AlertFunc) *Evaluator {
 		config:      config,
 		cooldown:    NewCooldownTracker(),
 		onAlert:     onAlert,
-		prevCPUHigh: make(map[string]bool),
-		podRestarts: make(map[string]int32),
+		prevCPUHigh:  make(map[string]bool),
+		podRestarts:  make(map[string]int32),
+		oomAlertedAt: make(map[string]int32),
 	}
 }
 
@@ -129,10 +131,12 @@ func (e *Evaluator) EvaluatePods(snapshot PodSnapshot) {
 	for _, pod := range snapshot.Pods {
 		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 
-		// OOMKilled
+		// OOMKilled — only alert once per OOM event by tracking the restart
+		// count when we last alerted. A new OOM means a new restart, so
+		// RestartCount will have increased.
 		if pod.OOMKilled {
-			alertKey := fmt.Sprintf("oom:%s", podKey)
-			if e.cooldown.Allow(alertKey, e.config.DefaultCooldown) {
+			if alertedAt, seen := e.oomAlertedAt[podKey]; !seen || pod.RestartCount > alertedAt {
+				e.oomAlertedAt[podKey] = pod.RestartCount
 				e.onAlert(Alert{
 					Title:    fmt.Sprintf("OOMKilled: %s", pod.Name),
 					Message:  fmt.Sprintf("Pod %s in namespace %s was OOMKilled", pod.Name, pod.Namespace),

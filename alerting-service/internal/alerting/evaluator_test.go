@@ -151,3 +151,33 @@ func TestEvaluator_PodOOMKilled_Fires(t *testing.T) {
 		t.Fatal("OOMKilled should be critical")
 	}
 }
+
+func TestEvaluator_PodOOMKilled_NoRepeatForSameEvent(t *testing.T) {
+	var fired []Alert
+	e := NewEvaluator(EvaluatorConfig{
+		DefaultCooldown: 5 * time.Minute,
+	}, func(a Alert) { fired = append(fired, a) })
+
+	pod := PodStatus{Name: "gfs-master", Namespace: "default", OOMKilled: true, RestartCount: 1}
+
+	// First snapshot: should fire
+	e.EvaluatePods(PodSnapshot{Pods: []PodStatus{pod}})
+	if len(fired) != 1 {
+		t.Fatalf("expected 1 OOMKilled alert, got %d", len(fired))
+	}
+
+	// Repeated snapshots with same restart count: should NOT fire again
+	e.EvaluatePods(PodSnapshot{Pods: []PodStatus{pod}})
+	e.EvaluatePods(PodSnapshot{Pods: []PodStatus{pod}})
+	e.EvaluatePods(PodSnapshot{Pods: []PodStatus{pod}})
+	if len(fired) != 1 {
+		t.Fatalf("expected still 1 alert (same OOM event), got %d", len(fired))
+	}
+
+	// New OOM (restart count increased): fires OOM alert + restart alert
+	pod.RestartCount = 2
+	e.EvaluatePods(PodSnapshot{Pods: []PodStatus{pod}})
+	if len(fired) != 3 {
+		t.Fatalf("expected 3 alerts (new OOM + restart increase), got %d", len(fired))
+	}
+}
