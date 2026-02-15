@@ -145,7 +145,9 @@ func (e *Evaluator) EvaluatePods(snapshot PodSnapshot) {
 			}
 		}
 
-		// Restart count increase
+		// Restart count increase — only update if higher to avoid
+		// interleaved messages from multiple cluster-monitor replicas
+		// causing the stored count to go backwards and re-alerting.
 		if prev, ok := e.podRestarts[podKey]; ok {
 			if pod.RestartCount > prev {
 				alertKey := fmt.Sprintf("restart:%s", podKey)
@@ -156,8 +158,10 @@ func (e *Evaluator) EvaluatePods(snapshot PodSnapshot) {
 						Severity: SeverityWarning,
 					})
 				}
+				e.podRestarts[podKey] = pod.RestartCount
 			}
+		} else {
+			e.podRestarts[podKey] = pod.RestartCount
 		}
-		e.podRestarts[podKey] = pod.RestartCount
 	}
 }

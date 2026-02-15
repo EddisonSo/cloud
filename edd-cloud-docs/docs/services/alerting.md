@@ -46,7 +46,7 @@ flowchart TB
 | Alert Type | Trigger Condition | Severity | Cooldown |
 |-----------|-------------------|----------|----------|
 | OOMKilled | Container terminated with OOMKilled | Critical | Per-event (tracks restart count) |
-| Pod Restart | Pod restart count increased | Warning | 5 minutes |
+| Pod Restart | Pod restart count increased | Warning | Per-event (tracks restart count) |
 
 ### Log Alerts
 
@@ -113,15 +113,19 @@ Different alert types have different cooldowns:
 - **Disk alerts**: 15 minutes (disk usage changes slowly)
 - **All other alerts**: 5 minutes
 
-### OOMKilled Deduplication
+### Restart Count Deduplication
 
-OOMKilled alerts use **restart count tracking** instead of time-based cooldown:
+Both OOMKilled and Pod Restart alerts use **restart count tracking** instead of time-based cooldown:
 
-1. When an OOM is detected, record the pod's restart count
-2. Subsequent snapshots with the same restart count are ignored (same OOM event)
-3. Only fire again when restart count increases (new OOM event)
+1. When a restart is detected, record the pod's restart count
+2. Subsequent snapshots with the same or lower restart count are ignored (same event)
+3. Only fire again when restart count increases (new restart event)
 
-This prevents duplicate alerts for the same OOM event, which persists in the pod's `LastTerminationState` indefinitely.
+This prevents duplicate alerts when:
+- The same OOM event persists in the pod's `LastTerminationState` indefinitely
+- Multiple cluster-monitor replicas publish NATS events with interleaved timestamps, causing older snapshots (lower restart count) to arrive after newer ones
+
+The stored restart count is only updated upward, never downward, preventing the baseline from resetting.
 
 ## Configuration
 
