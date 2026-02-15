@@ -1,13 +1,12 @@
-import { Header } from "@/components/layout";
-import { TAB_COPY } from "@/lib/constants";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { MessageSquare } from "lucide-react";
 
 export function MessageQueuePage() {
-  const copy = TAB_COPY["message-queue"];
-
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Breadcrumb items={[{ label: "Message Queue" }]} />
+      <PageHeader title="Message Queue" description="Message queue services are being developed. Check back soon for updates." />
 
       <div className="flex flex-col items-center justify-center text-center py-16">
         <div className="w-24 h-24 rounded-xl bg-secondary flex items-center justify-center mb-6">

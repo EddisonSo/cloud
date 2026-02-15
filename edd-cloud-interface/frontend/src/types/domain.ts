@@ -195,12 +195,6 @@ export interface NavItem {
   subItems?: NavSubItem[];
 }
 
-export interface TabCopy {
-  eyebrow: string;
-  title: string;
-  lead: string;
-}
-
 // ── WebSocket Messages ───────────────────────────────────
 
 export type ComputeWsMessage =

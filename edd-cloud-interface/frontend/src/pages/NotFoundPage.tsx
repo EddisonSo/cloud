@@ -1,13 +1,12 @@
 import { Link } from "react-router-dom";
-import { Header } from "@/components/layout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";
 
 export function NotFoundPage() {
   return (
     <div>
-      <Header
-        eyebrow="Error"
+      <PageHeader
         title="404 - Page Not Found"
         description="The page you're looking for doesn't exist or has been moved."
       />

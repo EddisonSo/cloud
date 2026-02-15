@@ -1,13 +1,12 @@
-import { Header } from "@/components/layout";
-import { TAB_COPY } from "@/lib/constants";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { Database } from "lucide-react";
 
 export function DatastorePage() {
-  const copy = TAB_COPY.datastore;
-
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Breadcrumb items={[{ label: "Datastore" }]} />
+      <PageHeader title="Datastore" description="Datastore provisioning is coming soon with managed database workflows." />
 
       <div className="flex flex-col items-center justify-center text-center py-16">
         <div className="w-24 h-24 rounded-xl bg-secondary flex items-center justify-center mb-6">

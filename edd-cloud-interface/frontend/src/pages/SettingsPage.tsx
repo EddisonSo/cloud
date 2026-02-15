@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
-import { Header } from "@/components/layout";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { SecurityKeys } from "@/components/settings/SecurityKeys";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { ActiveSessions } from "@/components/settings/ActiveSessions";
@@ -23,11 +24,8 @@ export function SettingsPage() {
 
   return (
     <>
-      <Header
-        eyebrow="Account"
-        title="Settings"
-        description="Manage security keys, profile, and active sessions."
-      />
+      <Breadcrumb items={[{ label: "Settings" }]} />
+      <PageHeader title="Settings" description="Manage security keys, profile, and active sessions." />
 
       {/* Tab navigation */}
       <div className="flex gap-1 mb-6 border-b border-border">

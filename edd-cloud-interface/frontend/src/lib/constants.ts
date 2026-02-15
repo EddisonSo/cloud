@@ -9,7 +9,7 @@ import {
   Key,
   KeyRound
 } from "lucide-react";
-import type { NavItem, TabCopy } from "@/types";
+import type { NavItem } from "@/types";
 
 export const NAV_ITEMS: NavItem[] = [
   {
@@ -44,49 +44,6 @@ export const ADMIN_NAV_ITEM: NavItem = {
   icon: Settings,
   path: "/admin"
 };
-
-export const TAB_COPY: Record<string, TabCopy> = {
-  storage: {
-    eyebrow: "Cloud Storage",
-    title: "Simple File Share",
-    lead: "Manage shared assets with clear status, fast uploads, and controlled access.",
-  },
-  compute: {
-    eyebrow: "Compute Services",
-    title: "Stateful Containers",
-    lead: "Stateful containers with persistent storage and dedicated IPs.",
-  },
-  "message-queue": {
-    eyebrow: "Messaging",
-    title: "Message Queue",
-    lead: "Queue and stream services are not available yet, but the surface is ready.",
-  },
-  datastore: {
-    eyebrow: "Data Systems",
-    title: "Datastore",
-    lead: "Datastore provisioning is coming soon with managed database workflows.",
-  },
-  health: {
-    eyebrow: "Operations",
-    title: "Health Monitor",
-    lead: "Live telemetry for master connectivity and chunkserver status.",
-  },
-  admin: {
-    eyebrow: "Administration",
-    title: "Admin Panel",
-    lead: "View all files and containers across the system.",
-  },
-  "service-accounts": {
-    eyebrow: "Auth",
-    title: "Service Accounts",
-    lead: "Create service accounts with scoped permissions and generate tokens for programmatic API access.",
-  },
-  settings: {
-    eyebrow: "Account",
-    title: "Settings",
-    lead: "Manage security keys, profile, and active sessions.",
-  },
-} as const;
 
 export const DEFAULT_NAMESPACE = "default";
 export const HIDDEN_NAMESPACE = "hidden";

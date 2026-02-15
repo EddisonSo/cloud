@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge, CopyableText } from "@/components/common";
+import { StatusChip } from "@/components/ui/status-chip";
+import { CopyableText } from "@/components/common";
 import { ArrowLeft, Plus, Trash2, Terminal, Play, Square } from "lucide-react";
 import { formatBytes } from "@/lib/formatters";
 import type { Container, ContainerAction, IngressRule } from "@/types";
@@ -87,15 +87,15 @@ export function ContainerDetail({
           Back
         </Button>
         <h2 className="text-xl font-semibold">{container.name}</h2>
-        <StatusBadge status={container.status} />
+        <StatusChip status={container.status} />
       </div>
 
       {/* Info Section */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Container Info</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg mb-4">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Container Info</h2>
+        </div>
+        <div className="p-5">
           <div className="grid grid-cols-3 gap-6 mb-4">
             <div>
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
@@ -164,15 +164,15 @@ export function ContainerDetail({
               {action === "deleting" ? "Deleting..." : "Delete"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Access Section */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Access Control</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+      <div className="bg-card border border-border rounded-lg mb-4">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Access Control</h2>
+        </div>
+        <div className="p-5 space-y-6">
           {/* SSH Toggle */}
           <div className="p-4 bg-secondary rounded-md">
             <div className="flex items-center justify-between">
@@ -259,15 +259,15 @@ export function ContainerDetail({
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Persistent Storage Section */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Persistent Storage</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg mb-4">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Persistent Storage</h2>
+        </div>
+        <div className="p-5">
           <p className="text-xs text-muted-foreground mb-3">
             Directories to persist across container restarts. Changes require a container restart.
           </p>
@@ -315,8 +315,8 @@ export function ContainerDetail({
           {access.savingMounts && (
             <p className="text-xs text-muted-foreground mt-3">Updating and restarting container...</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

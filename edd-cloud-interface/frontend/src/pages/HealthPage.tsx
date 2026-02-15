@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Header } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
-import { StatusDot } from "@/components/common";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Progress } from "@/components/ui/progress";
-import { TAB_COPY } from "@/lib/constants";
 import { useHealth } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatBytes } from "@/lib/formatters";
@@ -48,7 +47,6 @@ function getTabFromHash() {
 }
 
 export function HealthPage() {
-  const copy = TAB_COPY.health;
   const { user, userId } = useAuth();
   const { health, podMetrics, loading, error, updateFrequency, setUpdateFrequency } = useHealth(user, true);
   const [showPercent, setShowPercent] = useState(false);
@@ -185,7 +183,8 @@ export function HealthPage() {
 
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Breadcrumb items={[{ label: "Health" }]} />
+      <PageHeader title="Health Monitor" description="Live telemetry for master connectivity and chunkserver status." />
 
       {/* Tab Navigation */}
       <div className="border-b border-border mb-6">
@@ -233,17 +232,17 @@ export function HealthPage() {
           </div>
 
           {/* Node Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Cluster Nodes</CardTitle>
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Cluster Nodes</h2>
           <button
             onClick={() => setShowPercent(!showPercent)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {showPercent ? "Show absolute" : "Show percent"}
           </button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-5">
           {loading ? (
             <div className="space-y-2">
               <div className="grid grid-cols-[1.35fr_1fr_1.35fr_1.35fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -317,8 +316,7 @@ export function HealthPage() {
                       {node.name}
                     </div>
                     <div className="flex items-center justify-center gap-2">
-                      <StatusDot status={isHealthy ? "ok" : "warning"} />
-                      <span className="text-sm">{isHealthy ? "Healthy" : "Pressure"}</span>
+                      <StatusChip status={isHealthy ? "healthy" : "warning"} />
                     </div>
                     <div
                       className="space-y-1 text-center cursor-pointer"
@@ -358,21 +356,21 @@ export function HealthPage() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Pod Metrics Table */}
-      <Card className="mt-6">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Pod Metrics</CardTitle>
+      <div className="bg-card border border-border rounded-lg mt-6">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Pod Metrics</h2>
           <button
             onClick={() => setShowPercent(!showPercent)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {showPercent ? "Show absolute" : "Show percent"}
           </button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-5">
           {loading ? (
             <div className="space-y-2">
               <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -488,8 +486,8 @@ export function HealthPage() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
         </>
       )}
     </div>

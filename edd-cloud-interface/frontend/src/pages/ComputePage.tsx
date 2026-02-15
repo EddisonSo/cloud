@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-
+import { Modal } from "@/components/common";
 import {
   ContainerList,
   CreateContainerForm,
@@ -59,6 +59,7 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
   const [creating, setCreating] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showAddKey, setShowAddKey] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Container | null>(null);
   const accessOpenedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -132,6 +133,16 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     setShowTerminal(false);
   };
 
+  const handleDeleteRequest = (id: string) => {
+    const container = containers.find((c) => c.id === id);
+    if (container) setDeleteTarget(container);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteTarget(null);
+    await handleContainerAction(deleteTarget.id, "deleting");
+  };
 
   if (!user) {
     return (
@@ -141,6 +152,29 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
       </div>
     );
   }
+
+  const deleteModal = (
+    <Modal
+      open={!!deleteTarget}
+      onClose={() => setDeleteTarget(null)}
+      title="Delete Container"
+      description={<>Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?</>}
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          This will permanently delete the container and all its data. This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleConfirmDelete}>
+            Delete
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 
   // Terminal View
   if (showTerminal && terminalContainer) {
@@ -185,9 +219,10 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
           onBack={handleBackToList}
           onStart={(id) => handleContainerAction(id, "starting")}
           onStop={(id) => handleContainerAction(id, "stopping")}
-          onDelete={(id) => handleContainerAction(id, "deleting")}
+          onDelete={handleDeleteRequest}
           onTerminal={handleOpenTerminal}
         />
+        {deleteModal}
       </div>
     );
   }
@@ -292,13 +327,14 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
           actions={actions}
           onStart={(id) => handleContainerAction(id, "starting")}
           onStop={(id) => handleContainerAction(id, "stopping")}
-          onDelete={(id) => handleContainerAction(id, "deleting")}
+          onDelete={handleDeleteRequest}
           onAccess={handleSelectContainer}
           onTerminal={handleOpenTerminal}
           onSelect={handleSelectContainer}
           loading={containersLoading}
         />
       </div>
+      {deleteModal}
     </div>
   );
 }

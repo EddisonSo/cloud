@@ -1,19 +1,17 @@
 import { useState, useEffect } from "react";
-import { Header } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-import { StatusBadge, CopyableText, Modal } from "@/components/common";
-import { TAB_COPY } from "@/lib/constants";
+import { StatusChip } from "@/components/ui/status-chip";
+import { CopyableText, Modal } from "@/components/common";
 import { buildAuthBase, buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Trash2, UserPlus, Eye, EyeOff, Link, Clock } from "lucide-react";
 import type { AdminUser, AdminSession, AdminNamespace, Container } from "@/types";
 
 export function AdminPage() {
-  const copy = TAB_COPY.admin;
   const { user, isAdmin } = useAuth();
   const [containers, setContainers] = useState<Container[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -125,26 +123,32 @@ export function AdminPage() {
   if (!isAdmin) {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-        <p className="text-muted-foreground">Access denied. Admin privileges required.</p>
+        <Breadcrumb items={[{ label: "Admin" }]} />
+        <PageHeader title="Admin Panel" description="Access denied. Admin privileges required." />
       </div>
     );
   }
 
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-
-      {/* Users Section */}
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Users</CardTitle>
-          <Button variant="outline" onClick={() => setShowCreateUserModal(true)}>
+      <Breadcrumb items={[{ label: "Admin" }]} />
+      <PageHeader
+        title="Admin Panel"
+        description="View all files and containers across the system."
+        actions={
+          <Button onClick={() => setShowCreateUserModal(true)}>
             <UserPlus className="w-4 h-4 mr-2" />
             Add User
           </Button>
-        </CardHeader>
-        <CardContent>
+        }
+      />
+
+      {/* Users Section */}
+      <div className="bg-card border border-border rounded-lg mb-6">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Users</h2>
+        </div>
+        <div className="p-5">
           {error && <p className="text-destructive text-sm mb-4">{error}</p>}
 
           {/* Users List */}
@@ -192,18 +196,16 @@ export function AdminPage() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Active Sessions Section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Active Sessions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg mb-6">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Active Sessions</h2>
+        </div>
+        <div className="p-5">
           {loading ? (
             <p className="text-muted-foreground py-4">Loading sessions...</p>
           ) : sessions.length === 0 ? (
@@ -245,15 +247,15 @@ export function AdminPage() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Containers Section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>All Containers</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg mb-6">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">All Containers</h2>
+        </div>
+        <div className="p-5">
           {loading ? (
             <p className="text-muted-foreground py-4">Loading...</p>
           ) : containers.length === 0 ? (
@@ -293,21 +295,21 @@ export function AdminPage() {
                   </div>
                   <div className="flex justify-between lg:justify-center items-center">
                     <span className="text-xs text-muted-foreground lg:hidden">Status:</span>
-                    <StatusBadge status={c.status} />
+                    <StatusChip status={c.status} />
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Namespaces Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Namespaces</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">All Namespaces</h2>
+        </div>
+        <div className="p-5">
           {loading ? (
             <p className="text-muted-foreground py-4">Loading...</p>
           ) : namespaces.length === 0 ? (
@@ -365,8 +367,8 @@ export function AdminPage() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Create User Modal */}
       <Modal

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Header } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,15 +9,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Modal } from "@/components/common";
 import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
-import { TAB_COPY } from "@/lib/constants";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildStorageBase, buildNotificationsBase, getAuthHeaders } from "@/lib/api";
-import { ArrowLeft, Plus, Settings, Eye, EyeOff, Link, Trash2, Server, BellOff, Bell } from "lucide-react";
+import { Plus, Settings, Eye, EyeOff, Link, Trash2, Server, BellOff, Bell } from "lucide-react";
 import type { NamespaceVisibility, FileEntry, NotificationMute } from "@/types";
 
 export function StoragePage() {
-  const copy = TAB_COPY.storage;
   const { namespace: namespaceParam } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -204,25 +202,32 @@ export function StoragePage() {
 
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Breadcrumb
+        items={showNamespaceView
+          ? [{ label: "Storage", href: "/storage" }, { label: namespaceParam || "" }]
+          : [{ label: "Storage" }]
+        }
+      />
+      <PageHeader
+        title={showNamespaceView ? (namespaceParam || "Storage") : "Storage"}
+        description={showNamespaceView ? undefined : "Manage shared assets with clear status, fast uploads, and controlled access."}
+        actions={
+          !showNamespaceView && user ? (
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create namespace
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Namespace List View */}
       {!showNamespaceView && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Namespaces</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Choose a namespace to view its files and activity.
-            </p>
-          </CardHeader>
-          <CardContent>
-            {/* Create Namespace Button */}
-            {user && (
-              <Button variant="outline" className="mb-6" onClick={() => setShowCreateModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Namespace
-              </Button>
-            )}
+        <div className="bg-card border border-border rounded-lg">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold">Namespaces</h2>
+          </div>
+          <div className="p-5">
 
             {/* Namespace List */}
             {namespacesLoading ? (
@@ -265,35 +270,28 @@ export function StoragePage() {
               </div>
             )}
 
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Namespace Detail View */}
       {showNamespaceView && (
         <div>
-          <Button variant="ghost" className="mb-4" onClick={handleCloseNamespace}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to namespaces
-          </Button>
-
           {/* Namespace Not Found */}
           {namespaceNotFound ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  Namespace <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{namespaceParam}</code> does not exist.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="bg-card border border-border rounded-lg py-12 text-center">
+              <p className="text-muted-foreground">
+                Namespace <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{namespaceParam}</code> does not exist.
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Files */}
-              <Card className="lg:col-span-2">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div className="bg-card border border-border rounded-lg lg:col-span-2">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <CardTitle>{activeNamespace}</CardTitle>
+                      <h2 className="text-sm font-semibold">{activeNamespace}</h2>
                       {currentNamespace?.visibility === 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                           Private
@@ -305,7 +303,7 @@ export function StoragePage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {files.length} {files.length === 1 ? "file" : "files"}
                     </p>
                   </div>
@@ -314,8 +312,8 @@ export function StoragePage() {
                       <Settings className="w-4 h-4" />
                     </Button>
                   )}
-                </CardHeader>
-                <CardContent>
+                </div>
+                <div className="p-5">
                   <FileList
                     files={files}
                     namespace={activeNamespace}
@@ -324,16 +322,16 @@ export function StoragePage() {
                     onDelete={handleDelete}
                     loading={filesLoading}
                   />
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               {/* Upload */}
               {user && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Upload File</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                <div className="bg-card border border-border rounded-lg">
+                  <div className="px-5 py-4 border-b border-border">
+                    <h2 className="text-sm font-semibold">Upload File</h2>
+                  </div>
+                  <div className="p-5">
                     <FileUploader
                       fileInputRef={fileInputRef}
                       selectedFileName={selectedFileName}
@@ -343,8 +341,8 @@ export function StoragePage() {
                       onUpload={handleUpload}
                     />
                     {status && <p className="text-sm text-muted-foreground mt-4">{status}</p>}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
             </div>
           )}

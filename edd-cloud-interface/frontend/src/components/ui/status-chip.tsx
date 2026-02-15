@@ -8,6 +8,8 @@ const statusStyles: Record<string, { text: string; bg: string; dot: string }> = 
   pending:      { text: "text-warning",       bg: "bg-warning/10",      dot: "bg-warning animate-pulse-slow" },
   initializing: { text: "text-warning",       bg: "bg-warning/10",      dot: "bg-warning animate-pulse-slow" },
   provisioning: { text: "text-primary",       bg: "bg-primary/10",      dot: "bg-primary animate-pulse-slow" },
+  warning:      { text: "text-warning",       bg: "bg-warning/10",      dot: "bg-warning" },
+  pressure:     { text: "text-warning",       bg: "bg-warning/10",      dot: "bg-warning" },
   error:        { text: "text-destructive",   bg: "bg-destructive/10",  dot: "bg-destructive" },
   down:         { text: "text-destructive",   bg: "bg-destructive/10",  dot: "bg-destructive" },
 };
