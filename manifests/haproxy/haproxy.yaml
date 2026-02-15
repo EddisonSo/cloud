@@ -29,10 +29,10 @@ data:
         tcp-check expect binary 4e        # 'N' response (no SSL)
 
         # Primary server - active
-        server primary postgres:5432 check inter 3s fall 3 rise 2
+        server primary postgres.default.svc.cluster.local:5432 check inter 3s fall 3 rise 2
 
         # Replica server - backup (activated when primary fails)
-        server replica postgres-replica:5432 check inter 3s fall 3 rise 2 backup
+        server replica postgres-replica.default.svc.cluster.local:5432 check inter 3s fall 3 rise 2 backup
 ---
 apiVersion: apps/v1
 kind: Deployment

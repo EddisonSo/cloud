@@ -20,7 +20,7 @@ import (
 
 const (
 	SecretName      = "gateway-ssh-key"
-	SecretNamespace = "default"
+	SecretNamespace = "core"
 	PrivateKeyField = "private_key"
 	PublicKeyField  = "public_key"
 )
