@@ -190,7 +190,14 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 			Ingress: ingressRules,
 			Egress: []networkingv1.NetworkPolicyEgressRule{
 				{
-					// Allow DNS
+					// Allow DNS to cluster DNS only (10.43.0.10)
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "10.43.0.10/32",
+							},
+						},
+					},
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
 							Protocol: &udpProtocol,
