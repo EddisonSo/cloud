@@ -1,4 +1,4 @@
-// Package main implements the centralized logging service for the GFS cluster.
+// Package main implements the centralized logging service for the edd-cloud cluster.
 package main
 
 import (
