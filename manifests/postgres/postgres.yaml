@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-config
-  namespace: default
+  namespace: core
 data:
   postgresql.conf: |
     listen_addresses = '*'
@@ -19,7 +19,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -32,7 +32,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: default
+  namespace: core
 spec:
   replicas: 0  # Disabled - primary moved to rp1 (postgres-replica)
   selector:
@@ -99,7 +99,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica  # Points to promoted replica on rp1

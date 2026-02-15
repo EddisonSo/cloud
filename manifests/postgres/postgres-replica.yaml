@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-replica-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +15,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-replica-config
-  namespace: default
+  namespace: core
 data:
   # Note: This is now the PRIMARY database (promoted from replica)
   # primary_conninfo removed - this node is the primary
@@ -34,7 +34,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-replica
-  namespace: default
+  namespace: core
   # NOTE: This is now the PRIMARY database (promoted from replica when s0 went down)
   # The name is kept for compatibility with existing PVC and service references
 spec:
@@ -103,7 +103,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-replica
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica

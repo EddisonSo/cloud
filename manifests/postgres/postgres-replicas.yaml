@@ -7,7 +7,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-replica-2-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -20,12 +20,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-replica-2-config
-  namespace: default
+  namespace: core
 data:
   postgresql.conf: |
     listen_addresses = '*'
     wal_level = replica
-    max_wal_senders = 3
+    max_wal_senders = 10
     wal_keep_size = 64
     hot_standby = on
     primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
@@ -38,7 +38,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-replica-2
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -135,7 +135,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-replica-2
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica-2
@@ -149,7 +149,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-replica-3-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -162,12 +162,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-replica-3-config
-  namespace: default
+  namespace: core
 data:
   postgresql.conf: |
     listen_addresses = '*'
     wal_level = replica
-    max_wal_senders = 3
+    max_wal_senders = 10
     wal_keep_size = 64
     hot_standby = on
     primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
@@ -180,7 +180,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-replica-3
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -277,7 +277,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-replica-3
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica-3
@@ -291,7 +291,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-replica-4-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -304,12 +304,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-replica-4-config
-  namespace: default
+  namespace: core
 data:
   postgresql.conf: |
     listen_addresses = '*'
     wal_level = replica
-    max_wal_senders = 3
+    max_wal_senders = 10
     wal_keep_size = 64
     hot_standby = on
     primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
@@ -322,7 +322,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-replica-4
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -419,7 +419,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-replica-4
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica-4
@@ -433,7 +433,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-replica-s0-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -446,12 +446,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-replica-s0-config
-  namespace: default
+  namespace: core
 data:
   postgresql.conf: |
     listen_addresses = '*'
     wal_level = replica
-    max_wal_senders = 3
+    max_wal_senders = 10
     wal_keep_size = 64
     hot_standby = on
     primary_conninfo = 'host=postgres port=5432 user=replicator password=REPL_PASSWORD'
@@ -464,7 +464,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres-replica-s0
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -561,7 +561,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-replica-s0
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: postgres-replica-s0
