@@ -130,9 +130,9 @@ Services communicate internally via Kubernetes DNS:
 ```
 
 Examples:
-- `postgres.default.svc.cluster.local:5432`
-- `gfs-master.default.svc.cluster.local:9000`
-- `nats.default.svc.cluster.local:4222`
+- `postgres.core.svc.cluster.local:5432`
+- `gfs-master.core.svc.cluster.local:9000`
+- `nats.core.svc.cluster.local:4222`
 
 ## Request Flows
 

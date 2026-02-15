@@ -96,7 +96,7 @@ flowchart TB
   "pods": [
     {
       "name": "gateway-abc123",
-      "namespace": "default",
+      "namespace": "core",
       "node": "s0",
       "cpu_usage": 50000000,
       "cpu_capacity": 4000000000,

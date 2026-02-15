@@ -199,16 +199,6 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 					},
 				},
 				{
-					// Allow internal cluster traffic (for responses to compute service, etc.)
-					To: []networkingv1.NetworkPolicyPeer{
-						{
-							IPBlock: &networkingv1.IPBlock{
-								CIDR: "10.0.0.0/8",
-							},
-						},
-					},
-				},
-				{
 					// Allow internet (external traffic)
 					To: []networkingv1.NetworkPolicyPeer{
 						{
@@ -484,7 +474,7 @@ func (c *Client) DeletePod(ctx context.Context, namespace string) error {
 
 // GetGatewayPublicKey retrieves the gateway SSH public key from the K8s Secret
 func (c *Client) GetGatewayPublicKey(ctx context.Context) (string, error) {
-	secret, err := c.clientset.CoreV1().Secrets("default").Get(ctx, "gateway-ssh-key", metav1.GetOptions{})
+	secret, err := c.clientset.CoreV1().Secrets("core").Get(ctx, "gateway-ssh-key", metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return "", nil // Secret doesn't exist yet

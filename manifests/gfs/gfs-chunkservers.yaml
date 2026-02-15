@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: gfs-chunkserver
+  namespace: core
   labels:
     app: gfs-chunkserver
 spec:

@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: gfs-rollout
-  namespace: default
+  namespace: core
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "daemonsets"]
@@ -18,7 +18,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: gfs-rollout-binding
-  namespace: default
+  namespace: core
 subjects:
   - kind: ServiceAccount
     name: gfs-ci

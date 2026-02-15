@@ -11,7 +11,7 @@ on:
         default: false
 
 env:
-  NS: default
+  NS: core
   # Image names
   SFS_IMAGE: docker.io/eddisonso/ecloud-sfs
   LOGGING_IMAGE: docker.io/eddisonso/ecloud-logging

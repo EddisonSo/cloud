@@ -196,11 +196,11 @@ Services communicate internally via Kubernetes DNS:
 
 | Service | Address | Protocol |
 |---------|---------|----------|
-| PostgreSQL (via HAProxy) | `haproxy.default.svc.cluster.local:5432` | PostgreSQL |
-| PostgreSQL (direct) | `postgres.default.svc.cluster.local:5432` | PostgreSQL |
-| GFS Master | `gfs-master.default.svc.cluster.local:9000` | gRPC |
-| NATS | `nats.default.svc.cluster.local:4222` | NATS |
-| Log Service (gRPC) | `log-service.default.svc.cluster.local:50051` | gRPC |
+| PostgreSQL (via HAProxy) | `haproxy.core.svc.cluster.local:5432` | PostgreSQL |
+| PostgreSQL (direct) | `postgres.core.svc.cluster.local:5432` | PostgreSQL |
+| GFS Master | `gfs-master.core.svc.cluster.local:9000` | gRPC |
+| NATS | `nats.core.svc.cluster.local:4222` | NATS |
+| Log Service (gRPC) | `log-service.core.svc.cluster.local:50051` | gRPC |
 
 ### GFS Chunkserver Network
 

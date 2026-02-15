@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: core
+  labels:
+    name: core
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: core-isolation
+  namespace: core
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow all traffic within core namespace
+    - from:
+        - podSelector: {}
+    # Allow node/LB traffic (for gateway LoadBalancer, kubelet, etc.)
+    - from:
+        - ipBlock:
+            cidr: 192.168.0.0/16
+    # Allow pod-to-pod across nodes (Flannel overlay)
+    - from:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+    # Allow external traffic to gateway (LoadBalancer)
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 2222   # SSH
+        - port: 18080  # HTTP
+        - port: 8443   # HTTPS

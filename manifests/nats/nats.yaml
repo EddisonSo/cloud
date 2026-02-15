@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: nats-data
-  namespace: default
+  namespace: core
 spec:
   accessModes:
     - ReadWriteOnce
@@ -15,7 +15,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nats-config
-  namespace: default
+  namespace: core
 data:
   nats.conf: |
     # NATS Server Configuration
@@ -38,7 +38,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nats
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -97,7 +97,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nats
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: nats

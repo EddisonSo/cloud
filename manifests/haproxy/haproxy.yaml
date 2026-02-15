@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: haproxy-config
-  namespace: default
+  namespace: core
 data:
   haproxy.cfg: |
     global
@@ -38,7 +38,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: haproxy
-  namespace: default
+  namespace: core
 spec:
   replicas: 1
   selector:
@@ -87,7 +87,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: haproxy
-  namespace: default
+  namespace: core
 spec:
   selector:
     app: haproxy
