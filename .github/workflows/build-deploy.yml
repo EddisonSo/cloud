@@ -45,10 +45,14 @@ jobs:
       notifications: ${{ steps.filter.outputs.notifications }}
       alerting: ${{ steps.filter.outputs.alerting }}
       any_service: ${{ steps.filter.outputs.any_service }}
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - name: Generate image tag
+        id: tag
+        run: echo "image_tag=$(date -u +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -104,6 +108,8 @@ jobs:
   build-sfs:
     needs: detect-changes
     if: needs.detect-changes.outputs.sfs == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -135,13 +141,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-cloud-interface/services/sfs/Dockerfile \
-            -t ${SFS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${SFS_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Logging service
   build-logging:
     needs: detect-changes
     if: needs.detect-changes.outputs.logging == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -173,13 +181,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f log-service/Dockerfile \
-            -t ${LOGGING_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${LOGGING_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Compute service
   build-compute:
     needs: detect-changes
     if: needs.detect-changes.outputs.compute == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -211,13 +221,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-cloud-interface/services/compute/Dockerfile \
-            -t ${COMPUTE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${COMPUTE_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Compute Base image
   build-compute-base:
     needs: detect-changes
     if: needs.detect-changes.outputs.compute-base == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -240,13 +252,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-cloud-interface/services/compute/images/base/Dockerfile \
-            -t ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push edd-cloud-interface/services/compute/images/base
 
   # Build Frontend
   build-frontend:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -274,13 +288,15 @@ jobs:
             -f edd-cloud-interface/frontend/Dockerfile \
             --build-arg BUILD_COMMIT=${GITHUB_SHA::7} \
             --build-arg BUILD_TIME="${{ steps.commit-time.outputs.time }}" \
-            -t ${FRONTEND_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${FRONTEND_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push edd-cloud-interface/frontend
 
   # Build Auth service
   build-auth:
     needs: detect-changes
     if: needs.detect-changes.outputs.auth == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -303,13 +319,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-cloud-auth/Dockerfile \
-            -t ${AUTH_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${AUTH_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Gateway service
   build-gateway:
     needs: detect-changes
     if: needs.detect-changes.outputs.gateway == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -341,13 +359,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-gateway/Dockerfile \
-            -t ${GATEWAY_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${GATEWAY_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Docs
   build-docs:
     needs: detect-changes
     if: needs.detect-changes.outputs.docs == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -370,13 +390,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f edd-cloud-docs/Dockerfile \
-            -t ${DOCS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${DOCS_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push edd-cloud-docs
 
   # Build Cluster Monitor
   build-cluster-monitor:
     needs: detect-changes
     if: needs.detect-changes.outputs.cluster-monitor == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -399,13 +421,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f cluster-monitor/Dockerfile \
-            -t ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build GFS (chunkserver + master)
   build-gfs:
     needs: detect-changes
     if: needs.detect-changes.outputs.gfs == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -428,13 +452,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f go-gfs/Dockerfile \
-            -t ${GFS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${GFS_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push go-gfs
 
   # Build Notifications service
   build-notifications:
     needs: detect-changes
     if: needs.detect-changes.outputs.notifications == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -457,13 +483,15 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f notification-service/Dockerfile \
-            -t ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Build Alerting service
   build-alerting:
     needs: detect-changes
     if: needs.detect-changes.outputs.alerting == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     strategy:
       matrix:
         include:
@@ -486,7 +514,7 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             -f alerting-service/Dockerfile \
-            -t ${ALERTING_IMAGE}:${GITHUB_SHA}-${{ matrix.suffix }} \
+            -t ${ALERTING_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
   # Create manifests for built services
@@ -507,6 +535,8 @@ jobs:
       - build-alerting
     if: always() && (needs.detect-changes.outputs.any_service == 'true' || github.event.inputs.force_all == 'true')
     runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
     outputs:
       sfs_built: ${{ steps.check.outputs.sfs_built }}
       logging_built: ${{ steps.check.outputs.logging_built }}
@@ -520,6 +550,7 @@ jobs:
       gfs_built: ${{ steps.check.outputs.gfs_built }}
       notifications_built: ${{ steps.check.outputs.notifications_built }}
       alerting_built: ${{ steps.check.outputs.alerting_built }}
+      image_tag: ${{ needs.detect-changes.outputs.image_tag }}
     steps:
       - uses: docker/login-action@v3
         with:
@@ -543,134 +574,134 @@ jobs:
       - name: Create SFS manifest
         if: needs.build-sfs.result == 'success'
         run: |
-          docker manifest create ${SFS_IMAGE}:${GITHUB_SHA} \
-            ${SFS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${SFS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${SFS_IMAGE}:${IMAGE_TAG} \
+            ${SFS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${SFS_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${SFS_IMAGE}:latest \
-            ${SFS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${SFS_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${SFS_IMAGE}:${GITHUB_SHA}
+            ${SFS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${SFS_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${SFS_IMAGE}:${IMAGE_TAG}
           docker manifest push ${SFS_IMAGE}:latest
       - name: Create Logging manifest
         if: needs.build-logging.result == 'success'
         run: |
-          docker manifest create ${LOGGING_IMAGE}:${GITHUB_SHA} \
-            ${LOGGING_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${LOGGING_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${LOGGING_IMAGE}:${IMAGE_TAG} \
+            ${LOGGING_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${LOGGING_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${LOGGING_IMAGE}:latest \
-            ${LOGGING_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${LOGGING_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${LOGGING_IMAGE}:${GITHUB_SHA}
+            ${LOGGING_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${LOGGING_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${LOGGING_IMAGE}:${IMAGE_TAG}
           docker manifest push ${LOGGING_IMAGE}:latest
       - name: Create Compute manifest
         if: needs.build-compute.result == 'success'
         run: |
-          docker manifest create ${COMPUTE_IMAGE}:${GITHUB_SHA} \
-            ${COMPUTE_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${COMPUTE_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${COMPUTE_IMAGE}:${IMAGE_TAG} \
+            ${COMPUTE_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${COMPUTE_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${COMPUTE_IMAGE}:latest \
-            ${COMPUTE_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${COMPUTE_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${COMPUTE_IMAGE}:${GITHUB_SHA}
+            ${COMPUTE_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${COMPUTE_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${COMPUTE_IMAGE}:${IMAGE_TAG}
           docker manifest push ${COMPUTE_IMAGE}:latest
       - name: Create Compute Base manifest
         if: needs.build-compute-base.result == 'success'
         run: |
-          docker manifest create ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA} \
-            ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG} \
+            ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${COMPUTE_BASE_IMAGE}:latest \
-            ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${COMPUTE_BASE_IMAGE}:${GITHUB_SHA}
+            ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}
           docker manifest push ${COMPUTE_BASE_IMAGE}:latest
       - name: Create Frontend manifest
         if: needs.build-frontend.result == 'success'
         run: |
-          docker manifest create ${FRONTEND_IMAGE}:${GITHUB_SHA} \
-            ${FRONTEND_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${FRONTEND_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${FRONTEND_IMAGE}:${IMAGE_TAG} \
+            ${FRONTEND_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${FRONTEND_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${FRONTEND_IMAGE}:latest \
-            ${FRONTEND_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${FRONTEND_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${FRONTEND_IMAGE}:${GITHUB_SHA}
+            ${FRONTEND_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${FRONTEND_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${FRONTEND_IMAGE}:${IMAGE_TAG}
           docker manifest push ${FRONTEND_IMAGE}:latest
       - name: Create Auth manifest
         if: needs.build-auth.result == 'success'
         run: |
-          docker manifest create ${AUTH_IMAGE}:${GITHUB_SHA} \
-            ${AUTH_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${AUTH_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${AUTH_IMAGE}:${IMAGE_TAG} \
+            ${AUTH_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${AUTH_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${AUTH_IMAGE}:latest \
-            ${AUTH_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${AUTH_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${AUTH_IMAGE}:${GITHUB_SHA}
+            ${AUTH_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${AUTH_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${AUTH_IMAGE}:${IMAGE_TAG}
           docker manifest push ${AUTH_IMAGE}:latest
       - name: Create Gateway manifest
         if: needs.build-gateway.result == 'success'
         run: |
-          docker manifest create ${GATEWAY_IMAGE}:${GITHUB_SHA} \
-            ${GATEWAY_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${GATEWAY_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${GATEWAY_IMAGE}:${IMAGE_TAG} \
+            ${GATEWAY_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${GATEWAY_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${GATEWAY_IMAGE}:latest \
-            ${GATEWAY_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${GATEWAY_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${GATEWAY_IMAGE}:${GITHUB_SHA}
+            ${GATEWAY_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${GATEWAY_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${GATEWAY_IMAGE}:${IMAGE_TAG}
           docker manifest push ${GATEWAY_IMAGE}:latest
       - name: Create Docs manifest
         if: needs.build-docs.result == 'success'
         run: |
-          docker manifest create ${DOCS_IMAGE}:${GITHUB_SHA} \
-            ${DOCS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${DOCS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${DOCS_IMAGE}:${IMAGE_TAG} \
+            ${DOCS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${DOCS_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${DOCS_IMAGE}:latest \
-            ${DOCS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${DOCS_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${DOCS_IMAGE}:${GITHUB_SHA}
+            ${DOCS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${DOCS_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${DOCS_IMAGE}:${IMAGE_TAG}
           docker manifest push ${DOCS_IMAGE}:latest
       - name: Create Cluster Monitor manifest
         if: needs.build-cluster-monitor.result == 'success'
         run: |
-          docker manifest create ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA} \
-            ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG} \
+            ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${CLUSTER_MONITOR_IMAGE}:latest \
-            ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}
+            ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}
           docker manifest push ${CLUSTER_MONITOR_IMAGE}:latest
       - name: Create GFS manifest
         if: needs.build-gfs.result == 'success'
         run: |
-          docker manifest create ${GFS_IMAGE}:${GITHUB_SHA} \
-            ${GFS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${GFS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${GFS_IMAGE}:${IMAGE_TAG} \
+            ${GFS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${GFS_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${GFS_IMAGE}:latest \
-            ${GFS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${GFS_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${GFS_IMAGE}:${GITHUB_SHA}
+            ${GFS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${GFS_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${GFS_IMAGE}:${IMAGE_TAG}
           docker manifest push ${GFS_IMAGE}:latest
       - name: Create Notifications manifest
         if: needs.build-notifications.result == 'success'
         run: |
-          docker manifest create ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA} \
-            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG} \
+            ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${NOTIFICATIONS_IMAGE}:latest \
-            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}
+            ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}
           docker manifest push ${NOTIFICATIONS_IMAGE}:latest
       - name: Create Alerting manifest
         if: needs.build-alerting.result == 'success'
         run: |
-          docker manifest create ${ALERTING_IMAGE}:${GITHUB_SHA} \
-            ${ALERTING_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${ALERTING_IMAGE}:${GITHUB_SHA}-amd64
+          docker manifest create ${ALERTING_IMAGE}:${IMAGE_TAG} \
+            ${ALERTING_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${ALERTING_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest create ${ALERTING_IMAGE}:latest \
-            ${ALERTING_IMAGE}:${GITHUB_SHA}-arm64 \
-            ${ALERTING_IMAGE}:${GITHUB_SHA}-amd64
-          docker manifest push ${ALERTING_IMAGE}:${GITHUB_SHA}
+            ${ALERTING_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${ALERTING_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${ALERTING_IMAGE}:${IMAGE_TAG}
           docker manifest push ${ALERTING_IMAGE}:latest
 
   # Deploy only the services that were built
@@ -678,6 +709,8 @@ jobs:
     needs: create-manifests
     if: always() && needs.create-manifests.result == 'success'
     runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.create-manifests.outputs.image_tag }}
     steps:
       - name: Configure kubectl
         env:
@@ -688,37 +721,37 @@ jobs:
           chmod 600 ~/.kube/config
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
-        run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
       - name: Deploy Logging
         if: needs.create-manifests.outputs.logging_built == 'true'
-        run: kubectl -n $NS set image deployment/log-service log-service=${LOGGING_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/log-service log-service=${LOGGING_IMAGE}:${IMAGE_TAG}
       - name: Deploy Compute
         if: needs.create-manifests.outputs.compute_built == 'true'
-        run: kubectl -n $NS set image deployment/edd-compute edd-compute=${COMPUTE_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/edd-compute edd-compute=${COMPUTE_IMAGE}:${IMAGE_TAG}
       - name: Deploy Frontend
         if: needs.create-manifests.outputs.frontend_built == 'true'
-        run: kubectl -n $NS set image deployment/simple-file-share-frontend frontend=${FRONTEND_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/simple-file-share-frontend frontend=${FRONTEND_IMAGE}:${IMAGE_TAG}
       - name: Deploy Auth
         if: needs.create-manifests.outputs.auth_built == 'true'
-        run: kubectl -n $NS set image deployment/auth-service auth-service=${AUTH_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/auth-service auth-service=${AUTH_IMAGE}:${IMAGE_TAG}
       - name: Deploy Gateway
         if: needs.create-manifests.outputs.gateway_built == 'true'
-        run: kubectl -n $NS set image deployment/gateway gateway=${GATEWAY_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/gateway gateway=${GATEWAY_IMAGE}:${IMAGE_TAG}
       - name: Deploy Docs
         if: needs.create-manifests.outputs.docs_built == 'true'
-        run: kubectl -n $NS set image deployment/edd-cloud-docs docs=${DOCS_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/edd-cloud-docs docs=${DOCS_IMAGE}:${IMAGE_TAG}
       - name: Deploy Cluster Monitor
         if: needs.create-manifests.outputs.cluster_monitor_built == 'true'
-        run: kubectl -n $NS set image deployment/cluster-monitor cluster-monitor=${CLUSTER_MONITOR_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/cluster-monitor cluster-monitor=${CLUSTER_MONITOR_IMAGE}:${IMAGE_TAG}
       - name: Deploy GFS Master
         if: needs.create-manifests.outputs.gfs_built == 'true'
-        run: kubectl -n $NS set image deployment/gfs-master master=${GFS_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/gfs-master master=${GFS_IMAGE}:${IMAGE_TAG}
       - name: Deploy GFS Chunkserver
         if: needs.create-manifests.outputs.gfs_built == 'true'
-        run: kubectl -n $NS set image daemonset/gfs-chunkserver chunkserver=${GFS_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image daemonset/gfs-chunkserver chunkserver=${GFS_IMAGE}:${IMAGE_TAG}
       - name: Deploy Notifications
         if: needs.create-manifests.outputs.notifications_built == 'true'
-        run: kubectl -n $NS set image deployment/notification-service notification-service=${NOTIFICATIONS_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/notification-service notification-service=${NOTIFICATIONS_IMAGE}:${IMAGE_TAG}
       - name: Deploy Alerting
         if: needs.create-manifests.outputs.alerting_built == 'true'
-        run: kubectl -n $NS set image deployment/alerting-service alerting-service=${ALERTING_IMAGE}:${GITHUB_SHA}
+        run: kubectl -n $NS set image deployment/alerting-service alerting-service=${ALERTING_IMAGE}:${IMAGE_TAG}
