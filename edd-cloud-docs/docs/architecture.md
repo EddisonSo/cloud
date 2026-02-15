@@ -40,7 +40,8 @@ flowchart TB
     Storage --> HAProxy
     Compute --> HAProxy
     Notif --> HAProxy
-    HAProxy --> PGPrimary[PostgreSQL Primary<br/>rp1 promoted]
+    HAProxy --> PGPrimary[PostgreSQL Primary<br/>s0]
+    HAProxy --> PGReplica[PostgreSQL Replica<br/>rp1]
 ```
 
 ## Node Layout
@@ -49,8 +50,8 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node | Architecture | OS | Role | Labels |
 |------|-------------|-----|------|--------|
-| s0 | amd64 | Debian 13 (kernel 6.12) | Gateway, GFS master | `core-services=true`, `gfs-master=true` |
-| rp1 | arm64 | Debian 11 (kernel 6.1) | Database primary (promoted), HAProxy | `db-role=replica` |
+| s0 | amd64 | Debian 13 (kernel 6.12) | Database primary, GFS master, gateway | `db-role=primary`, `core-services=true`, `gfs-master=true` |
+| rp1 | arm64 | Debian 11 (kernel 6.1) | Database replica, HAProxy | `db-role=replica` |
 | rp2 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp3 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
 | rp4 | arm64 | Debian 11 (kernel 6.1) | Backend services | `backend=true` |
@@ -62,8 +63,8 @@ The cluster consists of 8 nodes with mixed architectures:
 
 | Node(s) | Services |
 |---------|----------|
-| s0 | gateway, gfs-master |
-| rp1 | postgres-replica (primary), haproxy |
+| s0 | gateway, gfs-master, postgres (primary) |
+| rp1 | postgres-replica, haproxy |
 | rp2, rp3, rp4 | auth-service, edd-compute, log-service, cluster-monitor, alerting-service, notification-service, simple-file-share, edd-cloud-docs, nats |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
@@ -189,10 +190,11 @@ This handles scenarios like:
 
 ### Service Databases
 
-PostgreSQL runs on rp1 in a promoted-replica configuration. The original primary on s0 is disabled (0 replicas) following the [January 2026 node failure](./incidents/2026-01-25-s0-node-failure). The deployment is named `postgres-replica` for PVC/service compatibility, but operates as the primary.
+PostgreSQL runs in a primary-replica configuration with streaming replication:
 
-- **Primary**: rp1 (promoted from replica)
-- **HAProxy**: Runs on rp1, provides connection pooling and health checking
+- **Primary**: s0 (`postgres` deployment)
+- **Replica**: rp1 (`postgres-replica` deployment, streaming from s0)
+- **HAProxy**: Runs on rp1, provides connection pooling and automatic failover
 
 Each service owns its own database for loose coupling:
 

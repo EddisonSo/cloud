@@ -10,8 +10,8 @@ Edd Cloud runs on a K3s Kubernetes cluster with mixed architecture nodes. All wo
 
 | Node | Architecture | Labels | Role |
 |------|--------------|--------|------|
-| s0 | amd64 | `core-services=true`, `gfs-master=true` | GFS master, gateway |
-| rp1 | arm64 | `db-role=replica` | Database primary (promoted), HAProxy |
+| s0 | amd64 | `db-role=primary`, `core-services=true`, `gfs-master=true` | Database primary, GFS master, gateway |
+| rp1 | arm64 | `db-role=replica` | Database replica, HAProxy |
 | rp2 | arm64 | `backend=true`, `core-services=true` | Backend services |
 | rp3 | arm64 | `backend=true` | Backend services |
 | rp4 | arm64 | `backend=true` | Backend services |
@@ -53,6 +53,7 @@ nodeSelector:
 
 - gateway
 - gfs-master
+- postgres (primary)
 - notification-service
 
 ### Backend Services (rp2, rp3, rp4)
@@ -66,10 +67,11 @@ nodeSelector:
 - edd-cloud-docs
 - alerting-service
 
-### Database (rp1)
+### Database (s0, rp1)
 
-- postgres-replica (promoted to primary)
-- haproxy (connection pooling)
+- postgres (primary, s0)
+- postgres-replica (rp1)
+- haproxy (connection pooling, rp1)
 
 ### NATS
 
@@ -88,6 +90,7 @@ nodeSelector:
 NAME                         READY   NODES
 gateway                      1/1     s0
 gfs-master                   1/1     s0
+postgres                     1/1     s0
 auth-service                 1/1     rp{2-4}
 simple-file-share-backend    2/2     rp{2-4}
 simple-file-share-frontend   2/2     rp{2-4}
@@ -104,19 +107,28 @@ haproxy                      1/1     rp1
 
 ### Database
 
-PostgreSQL runs in a promoted-replica configuration on rp1. The original primary on s0 is **disabled** (0 replicas). The deployment is named `postgres-replica` for PVC/service compatibility, but operates as the primary.
+PostgreSQL runs in a primary-replica configuration with streaming replication:
 
-The `postgres` service selector points to `app: postgres-replica`, so all services connect transparently.
+- **Primary**: `postgres` on s0 (`db-role=primary`)
+- **Replica**: `postgres-replica` on rp1 (`db-role=replica`), streaming from s0
+
+The `postgres` service routes to the primary. HAProxy provides connection pooling with automatic failover (primary active, replica backup).
 
 ```yaml
-# postgres-replica (PRIMARY on rp1)
+# postgres (PRIMARY on s0)
+replicas: 1
+image: postgres:16-alpine
+nodeSelector:
+  db-role: primary
+
+# postgres-replica (REPLICA on rp1)
 replicas: 1
 image: postgres:16-alpine
 nodeSelector:
   db-role: replica
 ```
 
-HAProxy provides connection pooling and health checking on rp1:
+HAProxy provides connection pooling and failover on rp1:
 
 ```yaml
 # HAProxy on rp1
@@ -139,11 +151,14 @@ gfs-chunkserver   3         3         s1, s2, s3
 
 ### PostgreSQL
 
+Each database node has its own 5Gi PVC:
+
 ```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-replica-data
+# Primary (s0)
+name: postgres-data
+# Replica (rp1)
+name: postgres-replica-data
+
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path

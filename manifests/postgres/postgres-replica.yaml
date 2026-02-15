@@ -17,14 +17,13 @@ metadata:
   name: postgres-replica-config
   namespace: core
 data:
-  # Note: This is now the PRIMARY database (promoted from replica)
-  # primary_conninfo removed - this node is the primary
   postgresql.conf: |
     listen_addresses = '*'
     wal_level = replica
-    max_wal_senders = 10
+    max_wal_senders = 3
     wal_keep_size = 64
     hot_standby = on
+    primary_conninfo = 'host=postgres.core.svc.cluster.local port=5432 user=replicator password=REPLICATOR_PASSWORD'
   pg_hba.conf: |
     local   all             all                                     trust
     host    all             all             0.0.0.0/0               md5
@@ -35,8 +34,6 @@ kind: Deployment
 metadata:
   name: postgres-replica
   namespace: core
-  # NOTE: This is now the PRIMARY database (promoted from replica when s0 went down)
-  # The name is kept for compatibility with existing PVC and service references
 spec:
   replicas: 1
   selector:

@@ -34,7 +34,7 @@ metadata:
   name: postgres
   namespace: core
 spec:
-  replicas: 0  # Disabled - primary moved to rp1 (postgres-replica)
+  replicas: 1
   selector:
     matchLabels:
       app: postgres
@@ -102,7 +102,7 @@ metadata:
   namespace: core
 spec:
   selector:
-    app: postgres-replica  # Points to promoted replica on rp1
+    app: postgres
   ports:
     - port: 5432
       targetPort: 5432

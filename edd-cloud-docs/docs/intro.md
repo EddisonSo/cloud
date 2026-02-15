@@ -36,8 +36,8 @@ Edd Cloud is a personal cloud infrastructure platform that provides storage, com
 
 | Node | Architecture | Role |
 |------|-------------|------|
-| s0 | amd64 | Gateway, GFS master |
-| rp1 | arm64 | Database primary (promoted), HAProxy |
+| s0 | amd64 | Database primary, GFS master, gateway |
+| rp1 | arm64 | Database replica, HAProxy |
 | rp2, rp3, rp4 | arm64 | Backend services (auth, compute, storage, notifications, etc.) |
 | s1, s2, s3 | amd64 | Control plane, etcd, GFS chunkservers |
 
