@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton, TextSkeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { StatusDot } from "@/components/common";
 import { Progress } from "@/components/ui/progress";
@@ -50,7 +50,7 @@ function getTabFromHash() {
 export function HealthPage() {
   const copy = TAB_COPY.health;
   const { user, userId } = useAuth();
-  const { health, podMetrics, loading, error, lastCheck, updateFrequency, setUpdateFrequency } = useHealth(user, true);
+  const { health, podMetrics, loading, error, updateFrequency, setUpdateFrequency } = useHealth(user, true);
   const [showPercent, setShowPercent] = useState(false);
   const [nodeSort, setNodeSort] = useState<{ column: string | null; dir: "asc" | "desc" }>({ column: null, dir: "desc" });
   const [podSort, setPodSort] = useState<{ column: string | null; dir: "asc" | "desc" }>({ column: null, dir: "desc" });
@@ -73,17 +73,6 @@ export function HealthPage() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const totalNodes = health.nodes.length;
-  const healthyNodes = health.nodes.filter((n) => {
-    const conditions = n.conditions || [];
-    return conditions.every((c) => c.status === "False");
-  }).length;
-
-  const totalDisk = health.nodes.reduce((sum, n) => sum + (n.disk_capacity || 0), 0);
-  const totalMemory = health.nodes.reduce((sum, n) => {
-    const cap = n.memory_capacity || "0";
-    return sum + parseKiBytes(cap);
-  }, 0);
 
   function parseKiBytes(str: string): number {
     if (!str) return 0;
@@ -197,72 +186,6 @@ export function HealthPage() {
   return (
     <div>
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Cluster Status
-            </p>
-            {loading ? (
-              <div className="flex items-center gap-2">
-                <StatusDot status="ok" />
-                <TextSkeleton text="Healthy" className="text-2xl font-semibold" />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <StatusDot status={health.cluster_ok ? "ok" : "down"} />
-                <span className="text-2xl font-semibold truncate">
-                  {health.cluster_ok ? "Healthy" : "Degraded"}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Nodes Online
-            </p>
-            {loading ? (
-              <TextSkeleton text="0 / 0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">
-                {healthyNodes} / {totalNodes}
-              </span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Memory
-            </p>
-            {loading ? (
-              <TextSkeleton text="0.00 GB" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold truncate block">
-                {formatBytes(totalMemory)}
-              </span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Last Updated
-            </p>
-            {loading ? (
-              <TextSkeleton text="00:00:00" className="text-lg font-medium text-muted-foreground" />
-            ) : (
-              <span className="text-lg font-medium text-muted-foreground truncate block">
-                {lastCheck ? lastCheck.toLocaleTimeString() : "—"}
-              </span>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Tab Navigation */}
       <div className="border-b border-border mb-6">

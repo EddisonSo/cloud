@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { TextSkeleton } from "@/components/ui/skeleton";
+
 import {
   ContainerList,
   CreateContainerForm,
@@ -13,7 +13,7 @@ import {
 } from "@/components/compute";
 import { useContainers, useSshKeys, useContainerAccess, useTerminal } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, Server, Key } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Container, ContainerAction, CreateContainerData } from "@/types";
 
 interface ComputePageProps {
@@ -224,35 +224,6 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
           ]}
         />
         <PageHeader title="SSH Keys" description="Manage SSH keys for container access." />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-card border border-border rounded-lg p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                <Key className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Keys</span>
-            </div>
-            {sshKeysLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{sshKeys.length}</span>
-            )}
-          </div>
-          <div className="bg-card border border-border rounded-lg p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                <Server className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Containers</span>
-            </div>
-            {containersLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{containers.length}</span>
-            )}
-          </div>
-        </div>
 
         <div className="bg-card border border-border rounded-lg">
           <div className="px-5 py-4 border-b border-border">

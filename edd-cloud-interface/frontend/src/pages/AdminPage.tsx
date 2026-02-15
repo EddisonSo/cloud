@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TextSkeleton } from "@/components/ui/skeleton";
+
 import { StatusBadge, CopyableText, Modal } from "@/components/common";
 import { TAB_COPY } from "@/lib/constants";
 import { buildAuthBase, buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
@@ -134,44 +134,6 @@ export function AdminPage() {
   return (
     <div>
       <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-
-      {/* Summary Stats */}
-      <div className="flex flex-wrap gap-4 mb-6 text-sm text-muted-foreground">
-        <span>
-          Users:{" "}
-          {loading ? (
-            <TextSkeleton text="0" className="font-medium text-foreground" />
-          ) : (
-            <span className="font-medium text-foreground">{users.length}</span>
-          )}
-        </span>
-        <span>
-          Containers:{" "}
-          {loading ? (
-            <TextSkeleton text="0" className="font-medium text-foreground" />
-          ) : (
-            <span className="font-medium text-foreground">{containers.length}</span>
-          )}
-        </span>
-        <span>
-          Running:{" "}
-          {loading ? (
-            <TextSkeleton text="0" className="font-medium text-green-400" />
-          ) : (
-            <span className="font-medium text-green-400">
-              {containers.filter((c) => c.status === "running").length}
-            </span>
-          )}
-        </span>
-        <span>
-          Namespaces:{" "}
-          {loading ? (
-            <TextSkeleton text="0" className="font-medium text-foreground" />
-          ) : (
-            <span className="font-medium text-foreground">{namespaces.length}</span>
-          )}
-        </span>
-      </div>
 
       {/* Users Section */}
       <Card className="mb-6">
