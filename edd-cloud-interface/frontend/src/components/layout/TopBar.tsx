@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
@@ -10,6 +11,7 @@ interface TopBarProps {
 
 export function TopBar({ onToggleSidebar }: TopBarProps) {
   const { user, displayName, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-card border-b border-border flex items-center px-4 gap-4">
@@ -37,12 +39,18 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
           <>
             <div className="w-px h-6 bg-border mx-2" />
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-semibold">
-                {(displayName || user).charAt(0).toUpperCase()}
-              </div>
-              <span className="text-sm font-medium hidden sm:block">
-                {displayName || user}
-              </span>
+              <button
+                onClick={() => navigate("/settings")}
+                className="flex items-center gap-2 rounded-md px-2 py-1 -mx-2 -my-1 hover:bg-accent/50 transition-colors"
+                title="Settings"
+              >
+                <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-semibold">
+                  {(displayName || user).charAt(0).toUpperCase()}
+                </div>
+                <span className="text-sm font-medium hidden sm:block">
+                  {displayName || user}
+                </span>
+              </button>
               <Button
                 variant="ghost"
                 size="icon"

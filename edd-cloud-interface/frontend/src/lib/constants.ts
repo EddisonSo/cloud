@@ -5,7 +5,6 @@ import {
   Database,
   Activity,
   Settings,
-  UserCog,
   Box,
   Key,
   KeyRound
@@ -37,7 +36,6 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
-  { id: "settings", label: "Settings", icon: UserCog, path: "/settings" },
 ];
 
 export const ADMIN_NAV_ITEM: NavItem = {
