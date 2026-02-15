@@ -1,235 +1,125 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { NAV_ITEMS, ADMIN_NAV_ITEM } from "@/lib/constants";
-import { ThemeToggle } from "./ThemeToggle";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { StatusDot } from "@/components/common";
-import { Shield } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { NavItem } from "@/types";
 
 interface SidebarProps {
   healthOk?: boolean;
+  collapsed?: boolean;
 }
 
-export function Sidebar({ healthOk = true }: SidebarProps) {
+export function Sidebar({ healthOk = true, collapsed = false }: SidebarProps) {
   const location = useLocation();
-  const { user, displayName, isAdmin, login, logout, challengeToken, complete2FA, cancel2FA } = useAuth();
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [loginError, setLoginError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [twoFAState, setTwoFAState] = useState<"idle" | "waiting" | "error">("idle");
-  const [twoFAError, setTwoFAError] = useState("");
+  const { isAdmin } = useAuth();
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const navItems: NavItem[] = isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoginError("");
-    setLoggingIn(true);
-    try {
-      const result = await login(loginForm.username, loginForm.password);
-      setLoginForm({ username: "", password: "" });
-    } catch (err) {
-      setLoginError((err as Error).message);
-    } finally {
-      setLoggingIn(false);
-    }
-  };
-
-  // Reset 2FA state when challenge token is cleared
+  // Auto-expand active section
   useEffect(() => {
-    if (!challengeToken) {
-      setTwoFAState("idle");
+    for (const item of navItems) {
+      if (item.subItems && location.pathname.startsWith(item.path)) {
+        setExpandedSections((prev) => new Set(prev).add(item.id));
+      }
     }
-  }, [challengeToken]);
+  }, [location.pathname]);
 
-  const handleCancel2FA = () => {
-    cancel2FA();
-    setTwoFAState("idle");
-    setTwoFAError("");
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
-  const handleRetry2FA = async () => {
-    setTwoFAState("waiting");
-    setTwoFAError("");
-    try {
-      await complete2FA();
-      setTwoFAState("idle");
-    } catch (err) {
-      setTwoFAState("error");
-      setTwoFAError((err as Error).message);
-    }
-  };
+  if (collapsed) return null;
 
   return (
-    <aside className="fixed top-0 left-0 h-screen w-[220px] flex flex-col bg-card border-r border-border p-4 overflow-y-auto">
-      {/* Brand */}
-      <div className="px-2 py-1 mb-4">
-        <span className="font-semibold text-[15px]">Edd Cloud</span>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex flex-col gap-1 flex-1">
+    <aside className="fixed top-14 left-0 bottom-0 w-[240px] bg-card border-r border-border overflow-y-auto z-40">
+      <nav className="flex flex-col py-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname.startsWith(item.path);
           const hasSubItems = item.subItems && item.subItems.length > 0;
+          const isExpanded = expandedSections.has(item.id);
+
+          if (hasSubItems) {
+            return (
+              <div key={item.id}>
+                {/* Section header */}
+                <button
+                  onClick={() => toggleSection(item.id)}
+                  className={cn(
+                    "flex items-center gap-3 w-full px-5 py-2 text-[13px] font-medium transition-colors text-left",
+                    "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                    isActive && "text-foreground",
+                  )}
+                >
+                  <Icon className="w-[18px] h-[18px] shrink-0 opacity-70" />
+                  <span className="flex-1">{item.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 transition-transform opacity-50",
+                      isExpanded && "rotate-180",
+                    )}
+                  />
+                </button>
+
+                {/* Sub-items */}
+                {isExpanded && (
+                  <div className="mt-0.5 mb-1">
+                    {item.subItems!.map((subItem) => {
+                      const isSubActive = location.pathname === subItem.path;
+                      return (
+                        <NavLink
+                          key={subItem.id}
+                          to={subItem.path}
+                          className={cn(
+                            "flex items-center gap-3 pl-12 pr-5 py-1.5 text-[13px] transition-colors relative",
+                            "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                            isSubActive && "text-primary bg-primary/5 font-medium",
+                          )}
+                        >
+                          {isSubActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r" />
+                          )}
+                          {subItem.label}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
           return (
-            <div key={item.id}>
-              <NavLink
-                to={hasSubItems ? item.subItems![0].path : item.path}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] font-medium transition-colors relative",
-                  "text-muted-foreground hover:bg-accent hover:text-foreground",
-                  isActive && "bg-primary/10 text-primary"
-                )}
-              >
-                {isActive && !hasSubItems && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-sm" />
-                )}
-                <Icon className="w-4 h-4 opacity-80" />
-                {item.label}
-                {item.id === "health" && (
-                  <StatusDot status={healthOk ? "ok" : "down"} className="ml-auto" />
-                )}
-              </NavLink>
-              {/* Sub-items */}
-              {hasSubItems && isActive && (
-                <div className="ml-4 mt-1 space-y-1">
-                  {item.subItems!.map((subItem) => {
-                    const SubIcon = subItem.icon;
-                    const isSubActive = location.pathname === subItem.path;
-                    return (
-                      <NavLink
-                        key={subItem.id}
-                        to={subItem.path}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors relative",
-                          "text-muted-foreground hover:bg-accent hover:text-foreground",
-                          isSubActive && "bg-primary/10 text-primary"
-                        )}
-                      >
-                        {isSubActive && (
-                          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-3 bg-primary rounded-r-sm" />
-                        )}
-                        <SubIcon className="w-3.5 h-3.5 opacity-80" />
-                        {subItem.label}
-                      </NavLink>
-                    );
-                  })}
-                </div>
+            <NavLink
+              key={item.id}
+              to={item.path}
+              className={cn(
+                "flex items-center gap-3 px-5 py-2 text-[13px] font-medium transition-colors relative",
+                "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                isActive && "text-primary bg-primary/5",
               )}
-            </div>
+            >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r" />
+              )}
+              <Icon className="w-[18px] h-[18px] shrink-0 opacity-70" />
+              {item.label}
+              {item.id === "health" && (
+                <StatusDot status={healthOk ? "ok" : "down"} className="ml-auto" />
+              )}
+            </NavLink>
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="pt-4 mt-auto border-t border-border">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-muted-foreground">Theme</span>
-          <ThemeToggle />
-        </div>
-
-        {user ? (
-          <>
-            <NavLink
-              to="/settings"
-              className="flex items-center gap-3 p-3 bg-secondary rounded-lg hover:bg-accent transition-colors"
-            >
-              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold">
-                {(displayName || user).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{displayName || user}</div>
-              </div>
-            </NavLink>
-            <Button
-              variant="ghost"
-              className="w-full mt-3 justify-center"
-              onClick={logout}
-            >
-              Sign out
-            </Button>
-          </>
-        ) : challengeToken ? (
-          // 2FA challenge UI
-          <div className="space-y-3">
-            <div className="flex flex-col items-center gap-2 p-4 bg-secondary rounded-lg text-center">
-              <Shield className="w-6 h-6 text-primary" />
-              {twoFAState === "waiting" ? (
-                <>
-                  <p className="text-sm font-medium">Touch your security key</p>
-                  <p className="text-xs text-muted-foreground">
-                    Waiting for verification...
-                  </p>
-                </>
-              ) : twoFAState === "error" ? (
-                <>
-                  <p className="text-sm font-medium text-destructive">Verification failed</p>
-                  <p className="text-xs text-muted-foreground">{twoFAError}</p>
-                  <Button size="sm" onClick={handleRetry2FA} className="mt-1">
-                    Retry
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-medium">Security key required</p>
-                  <p className="text-xs text-muted-foreground">
-                    Click below to verify with your key
-                  </p>
-                  <Button size="sm" onClick={handleRetry2FA} className="mt-2">
-                    Verify
-                  </Button>
-                </>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              className="w-full justify-center"
-              onClick={handleCancel2FA}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={handleLogin} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="sidebar-username" className="text-xs">Username</Label>
-              <Input
-                id="sidebar-username"
-                type="text"
-                value={loginForm.username}
-                onChange={(e) => setLoginForm((p) => ({ ...p, username: e.target.value }))}
-                autoComplete="username"
-                className="h-8"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sidebar-password" className="text-xs">Password</Label>
-              <Input
-                id="sidebar-password"
-                type="password"
-                value={loginForm.password}
-                onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
-                autoComplete="current-password"
-                className="h-8"
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loggingIn}>
-              {loggingIn ? "Signing in..." : "Sign in"}
-            </Button>
-            {loginError && (
-              <p className="text-xs text-destructive">{loginError}</p>
-            )}
-          </form>
-        )}
-      </div>
     </aside>
   );
 }

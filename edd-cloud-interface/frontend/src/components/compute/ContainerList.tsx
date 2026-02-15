@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { StatusBadge, CopyableText } from "@/components/common";
-import { Play, Square, Trash2, Settings, Terminal } from "lucide-react";
+import { StatusChip } from "@/components/ui/status-chip";
+import { CopyableText } from "@/components/common";
+import { Play, Square, Trash2, Settings, Terminal, Server } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Container, ContainerAction } from "@/types";
 
 interface ContainerListProps {
@@ -27,111 +29,131 @@ export function ContainerList({
   loading,
 }: ContainerListProps) {
   if (loading) {
-    return <p className="text-muted-foreground py-8 text-center">Loading containers...</p>;
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+        Loading containers...
+      </div>
+    );
   }
 
   if (containers.length === 0) {
     return (
-      <p className="text-muted-foreground py-8 text-center">
-        No containers yet. Create your first container to get started.
-      </p>
+      <EmptyState
+        icon={Server}
+        title="No containers yet"
+        description="Create your first container to get started."
+      />
     );
   }
 
   return (
-    <div className="space-y-2">
-      {/* Header */}
-      <div className="grid grid-cols-[1.5fr_1fr_2.5fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        <div className="text-center">Container</div>
-        <div className="text-center">Status</div>
-        <div className="text-center">Hostname</div>
-        <div className="text-center">Actions</div>
-      </div>
-      {/* Rows */}
-      {containers.map((container) => {
-        const action = actions[container.id];
-        const isRunning = container.status === "running";
-        const isStopped = container.status === "stopped";
+    <table className="w-full">
+      <thead>
+        <tr className="border-b border-border">
+          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Name
+          </th>
+          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Status
+          </th>
+          <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Hostname
+          </th>
+          <th className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Actions
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {containers.map((container) => {
+          const action = actions[container.id];
+          const isRunning = container.status === "running";
+          const isStopped = container.status === "stopped";
 
-        return (
-          <div
-            key={container.id}
-            className="grid grid-cols-[1.5fr_1fr_2.5fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer hover:bg-secondary/80"
-            onClick={() => onSelect?.(container)}
-          >
-            <div className="min-w-0 text-center">
-              <span className="font-medium block truncate">{container.name}</span>
-              <CopyableText text={container.id.slice(0, 8)} mono />
-            </div>
-            <div className="flex justify-center">
-              <StatusBadge status={container.status} />
-            </div>
-            <div className="min-w-0 text-center" onClick={(e) => e.stopPropagation()}>
-              {container.hostname ? (
-                <CopyableText text={container.hostname} mono className="text-sm" />
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
-            </div>
-            <div className="flex gap-1 justify-center" onClick={(e) => e.stopPropagation()}>
-              {isRunning && (
-                <>
+          return (
+            <tr
+              key={container.id}
+              className="border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => onSelect?.(container)}
+            >
+              <td className="px-5 py-3">
+                <div className="min-w-0">
+                  <span className="text-sm font-medium block truncate">{container.name}</span>
+                  <span className="text-xs text-muted-foreground font-mono">{container.id.slice(0, 8)}</span>
+                </div>
+              </td>
+              <td className="px-5 py-3">
+                <StatusChip status={container.status} />
+              </td>
+              <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                {container.hostname ? (
+                  <CopyableText text={container.hostname} mono className="text-sm" />
+                ) : (
+                  <span className="text-sm text-muted-foreground">&mdash;</span>
+                )}
+              </td>
+              <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                <div className="flex gap-1 justify-end">
+                  {isRunning && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onTerminal?.(container)}
+                        title="Terminal"
+                      >
+                        <Terminal className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onStop?.(container.id)}
+                        disabled={action === "stopping"}
+                        title="Stop"
+                      >
+                        <Square className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                  {isStopped && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onStart?.(container.id)}
+                      disabled={action === "starting"}
+                      title="Start"
+                    >
+                      <Play className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => onTerminal?.(container)}
-                    title="Terminal"
+                    onClick={() => onAccess?.(container)}
+                    title="Access Settings"
                   >
-                    <Terminal className="w-4 h-4" />
+                    <Settings className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onStop?.(container.id)}
-                    disabled={action === "stopping"}
-                    title="Stop"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete?.(container.id)}
+                    disabled={action === "deleting"}
+                    title="Delete"
                   >
-                    <Square className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </Button>
-                </>
-              )}
-              {isStopped && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => onStart?.(container.id)}
-                  disabled={action === "starting"}
-                  title="Start"
-                >
-                  <Play className="w-4 h-4" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onAccess?.(container)}
-                title="Access Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => onDelete?.(container.id)}
-                disabled={action === "deleting"}
-                title="Delete"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

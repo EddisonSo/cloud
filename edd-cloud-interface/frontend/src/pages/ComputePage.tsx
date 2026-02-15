@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Header } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TextSkeleton } from "@/components/ui/skeleton";
 import {
   ContainerList,
@@ -11,10 +12,9 @@ import {
   ContainerDetail,
   TerminalView,
 } from "@/components/compute";
-import { TAB_COPY } from "@/lib/constants";
 import { useContainers, useSshKeys, useContainerAccess, useTerminal } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus } from "lucide-react";
+import { Plus, Server, Key } from "lucide-react";
 import type { Container, ContainerAction, CreateContainerData } from "@/types";
 
 interface ComputePageProps {
@@ -22,7 +22,6 @@ interface ComputePageProps {
 }
 
 export function ComputePage({ view: routeView = "containers" }: ComputePageProps) {
-  const copy = TAB_COPY.compute;
   const { containerId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -69,7 +68,6 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     }
   }, [user, loadContainers, loadSshKeys]);
 
-  // Handle URL param for container detail
   useEffect(() => {
     if (containerId && containers.length > 0) {
       const container = containers.find((c) => c.id === containerId);
@@ -86,7 +84,6 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     }
   }, [containerId, containers]);
 
-  // Close terminal when route changes
   useEffect(() => {
     if (showTerminal) {
       handleCloseTerminal();
@@ -140,17 +137,25 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
   if (!user) {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
-        <p className="text-muted-foreground">Sign in to manage containers.</p>
+        <Breadcrumb items={[{ label: "Compute" }]} />
+        <PageHeader title="Containers" description="Sign in to manage containers." />
       </div>
     );
   }
 
-  // Terminal View (overlay on detail)
+  // Terminal View
   if (showTerminal && terminalContainer) {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+        <Breadcrumb
+          items={[
+            { label: "Compute", href: "/compute/containers" },
+            { label: "Containers", href: "/compute/containers" },
+            { label: terminalContainer.name },
+            { label: "Terminal" },
+          ]}
+        />
+        <PageHeader title={`Terminal — ${terminalContainer.name}`} />
         <TerminalView
           container={terminalContainer}
           terminalRef={terminalRef}
@@ -166,7 +171,14 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
   if (routeView === "detail" && selectedContainer) {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+        <Breadcrumb
+          items={[
+            { label: "Compute", href: "/compute/containers" },
+            { label: "Containers", href: "/compute/containers" },
+            { label: selectedContainer.name },
+          ]}
+        />
+        <PageHeader title={selectedContainer.name} />
         <ContainerDetail
           container={selectedContainer}
           access={access}
@@ -181,11 +193,18 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     );
   }
 
-  // Create Container View
+  // Create Container
   if (routeView === "create") {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title="Create Container" description="Configure your new stateful container." />
+        <Breadcrumb
+          items={[
+            { label: "Compute", href: "/compute/containers" },
+            { label: "Containers", href: "/compute/containers" },
+            { label: "Create" },
+          ]}
+        />
+        <PageHeader title="Create container" description="Configure a new stateful container." />
         <CreateContainerForm
           sshKeys={sshKeys}
           onCreate={handleCreateContainer}
@@ -196,129 +215,150 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     );
   }
 
-  // SSH Keys View
+  // SSH Keys
   if (routeView === "ssh-keys") {
     return (
       <div>
-        <Header eyebrow={copy.eyebrow} title="SSH Keys" description="Manage SSH keys for container access." />
+        <Breadcrumb
+          items={[
+            { label: "Compute", href: "/compute/containers" },
+            { label: "SSH Keys" },
+          ]}
+        />
+        <PageHeader title="SSH Keys" description="Manage SSH keys for container access." />
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <Card className="min-w-0">
-            <CardContent className="pt-6">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-                Total Keys
-              </p>
-              {sshKeysLoading ? (
-                <TextSkeleton text="0" className="text-2xl font-semibold" />
-              ) : (
-                <span className="text-2xl font-semibold">{sshKeys.length}</span>
-              )}
-            </CardContent>
-          </Card>
-          <Card className="min-w-0">
-            <CardContent className="pt-6">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-                Containers
-              </p>
-              {containersLoading ? (
-                <TextSkeleton text="0" className="text-2xl font-semibold" />
-              ) : (
-                <span className="text-2xl font-semibold">{containers.length}</span>
-              )}
-            </CardContent>
-          </Card>
+          <div className="bg-card border border-border rounded-lg p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                <Key className="w-4 h-4 text-primary" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Keys</span>
+            </div>
+            {sshKeysLoading ? (
+              <TextSkeleton text="0" className="text-2xl font-semibold" />
+            ) : (
+              <span className="text-2xl font-semibold">{sshKeys.length}</span>
+            )}
+          </div>
+          <div className="bg-card border border-border rounded-lg p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                <Server className="w-4 h-4 text-primary" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Containers</span>
+            </div>
+            {containersLoading ? (
+              <TextSkeleton text="0" className="text-2xl font-semibold" />
+            ) : (
+              <span className="text-2xl font-semibold">{containers.length}</span>
+            )}
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>SSH Keys</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-card border border-border rounded-lg">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="text-sm font-semibold">SSH Keys</h2>
+          </div>
+          <div className="p-5">
             <SshKeyList
               sshKeys={sshKeys}
               onAdd={addSshKey}
               onDelete={deleteSshKey}
               loading={sshKeysLoading}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Containers View (default)
+  // Containers (default)
   return (
     <div>
-      <Header eyebrow={copy.eyebrow} title={copy.title} description={copy.lead} />
+      <Breadcrumb
+        items={[
+          { label: "Compute", href: "/compute/containers" },
+          { label: "Containers" },
+        ]}
+      />
+      <PageHeader
+        title="Containers"
+        description="Stateful containers with persistent storage and dedicated IPs."
+        actions={
+          <Button onClick={() => navigate("/compute/containers/new")}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create container
+          </Button>
+        }
+      />
 
-      {/* Summary Cards */}
+      {/* Summary metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Total Containers
-            </p>
-            {containersLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{containers.length}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              Running
-            </p>
-            {containersLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold text-green-400" />
-            ) : (
-              <span className="text-2xl font-semibold text-green-400">{runningCount}</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="min-w-0">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 truncate">
-              SSH Keys
-            </p>
-            {sshKeysLoading ? (
-              <TextSkeleton text="0" className="text-2xl font-semibold" />
-            ) : (
-              <span className="text-2xl font-semibold">{sshKeys.length}</span>
-            )}
-          </CardContent>
-        </Card>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+              <Server className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</span>
+          </div>
+          {containersLoading ? (
+            <TextSkeleton text="0" className="text-2xl font-semibold" />
+          ) : (
+            <span className="text-2xl font-semibold">{containers.length}</span>
+          )}
+        </div>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded bg-success/10 flex items-center justify-center">
+              <Server className="w-4 h-4 text-success" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Running</span>
+          </div>
+          {containersLoading ? (
+            <TextSkeleton text="0" className="text-2xl font-semibold" />
+          ) : (
+            <span className="text-2xl font-semibold">{runningCount}</span>
+          )}
+        </div>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+              <Key className="w-4 h-4 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SSH Keys</span>
+          </div>
+          {sshKeysLoading ? (
+            <TextSkeleton text="0" className="text-2xl font-semibold" />
+          ) : (
+            <span className="text-2xl font-semibold">{sshKeys.length}</span>
+          )}
+        </div>
       </div>
 
       {containersError && (
-        <p className="text-destructive text-sm mb-4">{containersError}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
+          <p className="text-sm text-destructive">{containersError}</p>
+        </div>
       )}
 
-      <Button variant="outline" className="mb-4" onClick={() => navigate("/compute/containers/new")}>
-        <Plus className="w-4 h-4 mr-2" />
-        Create Container
-      </Button>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Containers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ContainerList
-            containers={containers}
-            actions={actions}
-            onStart={(id) => handleContainerAction(id, "starting")}
-            onStop={(id) => handleContainerAction(id, "stopping")}
-            onDelete={(id) => handleContainerAction(id, "deleting")}
-            onAccess={handleSelectContainer}
-            onTerminal={handleOpenTerminal}
-            onSelect={handleSelectContainer}
-            loading={containersLoading}
-          />
-        </CardContent>
-      </Card>
+      {/* Container table */}
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Containers</h2>
+        </div>
+        <ContainerList
+          containers={containers}
+          actions={actions}
+          onStart={(id) => handleContainerAction(id, "starting")}
+          onStop={(id) => handleContainerAction(id, "stopping")}
+          onDelete={(id) => handleContainerAction(id, "deleting")}
+          onAccess={handleSelectContainer}
+          onTerminal={handleOpenTerminal}
+          onSelect={handleSelectContainer}
+          loading={containersLoading}
+        />
+      </div>
     </div>
   );
 }

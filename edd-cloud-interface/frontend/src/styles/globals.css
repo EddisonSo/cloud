@@ -1,57 +1,58 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @theme {
-  --color-background: hsl(216 28% 7%);
-  --color-foreground: hsl(213 31% 91%);
-  --color-card: hsl(215 28% 9%);
-  --color-card-foreground: hsl(213 31% 91%);
-  --color-popover: hsl(215 28% 9%);
-  --color-popover-foreground: hsl(213 31% 91%);
-  --color-primary: hsl(210 100% 67%);
-  --color-primary-foreground: hsl(216 28% 7%);
-  --color-secondary: hsl(215 19% 17%);
-  --color-secondary-foreground: hsl(213 31% 91%);
-  --color-muted: hsl(215 19% 17%);
-  --color-muted-foreground: hsl(215 14% 57%);
-  --color-accent: hsl(215 19% 17%);
-  --color-accent-foreground: hsl(213 31% 91%);
-  --color-destructive: hsl(0 73% 63%);
-  --color-destructive-foreground: hsl(213 31% 91%);
-  --color-border: hsl(215 14% 25%);
-  --color-input: hsl(215 14% 25%);
-  --color-ring: hsl(210 100% 67%);
-  --color-success: hsl(142 76% 46%);
-  --color-warning: hsl(38 92% 50%);
+  /* GCS Dark — deep navy with blue accent */
+  --color-background: #0f1219;
+  --color-foreground: #e3e7ef;
+  --color-card: #161b26;
+  --color-card-foreground: #e3e7ef;
+  --color-popover: #1c2333;
+  --color-popover-foreground: #e3e7ef;
+  --color-primary: #8ab4f8;
+  --color-primary-foreground: #0f1219;
+  --color-secondary: #1c2333;
+  --color-secondary-foreground: #e3e7ef;
+  --color-muted: #1c2333;
+  --color-muted-foreground: #7d8799;
+  --color-accent: #232d42;
+  --color-accent-foreground: #e3e7ef;
+  --color-destructive: #f28b82;
+  --color-destructive-foreground: #0f1219;
+  --color-border: #252d3d;
+  --color-input: #252d3d;
+  --color-ring: #8ab4f8;
+  --color-success: #81c995;
+  --color-warning: #fdd663;
   --radius: 0.5rem;
 
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 }
 
 /* Light theme */
 .light {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 98%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(210 100% 50%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(210 100% 50%);
-  --color-success: hsl(142 76% 36%);
-  --color-warning: hsl(38 92% 50%);
+  --color-background: #f8f9fb;
+  --color-foreground: #1a1f2e;
+  --color-card: #ffffff;
+  --color-card-foreground: #1a1f2e;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #1a1f2e;
+  --color-primary: #1a73e8;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f3f5;
+  --color-secondary-foreground: #1a1f2e;
+  --color-muted: #f1f3f5;
+  --color-muted-foreground: #5f6b7a;
+  --color-accent: #e8edf2;
+  --color-accent-foreground: #1a1f2e;
+  --color-destructive: #d93025;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #dde1e6;
+  --color-input: #dde1e6;
+  --color-ring: #1a73e8;
+  --color-success: #1e8e3e;
+  --color-warning: #f9ab00;
 }
 
 body {
@@ -64,17 +65,17 @@ body {
 
 /* Terminal styles */
 .terminal-container {
-  background: #1e1e2e;
+  background: #0f1219;
   border-radius: 0.5rem;
   padding: 0.75rem;
   min-height: 400px;
   overflow: hidden;
 }
 
-/* Scrollbar styling */
+/* Scrollbar — thin, unobtrusive */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -88,7 +89,6 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted-foreground);
-  opacity: 0.5;
 }
 
 /* Animation keyframes */
