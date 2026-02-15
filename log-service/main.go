@@ -1,4 +1,4 @@
-// Log service - centralized logging for GFS cluster
+// Package main implements the centralized logging service for the GFS cluster.
 package main
 
 import (
