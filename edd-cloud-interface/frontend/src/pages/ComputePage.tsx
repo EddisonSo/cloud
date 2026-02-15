@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TextSkeleton } from "@/components/ui/skeleton";
 import {
   ContainerList,
@@ -132,7 +131,6 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     setShowTerminal(false);
   };
 
-  const runningCount = containers.filter((c) => c.status === "running").length;
 
   if (!user) {
     return (
@@ -292,49 +290,6 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
           </Button>
         }
       />
-
-      {/* Summary metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-              <Server className="w-4 h-4 text-primary" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</span>
-          </div>
-          {containersLoading ? (
-            <TextSkeleton text="0" className="text-2xl font-semibold" />
-          ) : (
-            <span className="text-2xl font-semibold">{containers.length}</span>
-          )}
-        </div>
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded bg-success/10 flex items-center justify-center">
-              <Server className="w-4 h-4 text-success" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Running</span>
-          </div>
-          {containersLoading ? (
-            <TextSkeleton text="0" className="text-2xl font-semibold" />
-          ) : (
-            <span className="text-2xl font-semibold">{runningCount}</span>
-          )}
-        </div>
-        <div className="bg-card border border-border rounded-lg p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-              <Key className="w-4 h-4 text-primary" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SSH Keys</span>
-          </div>
-          {sshKeysLoading ? (
-            <TextSkeleton text="0" className="text-2xl font-semibold" />
-          ) : (
-            <span className="text-2xl font-semibold">{sshKeys.length}</span>
-          )}
-        </div>
-      </div>
 
       {containersError && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
