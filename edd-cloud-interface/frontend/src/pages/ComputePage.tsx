@@ -58,6 +58,7 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [creating, setCreating] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
+  const [showAddKey, setShowAddKey] = useState(false);
   const accessOpenedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -223,7 +224,18 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
             { label: "SSH Keys" },
           ]}
         />
-        <PageHeader title="SSH Keys" description="Manage SSH keys for container access." />
+        <PageHeader
+          title="SSH Keys"
+          description="Manage SSH keys for container access."
+          actions={
+            !showAddKey ? (
+              <Button onClick={() => setShowAddKey(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add SSH key
+              </Button>
+            ) : undefined
+          }
+        />
 
         <div className="bg-card border border-border rounded-lg">
           <div className="px-5 py-4 border-b border-border">
@@ -235,6 +247,8 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
               onAdd={addSshKey}
               onDelete={deleteSshKey}
               loading={sshKeysLoading}
+              showAdd={showAddKey}
+              onCloseAdd={() => setShowAddKey(false)}
             />
           </div>
         </div>

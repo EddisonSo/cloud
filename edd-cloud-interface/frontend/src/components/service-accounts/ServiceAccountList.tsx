@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { buildAuthBase, getAuthHeaders } from "@/lib/api";
 import { PermissionPicker } from "./PermissionPicker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import type { ServiceAccount } from "@/types";
 
 function formatDate(unix: number | undefined): string {
@@ -20,12 +20,16 @@ function formatDate(unix: number | undefined): string {
   });
 }
 
-export function ServiceAccountList(): React.ReactElement {
+interface ServiceAccountListProps {
+  showCreate?: boolean;
+  onCloseCreate?: () => void;
+}
+
+export function ServiceAccountList({ showCreate = false, onCloseCreate }: ServiceAccountListProps): React.ReactElement {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<ServiceAccount[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [showCreate, setShowCreate] = useState<boolean>(false);
 
   const loadAccounts = async (): Promise<void> => {
     try {
@@ -48,56 +52,44 @@ export function ServiceAccountList(): React.ReactElement {
   }, []);
 
   const handleCreated = (): void => {
-    setShowCreate(false);
+    onCloseCreate?.();
     loadAccounts();
   };
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <Skeleton className="h-9 w-48" />
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Service Accounts</h2>
         </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-5 w-36" />
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-16 mx-auto" />
-                <Skeleton className="h-4 w-20 mx-auto" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <div className="p-5 space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-16 mx-auto" />
+              <Skeleton className="h-4 w-20 mx-auto" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {showCreate ? (
+      {showCreate && (
         <CreateServiceAccountForm
           userId={userId}
           onCreated={handleCreated}
-          onCancel={() => setShowCreate(false)}
+          onCancel={() => onCloseCreate?.()}
         />
-      ) : (
-        <div className="flex justify-end">
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create service account
-          </Button>
-        </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Service Accounts</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-card border border-border rounded-lg">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold">Service Accounts</h2>
+        </div>
+        <div className="p-5">
           {accounts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -135,8 +127,8 @@ export function ServiceAccountList(): React.ReactElement {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

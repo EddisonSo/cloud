@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Plus, Copy } from "lucide-react";
+import { Trash2, Copy } from "lucide-react";
 import { copyToClipboard } from "@/lib/api";
 import type { SshKey } from "@/types";
 
@@ -13,6 +13,8 @@ interface SshKeyListProps {
   onAdd: (name: string, publicKey: string) => Promise<unknown>;
   onDelete: (id: string) => Promise<void>;
   loading: boolean;
+  showAdd?: boolean;
+  onCloseAdd?: () => void;
 }
 
 export function SshKeyList({
@@ -20,8 +22,9 @@ export function SshKeyList({
   onAdd,
   onDelete,
   loading,
+  showAdd = false,
+  onCloseAdd,
 }: SshKeyListProps) {
-  const [showAdd, setShowAdd] = useState<boolean>(false);
   const [name, setName] = useState<string>("");
   const [publicKey, setPublicKey] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
@@ -36,7 +39,7 @@ export function SshKeyList({
       await onAdd?.(name.trim(), publicKey.trim());
       setName("");
       setPublicKey("");
-      setShowAdd(false);
+      onCloseAdd?.();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -76,7 +79,7 @@ export function SshKeyList({
               </div>
               {error && <p className="text-destructive text-sm">{error}</p>}
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setShowAdd(false)}>
+                <Button type="button" variant="outline" onClick={() => onCloseAdd?.()}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={adding}>
@@ -86,12 +89,7 @@ export function SshKeyList({
             </form>
           </CardContent>
         </Card>
-      ) : (
-        <Button variant="outline" onClick={() => setShowAdd(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add SSH Key
-        </Button>
-      )}
+      ) : null}
 
       {/* Key List */}
       {loading ? (
