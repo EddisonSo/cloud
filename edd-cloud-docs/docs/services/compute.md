@@ -101,6 +101,20 @@ Expose container ports to the internet:
 
 This creates an ingress rule routing `<container-id>.compute.cloud.eddisonso.com:<port>` to the container's target port.
 
+## Network Isolation
+
+Each compute container runs in its own Kubernetes namespace (`compute-{user_id}-{container_id}`) with a strict NetworkPolicy:
+
+**Egress (outbound):**
+- DNS (UDP:53) to cluster DNS only (`10.43.0.10/32`)
+- Public internet (`0.0.0.0/0`) excluding all private ranges (`10.0.0.0/8`, `192.168.0.0/16`, `172.16.0.0/12`)
+
+**Ingress (inbound):**
+- Gateway traffic for SSH and HTTP access
+- User-exposed ports from external IPs only
+
+Compute containers **cannot** reach any internal cluster service (NATS, PostgreSQL, auth-service, etc.). All core services run in the `core` namespace, which has its own NetworkPolicy restricting ingress to intra-namespace traffic and gateway connections.
+
 ## Database Schema
 
 ```sql
