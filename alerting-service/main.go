@@ -118,15 +118,39 @@ func main() {
 	cancel()
 }
 
+// createConsumerWithRetry retries consumer creation with exponential backoff
+// until it succeeds or ctx is cancelled. This handles the startup race where
+// the stream may not exist yet (cluster-monitor creates it).
+func createConsumerWithRetry(ctx context.Context, js jetstream.JetStream, stream string, cfg jetstream.ConsumerConfig) (jetstream.Consumer, error) {
+	backoff := 2 * time.Second
+	maxBackoff := 30 * time.Second
+	for {
+		cons, err := js.CreateOrUpdateConsumer(ctx, stream, cfg)
+		if err == nil {
+			return cons, nil
+		}
+		slog.Warn("consumer creation failed, retrying", "stream", stream, "subject", cfg.FilterSubject, "error", err, "retry_in", backoff)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+}
+
 func subscribeClusterMetrics(ctx context.Context, js jetstream.JetStream, eval *alerting.Evaluator) {
-	cons, err := js.CreateOrUpdateConsumer(ctx, "CLUSTER", jetstream.ConsumerConfig{
+	cons, err := createConsumerWithRetry(ctx, js, "CLUSTER", jetstream.ConsumerConfig{
 		Durable:       "alerting-metrics",
 		FilterSubject: "cluster.metrics",
 		DeliverPolicy: jetstream.DeliverLastPolicy,
 		MaxDeliver:    5,
 	})
 	if err != nil {
-		slog.Error("failed to create cluster.metrics consumer", "error", err)
+		slog.Error("giving up on cluster.metrics consumer", "error", err)
 		return
 	}
 	slog.Info("subscribed to cluster.metrics")
@@ -184,14 +208,14 @@ func subscribeClusterMetrics(ctx context.Context, js jetstream.JetStream, eval *
 }
 
 func subscribeClusterPods(ctx context.Context, js jetstream.JetStream, eval *alerting.Evaluator) {
-	cons, err := js.CreateOrUpdateConsumer(ctx, "CLUSTER", jetstream.ConsumerConfig{
+	cons, err := createConsumerWithRetry(ctx, js, "CLUSTER", jetstream.ConsumerConfig{
 		Durable:       "alerting-pods",
 		FilterSubject: "cluster.pods",
 		DeliverPolicy: jetstream.DeliverLastPolicy,
 		MaxDeliver:    5,
 	})
 	if err != nil {
-		slog.Error("failed to create cluster.pods consumer", "error", err)
+		slog.Error("giving up on cluster.pods consumer", "error", err)
 		return
 	}
 	slog.Info("subscribed to cluster.pods")
@@ -242,14 +266,14 @@ func subscribeClusterPods(ctx context.Context, js jetstream.JetStream, eval *ale
 }
 
 func subscribeLogErrors(ctx context.Context, js jetstream.JetStream, detector *alerting.LogDetector) {
-	cons, err := js.CreateOrUpdateConsumer(ctx, "LOGS", jetstream.ConsumerConfig{
+	cons, err := createConsumerWithRetry(ctx, js, "LOGS", jetstream.ConsumerConfig{
 		Durable:       "alerting-logs",
 		FilterSubject: "log.error.>",
 		DeliverPolicy: jetstream.DeliverNewPolicy,
 		MaxDeliver:    5,
 	})
 	if err != nil {
-		slog.Error("failed to create log.error consumer", "error", err)
+		slog.Error("giving up on log.error consumer", "error", err)
 		return
 	}
 	slog.Info("subscribed to log.error.>")
