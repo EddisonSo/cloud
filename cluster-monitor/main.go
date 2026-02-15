@@ -82,20 +82,20 @@ func getTokenFromRequest(r *http.Request) string {
 
 func filterPodsForUser(pods []PodMetrics, userID string) []PodMetrics {
 	if userID == "" {
-		// No auth - only show default namespace pods
+		// No auth - only show core namespace pods
 		var filtered []PodMetrics
 		for _, pod := range pods {
-			if pod.Namespace == "default" {
+			if pod.Namespace == "core" {
 				filtered = append(filtered, pod)
 			}
 		}
 		return filtered
 	}
-	// Authenticated - show default + user's compute containers
+	// Authenticated - show core + user's compute containers
 	var filtered []PodMetrics
 	prefix := "compute-" + userID + "-"
 	for _, pod := range pods {
-		if pod.Namespace == "default" || strings.HasPrefix(pod.Namespace, prefix) {
+		if pod.Namespace == "core" || strings.HasPrefix(pod.Namespace, prefix) {
 			filtered = append(filtered, pod)
 		}
 	}
@@ -297,7 +297,7 @@ type metricsPod struct {
 	} `json:"containers"`
 }
 
-const coreServicesNamespace = "default"
+const coreServicesNamespace = "core"
 
 func isAllowedOrigin(origin string) bool {
 	return origin == "https://cloud.eddisonso.com" ||
@@ -646,7 +646,7 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get list of namespaces to monitor (default + compute-*)
+	// Get list of namespaces to monitor (core + compute-*)
 	namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		slog.Error("Failed to list namespaces", "error", err)
