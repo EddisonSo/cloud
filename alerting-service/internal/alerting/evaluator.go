@@ -2,6 +2,7 @@ package alerting
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -39,6 +40,7 @@ type PodSnapshot struct {
 type AlertFunc func(Alert)
 
 type Evaluator struct {
+	mu          sync.Mutex
 	config      EvaluatorConfig
 	cooldown    *CooldownTracker
 	onAlert     AlertFunc
@@ -60,6 +62,9 @@ func NewEvaluator(config EvaluatorConfig, onAlert AlertFunc) *Evaluator {
 }
 
 func (e *Evaluator) EvaluateCluster(snapshot ClusterSnapshot) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	currentCPUHigh := make(map[string]bool)
 
 	for _, node := range snapshot.Nodes {
@@ -118,6 +123,9 @@ func (e *Evaluator) EvaluateCluster(snapshot ClusterSnapshot) {
 }
 
 func (e *Evaluator) EvaluatePods(snapshot PodSnapshot) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	for _, pod := range snapshot.Pods {
 		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 

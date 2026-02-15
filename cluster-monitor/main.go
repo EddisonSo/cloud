@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,11 +14,15 @@ import (
 	"time"
 
 	"eddisonso.com/cluster-monitor/internal/graph"
-	"eddisonso.com/cluster-monitor/internal/alerting"
 	"eddisonso.com/cluster-monitor/internal/timeseries"
+	pbcluster "eddisonso.com/cluster-monitor/pkg/pb/cluster"
+	pbcommon "eddisonso.com/cluster-monitor/pkg/pb/common"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -314,9 +319,7 @@ func main() {
 	logServiceAddr := flag.String("log-service", "", "Log service address (e.g., log-service:50051)")
 	logSource := flag.String("log-source", "cluster-monitor", "Log source name (e.g., pod name)")
 	apiServer := flag.String("api-server", "", "Kubernetes API server address (e.g., https://k3s.eddisonso.com:6443)")
-	discordWebhook := flag.String("discord-webhook", "", "Discord webhook URL for alerts")
-	alertCooldown := flag.Duration("alert-cooldown", 5*time.Minute, "Default alert cooldown duration")
-	logServiceHTTP := flag.String("log-service-http", "", "Log service HTTP address for WebSocket subscription (e.g., log-service:8080)")
+	natsURL := flag.String("nats", "nats://nats:4222", "NATS server URL")
 	flag.Parse()
 
 	initJWTSecret()
@@ -329,6 +332,39 @@ func main() {
 		})
 		slog.SetDefault(logger.Logger)
 		defer logger.Close()
+	}
+
+	// NATS connection (non-blocking — metrics still work if NATS is down)
+	var js jetstream.JetStream
+	nc, err := nats.Connect(*natsURL,
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			slog.Warn("NATS disconnected", "error", err)
+		}),
+		nats.ReconnectHandler(func(_ *nats.Conn) {
+			slog.Info("NATS reconnected")
+		}),
+	)
+	if err != nil {
+		slog.Warn("failed to connect to NATS, alerts will not publish", "error", err)
+	} else {
+		defer nc.Close()
+		js, _ = jetstream.New(nc)
+		if js != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+				Name:      "CLUSTER",
+				Subjects:  []string{"cluster.>"},
+				Retention: jetstream.LimitsPolicy,
+				MaxMsgs:   1000000,
+				MaxBytes:  1024 * 1024 * 1024,
+				MaxAge:    7 * 24 * time.Hour,
+				Storage:   jetstream.FileStorage,
+			})
+			cancel()
+		}
 	}
 
 	config, err := rest.InClusterConfig()
@@ -353,34 +389,8 @@ func main() {
 	cache := NewMetricsCache()
 	metricsStore := timeseries.NewMetricsStore(0) // Default capacity (24h at 5s intervals)
 
-	// Alerting
-	discord := alerting.NewDiscordSender(*discordWebhook)
-	fireAlert := func(a alerting.Alert) {
-		slog.Warn("alert fired", "title", a.Title, "message", a.Message)
-		if err := discord.Send(a); err != nil {
-			slog.Error("failed to send Discord alert", "error", err)
-		}
-	}
-
-	evaluator := alerting.NewEvaluator(alerting.EvaluatorConfig{
-		CPUThreshold:    90,
-		MemThreshold:    85,
-		DiskThreshold:   90,
-		DefaultCooldown: *alertCooldown,
-	}, fireAlert)
-
-	logDetector := alerting.NewLogDetector(alerting.LogDetectorConfig{
-		BurstThreshold: 5,
-		BurstWindow:    30 * time.Second,
-		Cooldown:       *alertCooldown,
-	}, fireAlert)
-
-	if *logServiceHTTP != "" {
-		go alerting.SubscribeLogService(*logServiceHTTP, logDetector)
-	}
-
-	go clusterInfoWorker(clientset, cache, metricsStore, *refreshInterval, evaluator)
-	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval, evaluator)
+	go clusterInfoWorker(clientset, cache, metricsStore, *refreshInterval, js)
+	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval, js)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/cluster-info", func(w http.ResponseWriter, r *http.Request) {
@@ -461,19 +471,19 @@ func main() {
 }
 
 // clusterInfoWorker fetches cluster metrics at the configured interval
-func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, evaluator *alerting.Evaluator) {
+func clusterInfoWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, js jetstream.JetStream) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchClusterInfo(clientset, cache, store, evaluator)
+	fetchClusterInfo(clientset, cache, store, js)
 
 	for range ticker.C {
-		fetchClusterInfo(clientset, cache, store, evaluator)
+		fetchClusterInfo(clientset, cache, store, js)
 	}
 }
 
-func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, evaluator *alerting.Evaluator) {
+func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, js jetstream.JetStream) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -613,42 +623,26 @@ func fetchClusterInfo(clientset *kubernetes.Clientset, cache *MetricsCache, stor
 		})
 	}
 
-	// Evaluate alert rules
-	if evaluator != nil {
-		var nodes []alerting.NodeSnapshot
-		for _, nm := range nodeMetrics {
-			var conditions []string
-			for _, c := range nm.Conditions {
-				if c.Status == "True" {
-					conditions = append(conditions, c.Type)
-				}
-			}
-			nodes = append(nodes, alerting.NodeSnapshot{
-				Name:        nm.Name,
-				CPUPercent:  nm.CPUPercent,
-				MemPercent:  nm.MemoryPercent,
-				DiskPercent: nm.DiskPercent,
-				Conditions:  conditions,
-			})
-		}
-		evaluator.EvaluateCluster(alerting.ClusterSnapshot{Nodes: nodes})
+	// Publish to NATS
+	if js != nil {
+		publishClusterMetrics(js, ClusterInfo{Timestamp: now, Nodes: nodeMetrics})
 	}
 }
 
 // podMetricsWorker fetches pod metrics at the configured interval
-func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, evaluator *alerting.Evaluator) {
+func podMetricsWorker(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, interval time.Duration, js jetstream.JetStream) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	// Fetch immediately on start
-	fetchPodMetrics(clientset, cache, store, evaluator)
+	fetchPodMetrics(clientset, cache, store, js)
 
 	for range ticker.C {
-		fetchPodMetrics(clientset, cache, store, evaluator)
+		fetchPodMetrics(clientset, cache, store, js)
 	}
 }
 
-func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, evaluator *alerting.Evaluator) {
+func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store *timeseries.MetricsStore, js jetstream.JetStream) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -823,12 +817,12 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store
 		})
 	}
 
-	// Evaluate pod alerts
-	if evaluator != nil {
-		var podStatuses []alerting.PodStatus
+	// Publish pod status to NATS
+	if js != nil {
+		var natsStatuses []podStatusInfo
 		for _, pod := range allPods {
 			for _, cs := range pod.Status.ContainerStatuses {
-				ps := alerting.PodStatus{
+				ps := podStatusInfo{
 					Name:         pod.Name,
 					Namespace:    pod.Namespace,
 					RestartCount: cs.RestartCount,
@@ -839,10 +833,10 @@ func fetchPodMetrics(clientset *kubernetes.Clientset, cache *MetricsCache, store
 						cs.State.Terminated.Reason == "OOMKilled") {
 					ps.OOMKilled = true
 				}
-				podStatuses = append(podStatuses, ps)
+				natsStatuses = append(natsStatuses, ps)
 			}
 		}
-		evaluator.EvaluatePods(alerting.PodSnapshot{Pods: podStatuses})
+		publishPodStatus(js, natsStatuses)
 	}
 }
 
@@ -1201,5 +1195,81 @@ func parseTimeRange(r *http.Request) (start, end time.Time, resolution time.Dura
 	}
 
 	return
+}
+
+type podStatusInfo struct {
+	Name         string
+	Namespace    string
+	RestartCount int32
+	OOMKilled    bool
+}
+
+func publishClusterMetrics(js jetstream.JetStream, info ClusterInfo) {
+	msg := &pbcluster.ClusterMetrics{
+		Metadata: &pbcommon.EventMetadata{
+			EventId:   generateUUID(),
+			Timestamp: &pbcommon.Timestamp{Seconds: time.Now().Unix()},
+			Source:    "cluster-monitor",
+		},
+	}
+	for _, n := range info.Nodes {
+		node := &pbcluster.NodeMetrics{
+			Name:          n.Name,
+			CpuPercent:    n.CPUPercent,
+			MemoryPercent: n.MemoryPercent,
+			DiskPercent:   n.DiskPercent,
+		}
+		for _, c := range n.Conditions {
+			node.Conditions = append(node.Conditions, &pbcluster.NodeCondition{
+				Type:   c.Type,
+				Status: c.Status,
+			})
+		}
+		msg.Nodes = append(msg.Nodes, node)
+	}
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal cluster metrics", "error", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := js.Publish(ctx, "cluster.metrics", data); err != nil {
+		slog.Error("failed to publish cluster metrics to NATS", "error", err)
+	}
+}
+
+func publishPodStatus(js jetstream.JetStream, statuses []podStatusInfo) {
+	msg := &pbcluster.PodStatusSnapshot{
+		Metadata: &pbcommon.EventMetadata{
+			EventId:   generateUUID(),
+			Timestamp: &pbcommon.Timestamp{Seconds: time.Now().Unix()},
+			Source:    "cluster-monitor",
+		},
+	}
+	for _, ps := range statuses {
+		msg.Pods = append(msg.Pods, &pbcluster.PodStatus{
+			Name:         ps.Name,
+			Namespace:    ps.Namespace,
+			RestartCount: ps.RestartCount,
+			OomKilled:    ps.OOMKilled,
+		})
+	}
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		slog.Error("failed to marshal pod status", "error", err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := js.Publish(ctx, "cluster.pods", data); err != nil {
+		slog.Error("failed to publish pod status to NATS", "error", err)
+	}
+}
+
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 

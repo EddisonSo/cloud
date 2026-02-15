@@ -29,6 +29,7 @@ flowchart TB
     NATS --> Storage
     NATS --> Gateway
     NATS --> Notif
+    NATS --> Alerting[Alerting Service]
 
     Storage --> GFSMaster[GFS Master<br/>s0]
     GFSMaster --> Chunk1[Chunkserver<br/>s1]
@@ -64,7 +65,7 @@ The cluster consists of 8 nodes with mixed architectures:
 |---------|----------|
 | s0 | gateway, gfs-master, notification-service, postgres-primary, postgres-replica-s0 |
 | rp1 | postgres-replica, haproxy |
-| rp2, rp3, rp4 | auth-service, edd-compute, log-service, NATS, cluster-monitor, simple-file-share, edd-cloud-docs, postgres-replicas |
+| rp2, rp3, rp4 | auth-service, edd-compute, log-service, NATS, cluster-monitor, alerting-service, simple-file-share, edd-cloud-docs, postgres-replicas |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
 ## Network Architecture
@@ -113,6 +114,7 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 | cluster-monitor | ClusterIP | 80 | HTTP |
 | log-service | ClusterIP | 50051, 80 | gRPC, HTTP |
 | notification-service | ClusterIP | 80 | HTTP, WebSocket |
+| alerting-service | ClusterIP | - | Internal (NATS consumer) |
 | gfs-master | ClusterIP | 9000 | gRPC |
 | gfs-chunkserver-N | hostNetwork | 8080, 8081 | TCP, gRPC |
 | postgres | ClusterIP | 5432 | PostgreSQL |
@@ -228,6 +230,9 @@ flowchart TB
 | `compute.container.{id}.started` | Container started |
 | `compute.container.{id}.stopped` | Container stopped |
 | `notify.{user_id}` | Push notification to user |
+| `cluster.metrics` | Node CPU, memory, disk metrics |
+| `cluster.pods` | Pod restart count, OOM status |
+| `log.error.{source}` | ERROR+ level logs from services |
 
 NATS JetStream provides durable subscriptions, ensuring events are not lost if a consumer is temporarily offline.
 

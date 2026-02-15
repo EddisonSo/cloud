@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,7 +10,11 @@ import (
 	"time"
 
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
+	pbcommon "github.com/eddisonso/log-service/pkg/pb/common"
+	pblog "github.com/eddisonso/log-service/pkg/pb/log"
 	pb "github.com/eddisonso/log-service/proto/logging"
+	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
 )
 
 const bufferSize = 1000
@@ -76,6 +81,9 @@ type LogServer struct {
 	// GFS client for persistence (optional)
 	gfsClient *gfs.Client
 
+	// NATS JetStream for publishing error logs
+	js jetstream.JetStream
+
 	// Channel for async persistence
 	persistCh chan *pb.LogEntry
 
@@ -83,12 +91,13 @@ type LogServer struct {
 	done chan struct{}
 }
 
-func NewLogServer(gfsClient *gfs.Client) *LogServer {
+func NewLogServer(gfsClient *gfs.Client, js jetstream.JetStream) *LogServer {
 	s := &LogServer{
 		buffers:     make(map[string]*RingBuffer),
 		sources:     make(map[string]struct{}),
 		subscribers: make(map[chan *pb.LogEntry]struct{}),
 		gfsClient:   gfsClient,
+		js:          js,
 		persistCh:   make(chan *pb.LogEntry, 1000),
 		done:        make(chan struct{}),
 	}
@@ -168,6 +177,11 @@ func (s *LogServer) PushLog(ctx context.Context, req *pb.PushLogRequest) (*pb.Pu
 
 	// Broadcast to subscribers
 	s.broadcast(entry)
+
+	// Publish error+ logs to NATS for alerting
+	if entry.Level >= pb.LogLevel_ERROR && s.js != nil {
+		go s.publishLogError(entry)
+	}
 
 	// Queue for persistence (non-blocking)
 	if s.gfsClient != nil {
@@ -335,6 +349,36 @@ func sortByTimestamp(entries []*pb.LogEntry) {
 			entries[j], entries[j-1] = entries[j-1], entries[j]
 		}
 	}
+}
+
+// publishLogError publishes an error log entry to NATS JetStream
+func (s *LogServer) publishLogError(entry *pb.LogEntry) {
+	logErr := &pblog.LogError{
+		Metadata: &pbcommon.EventMetadata{
+			EventId:   generateUUID(),
+			Timestamp: &pbcommon.Timestamp{Seconds: entry.Timestamp},
+			Source:    "log-service",
+		},
+		Source:  entry.Source,
+		Message: entry.Message,
+		Level:   entry.Level.String(),
+	}
+	data, err := proto.Marshal(logErr)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	subject := fmt.Sprintf("log.error.%s", entry.Source)
+	if _, err := s.js.Publish(ctx, subject, data); err != nil {
+		slog.Error("failed to publish log error to NATS", "error", err, "source", entry.Source)
+	}
+}
+
+func generateUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
 // persistenceWorker batches and writes logs to GFS

@@ -1,42 +1,44 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: log-service
+  name: alerting-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: log-service
+      app: alerting-service
   template:
     metadata:
       labels:
-        app: log-service
+        app: alerting-service
     spec:
       nodeSelector:
         backend: "true"
       imagePullSecrets:
         - name: regcred
       containers:
-        - name: log-service
-          image: eddisonso/ecloud-logging:latest
+        - name: alerting-service
+          image: eddisonso/alerting-service:latest
           args:
-            - -grpc
-            - :50051
-            - -http
-            - :8080
-            - -master
-            - gfs-master:9000
-            - -nats
-            - nats://nats:4222
+            - "-nats"
+            - "nats://nats:4222"
+            - "-discord-webhook"
+            - "$(DISCORD_WEBHOOK_URL)"
+            - "-log-service-grpc"
+            - "log-service:50051"
+            - "-log-source"
+            - "$(POD_NAME)"
           env:
-            - name: GFS_JWT_SECRET
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DISCORD_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: gfs-jwt-secret
-                  key: GFS_JWT_SECRET
+                  name: discord-webhook-url
+                  key: WEBHOOK_URL
           ports:
-            - containerPort: 50051
-              name: grpc
             - containerPort: 8080
               name: http
           livenessProbe:
@@ -55,14 +57,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: log-service
+  name: alerting-service
 spec:
   selector:
-    app: log-service
+    app: alerting-service
   ports:
-    - name: grpc
-      port: 50051
-      targetPort: 50051
     - name: http
       port: 80
       targetPort: 8080

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package log;
+
+option go_package = "eddisonso.com/edd-cloud/proto/log";
+
+import "common/types.proto";
+
+message LogError {
+  common.EventMetadata metadata = 1;
+  string source = 2;
+  string message = 3;
+  string level = 4;
+}

@@ -20,6 +20,8 @@ import (
 	"github.com/eddisonso/log-service/internal/server"
 	pb "github.com/eddisonso/log-service/proto/logging"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/grpc"
 )
 
@@ -41,6 +43,7 @@ func main() {
 	grpcAddr := flag.String("grpc", ":50051", "gRPC listen address")
 	httpAddr := flag.String("http", ":8080", "HTTP listen address")
 	masterAddr := flag.String("master", "gfs-master:9000", "GFS master address")
+	natsAddr := flag.String("nats", "nats://nats:4222", "NATS server address")
 	flag.Parse()
 
 	// Connect to GFS for log persistence
@@ -56,8 +59,44 @@ func main() {
 		defer gfsClient.Close()
 	}
 
+	// Connect to NATS for error log publishing
+	var js jetstream.JetStream
+	nc, err := nats.Connect(*natsAddr,
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+	)
+	if err != nil {
+		slog.Warn("failed to connect to NATS, error logs will not be published", "error", err)
+	} else {
+		slog.Info("connected to NATS", "addr", *natsAddr)
+		defer nc.Close()
+
+		js, err = jetstream.New(nc)
+		if err != nil {
+			slog.Warn("failed to create JetStream context", "error", err)
+			js = nil
+		} else {
+			_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+				Name:      "LOGS",
+				Subjects:  []string{"log.error.>"},
+				Retention: jetstream.LimitsPolicy,
+				MaxMsgs:   1000000,
+				MaxBytes:  1024 * 1024 * 1024,
+				MaxAge:    7 * 24 * time.Hour,
+				Storage:   jetstream.FileStorage,
+			})
+			if err != nil {
+				slog.Warn("failed to create/update LOGS stream", "error", err)
+				js = nil
+			} else {
+				slog.Info("NATS JetStream LOGS stream ready")
+			}
+		}
+	}
+
 	// Create log server
-	logServer := server.NewLogServer(gfsClient)
+	logServer := server.NewLogServer(gfsClient, js)
 	defer logServer.Close()
 
 	// Start gRPC server

@@ -40,6 +40,9 @@ Each service owns its data and publishes events for others to consume:
 | **Compute** | `compute_db` | containers, ssh_keys, user_cache | `compute.*` | `auth.user.*` |
 | **Gateway** | `gateway_db` | routes, ingress_rules | `gateway.*` | `compute.container.*` |
 | **Notifications** | `notifications_db` | notifications, mutes | - | `notify.>` |
+| **Cluster Monitor** | - | cluster metrics (in-memory) | `cluster.metrics`, `cluster.pods` | - |
+| **Log Service** | - | logs (in-memory ring buffer + GFS) | `log.error.*` | - |
+| **Alerting** | - | alert rules, cooldown state (in-memory) | - | `cluster.>`, `log.error.>` |
 
 ## Event Flow Examples
 
@@ -111,11 +114,36 @@ Events use a hierarchical subject pattern:
 | `auth.user.{id}.deleted` | User was deleted |
 | `auth.user.{id}.updated` | User profile updated |
 
-## JSON Message Types
+### Cluster Events
 
-Events are serialized as JSON:
+| Subject | Description |
+|---------|-------------|
+| `cluster.metrics` | Node CPU, memory, disk metrics |
+| `cluster.pods` | Pod restart count, OOM status |
 
-### UserCreated
+### Log Events
+
+| Subject | Description |
+|---------|-------------|
+| `log.error.{source}` | ERROR+ level logs from services |
+
+## Message Formats
+
+Events use **Protocol Buffers** for schema validation and efficient serialization. All messages include a common metadata header:
+
+```protobuf
+message EventMetadata {
+  string event_id = 1;     // UUID v4
+  Timestamp timestamp = 2; // Unix timestamp
+  string source = 3;       // Service name (e.g., "cluster-monitor")
+}
+```
+
+### User Events (JSON)
+
+User events still use JSON for compatibility with existing subscribers:
+
+#### UserCreated
 
 ```json
 {
@@ -132,7 +160,7 @@ Events are serialized as JSON:
 }
 ```
 
-### UserDeleted
+#### UserDeleted
 
 ```json
 {
@@ -147,7 +175,7 @@ Events are serialized as JSON:
 }
 ```
 
-### UserUpdated
+#### UserUpdated
 
 ```json
 {
@@ -160,6 +188,54 @@ Events are serialized as JSON:
   "user_id": "V1StGXR8_Z5jdHi6B-myT",
   "username": "johndoe",
   "display_name": "John D."
+}
+```
+
+### Cluster Events (Protobuf)
+
+#### ClusterMetrics
+
+```protobuf
+message ClusterMetrics {
+  EventMetadata metadata = 1;
+  repeated NodeMetrics nodes = 2;
+}
+
+message NodeMetrics {
+  string name = 1;
+  double cpu_percent = 2;
+  double memory_percent = 3;
+  double disk_percent = 4;
+  repeated NodeCondition conditions = 5;
+}
+```
+
+#### PodStatusSnapshot
+
+```protobuf
+message PodStatusSnapshot {
+  EventMetadata metadata = 1;
+  repeated PodStatus pods = 2;
+}
+
+message PodStatus {
+  string name = 1;
+  string namespace = 2;
+  int32 restart_count = 3;
+  bool oom_killed = 4;
+}
+```
+
+### Log Events (Protobuf)
+
+#### LogError
+
+```protobuf
+message LogError {
+  EventMetadata metadata = 1;
+  string source = 2;  // Service name (e.g., "edd-gateway")
+  string message = 3; // Error message
+  string level = 4;   // "ERROR", "FATAL", etc.
 }
 ```
 

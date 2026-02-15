@@ -64,7 +64,7 @@ flowchart TB
 ## Monitoring
 
 - [ ] **Distributed tracing** - Request tracing across services
-- [x] **Alerting** - Automated alerts for service health (Discord webhook via cluster-monitor)
+- [x] **Alerting** - Automated alerts for service health (standalone alerting-service, NATS + protobuf, Discord webhooks)
 - [ ] **Log aggregation** - Searchable log storage
 - [ ] **Distributed logging aggregation** - Replicate log entries across log service replicas so all instances share the same ring buffers and subscribers; enables horizontal scaling without splitting logs across pods
 - [ ] **Delta updates for SSE** - Send only changes instead of full state to reduce bandwidth
