@@ -16,7 +16,7 @@ The Gateway service (`edd-cloud-gateway`) is the main entry point for all extern
 | **WebSocket** | Supported | Proxied over HTTP/1.1 |
 | **HTTP/2** | Not supported | TLS config only advertises HTTP/1.1 |
 | **gRPC** | Not supported | Requires HTTP/2 |
-| **HTTP Keep-Alive** | Not supported | Forces `Connection: close` |
+| **HTTP Keep-Alive** | Supported | 60s idle timeout, backend connection pooling |
 
 ### TLS Handling
 

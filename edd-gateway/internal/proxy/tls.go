@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -213,79 +214,105 @@ func (s *Server) handleIPRedirect(rawConn net.Conn, header, payload []byte, ip, 
 }
 
 // handleTerminatedHTTP handles HTTP traffic after TLS termination.
+// Supports HTTP/1.1 keep-alive: loops to serve multiple requests per TLS connection,
+// eliminating per-request TLS handshake overhead. Uses backendTransport for
+// backend connection pooling and bufio.Writer to coalesce TLS record writes.
 func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	clientAddr := conn.RemoteAddr().String()
 	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
 
-	var headerBuf bytes.Buffer
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			slog.Debug("failed to read HTTP header after TLS termination", "error", err, "client", clientAddr)
-			conn.Close()
-			return
-		}
-		headerBuf.WriteString(line)
+		// Set idle timeout for next request on this keep-alive connection
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-		if line == "\r\n" || line == "\n" {
+		req, err := http.ReadRequest(reader)
+		if err != nil {
+			// Client closed connection or idle timeout — normal for keep-alive
 			break
 		}
-		if headerBuf.Len() > 16384 {
-			slog.Warn("HTTP headers too large", "client", clientAddr)
-			conn.Write([]byte("HTTP/1.1 431 Request Header Fields Too Large\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n"))
-			conn.Close()
-			return
+		conn.SetReadDeadline(time.Time{}) // clear deadline for response
+
+		path := req.URL.Path
+		method := req.Method
+		wantClose := req.Close || strings.EqualFold(req.Header.Get("Connection"), "close")
+
+		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr)
+			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo backend available\r\n")
+			writer.Flush()
+			break
+		}
+
+		slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
+
+		// Add forwarding headers
+		req.Header.Set("X-Forwarded-For", stripPort(clientAddr))
+		req.Header.Set("X-Forwarded-Proto", "https")
+
+		// Handle path rewriting
+		if route.StripPrefix && path != targetPath {
+			req.URL.Path = targetPath
+		}
+
+		// SSE/WebSocket: fall back to raw TCP proxy (long-lived connections)
+		if strings.HasPrefix(path, "/sse/") || strings.HasPrefix(path, "/ws/") {
+			// Flush any buffered writer data before switching to raw proxy
+			writer.Flush()
+			backend, dialErr := net.DialTimeout("tcp", route.Target, 5*time.Second)
+			if dialErr != nil {
+				slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", dialErr)
+				conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+				break
+			}
+			req.Write(backend)
+			if reader.Buffered() > 0 {
+				extra := make([]byte, reader.Buffered())
+				reader.Read(extra)
+				backend.Write(extra)
+			}
+			proxy(conn, backend, nil)
+			return // proxy handles close
+		}
+
+		// Regular request: use pooled transport
+		req.URL.Scheme = "http"
+		req.URL.Host = route.Target
+		req.RequestURI = "" // Must be empty for RoundTrip
+
+		resp, err := backendTransport.RoundTrip(req)
+		if err != nil {
+			slog.Error("backend request failed", "method", method, "host", sni, "path", path, "backend", route.Target, "error", err)
+			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n")
+			writer.Flush()
+			break
+		}
+
+		// Log response status
+		if resp.StatusCode >= 400 {
+			slog.Warn("HTTP error response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
+		} else {
+			slog.Info("HTTP response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
+		}
+
+		// Set keep-alive or close based on client preference
+		if wantClose {
+			resp.Header.Set("Connection", "close")
+		} else {
+			resp.Header.Set("Connection", "keep-alive")
+			resp.Header.Set("Keep-Alive", "timeout=60")
+		}
+
+		resp.Write(writer)
+		writer.Flush()
+		resp.Body.Close()
+
+		if wantClose {
+			break
 		}
 	}
-
-	// Extract method and path for detailed logging
-	requestLine := extractRequestLine(headerBuf.String())
-	path := extractRequestPath(headerBuf.String())
-
-	// Use static routes for routing
-	route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "request_line", requestLine, "client", clientAddr)
-		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nNo backend available\r\n"))
-		conn.Close()
-		return
-	}
-
-	slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_line", requestLine)
-
-	backend, err := net.DialTimeout("tcp", route.Target, 5*time.Second)
-	if err != nil {
-		slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", err)
-		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nBackend connection failed\r\n"))
-		conn.Close()
-		return
-	}
-
-	slog.Debug("backend connected", "host", sni, "path", path, "backend", route.Target)
-
-	// Rewrite path if strip_prefix is enabled
-	headers := headerBuf.Bytes()
-	if route.StripPrefix && path != targetPath {
-		headers = rewriteRequestPath(headers, path, targetPath)
-	}
-
-	// Forward the real client IP and protocol to backends
-	headers = addHeader(headers, "X-Forwarded-For", stripPort(clientAddr))
-	headers = addHeader(headers, "X-Forwarded-Proto", "https")
-	// Force connection close for regular requests, but keep alive for SSE/WebSocket
-	if !strings.HasPrefix(path, "/sse/") && !strings.HasPrefix(path, "/ws/") {
-		headers = addHeader(headers, "Connection", "close")
-	}
-
-	// Get buffered data and proxy
-	buffered := make([]byte, reader.Buffered())
-	reader.Read(buffered)
-	initialData := append(headers, buffered...)
-
-	// Extract method for logging
-	method := extractMethod(headerBuf.String())
-
-	proxyWithResponseLogging(conn, backend, initialData, method, sni, path, route.Target)
+	conn.Close()
 }
 
 // replayConn replays buffered data before reading from the underlying connection.
