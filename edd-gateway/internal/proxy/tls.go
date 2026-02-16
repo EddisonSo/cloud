@@ -370,15 +370,17 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 func writeCachedResponse(w *bufio.Writer, c *cachedResponse, wantClose bool) {
 	fmt.Fprintf(w, "HTTP/1.1 %d %s\r\n", c.statusCode, http.StatusText(c.statusCode))
 	for k, vals := range c.header {
-		// Skip connection-related headers — we set them ourselves
+		// Skip headers we set ourselves
 		lower := strings.ToLower(k)
-		if lower == "connection" || lower == "keep-alive" {
+		if lower == "connection" || lower == "keep-alive" || lower == "cache-control" || lower == "content-length" {
 			continue
 		}
 		for _, v := range vals {
 			fmt.Fprintf(w, "%s: %s\r\n", k, v)
 		}
 	}
+	// Prevent browser caching — gateway handles caching server-side
+	w.WriteString("Cache-Control: no-store\r\n")
 	if wantClose {
 		w.WriteString("Connection: close\r\n")
 	} else {
