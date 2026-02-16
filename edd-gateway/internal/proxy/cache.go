@@ -2,9 +2,15 @@ package proxy
 
 import (
 	"container/list"
+	"hash/fnv"
 	"net/http"
 	"sync"
 	"time"
+)
+
+const (
+	maxEntrySize = 1 << 20 // 1 MB per entry
+	numShards    = 16
 )
 
 type cachedResponse struct {
@@ -16,54 +22,65 @@ type cachedResponse struct {
 	createdAt  time.Time
 }
 
-type responseCache struct {
-	mu      sync.RWMutex
-	items   map[string]*list.Element // key → list element
-	order   *list.List               // front = newest, back = oldest
-	maxSize int                      // total byte cap
-	maxAge  time.Duration            // per-entry TTL
+// cacheShard is a single LRU partition with its own lock.
+type cacheShard struct {
+	mu      sync.Mutex
+	items   map[string]*list.Element
+	order   *list.List // front = most recently used, back = least recently used
+	maxSize int
+	maxAge  time.Duration
 	curSize int
 }
 
-const maxEntrySize = 1 << 20 // 1 MB per entry
+// responseCache shards entries across independent LRU caches,
+// reducing lock contention at high concurrency.
+type responseCache struct {
+	shards [numShards]*cacheShard
+}
 
 func newResponseCache(maxSize int, maxAge time.Duration) *responseCache {
-	rc := &responseCache{
-		items:   make(map[string]*list.Element),
-		order:   list.New(),
-		maxSize: maxSize,
-		maxAge:  maxAge,
+	rc := &responseCache{}
+	perShard := maxSize / numShards
+	for i := range rc.shards {
+		s := &cacheShard{
+			items:   make(map[string]*list.Element),
+			order:   list.New(),
+			maxSize: perShard,
+			maxAge:  maxAge,
+		}
+		rc.shards[i] = s
+		go s.startCleanup()
 	}
-	go rc.startCleanup()
 	return rc
 }
 
-// Get returns a cached response if it exists and hasn't expired, nil otherwise.
-// Uses RLock for parallel reads — no list mutation on read path.
+func (rc *responseCache) shard(key string) *cacheShard {
+	h := fnv.New32a()
+	h.Write([]byte(key))
+	return rc.shards[h.Sum32()%numShards]
+}
+
+// Get returns a cached response, promoting it to the front (true LRU).
 func (rc *responseCache) Get(key string) *cachedResponse {
-	rc.mu.RLock()
-	elem, ok := rc.items[key]
+	s := rc.shard(key)
+	s.mu.Lock()
+	elem, ok := s.items[key]
 	if !ok {
-		rc.mu.RUnlock()
+		s.mu.Unlock()
 		return nil
 	}
 	entry := elem.Value.(*cachedResponse)
-	if time.Since(entry.createdAt) > rc.maxAge {
-		rc.mu.RUnlock()
-		// Lazy expire under write lock
-		rc.mu.Lock()
-		if e, ok := rc.items[key]; ok && e == elem {
-			rc.removeLocked(elem)
-		}
-		rc.mu.Unlock()
+	if time.Since(entry.createdAt) > s.maxAge {
+		s.removeLocked(elem)
+		s.mu.Unlock()
 		return nil
 	}
-	rc.mu.RUnlock()
+	s.order.MoveToFront(elem)
+	s.mu.Unlock()
 	return entry
 }
 
-// Set stores a response in the cache. Evicts oldest entries if over capacity.
-// Only caches status 200 with body <= maxEntrySize and no Set-Cookie header.
+// Set stores a response. Evicts LRU entries if over capacity.
 func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 	if resp.StatusCode != 200 {
 		return
@@ -86,17 +103,18 @@ func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 		hdr[k] = append([]string(nil), v...)
 	}
 
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
+	s := rc.shard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Remove existing entry for this key if present
-	if elem, ok := rc.items[key]; ok {
-		rc.removeLocked(elem)
+	if elem, ok := s.items[key]; ok {
+		s.removeLocked(elem)
 	}
 
-	// Evict oldest entries until there's room
-	for rc.curSize+entrySize > rc.maxSize && rc.order.Len() > 0 {
-		rc.removeLocked(rc.order.Back())
+	// Evict least recently used entries until there's room
+	for s.curSize+entrySize > s.maxSize && s.order.Len() > 0 {
+		s.removeLocked(s.order.Back())
 	}
 
 	entry := &cachedResponse{
@@ -107,40 +125,41 @@ func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 		size:       entrySize,
 		createdAt:  time.Now(),
 	}
-	rc.items[key] = rc.order.PushFront(entry)
-	rc.curSize += entrySize
+	s.items[key] = s.order.PushFront(entry)
+	s.curSize += entrySize
 }
 
-// Delete removes a cache entry by key, freeing its space.
+// Delete removes a cache entry by key.
 func (rc *responseCache) Delete(key string) {
-	rc.mu.Lock()
-	if elem, ok := rc.items[key]; ok {
-		rc.removeLocked(elem)
+	s := rc.shard(key)
+	s.mu.Lock()
+	if elem, ok := s.items[key]; ok {
+		s.removeLocked(elem)
 	}
-	rc.mu.Unlock()
+	s.mu.Unlock()
 }
 
-// removeLocked removes an element from both the list and map. Caller must hold mu write lock.
-func (rc *responseCache) removeLocked(elem *list.Element) {
-	entry := rc.order.Remove(elem).(*cachedResponse)
-	delete(rc.items, entry.key)
-	rc.curSize -= entry.size
+// removeLocked removes an element from both the list and map. Caller must hold shard lock.
+func (s *cacheShard) removeLocked(elem *list.Element) {
+	entry := s.order.Remove(elem).(*cachedResponse)
+	delete(s.items, entry.key)
+	s.curSize -= entry.size
 }
 
 // startCleanup removes expired entries every 5 minutes.
-func (rc *responseCache) startCleanup() {
+func (s *cacheShard) startCleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for range ticker.C {
 		now := time.Now()
-		rc.mu.Lock()
-		for elem := rc.order.Back(); elem != nil; {
+		s.mu.Lock()
+		for elem := s.order.Back(); elem != nil; {
 			entry := elem.Value.(*cachedResponse)
 			prev := elem.Prev()
-			if now.Sub(entry.createdAt) > rc.maxAge {
-				rc.removeLocked(elem)
+			if now.Sub(entry.createdAt) > s.maxAge {
+				s.removeLocked(elem)
 			}
 			elem = prev
 		}
-		rc.mu.Unlock()
+		s.mu.Unlock()
 	}
 }
