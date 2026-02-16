@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -213,79 +214,86 @@ func (s *Server) handleIPRedirect(rawConn net.Conn, header, payload []byte, ip, 
 }
 
 // handleTerminatedHTTP handles HTTP traffic after TLS termination.
+// Uses backendTransport connection pooling for regular requests,
+// falling back to raw TCP proxy for SSE/WebSocket connections.
 func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	clientAddr := conn.RemoteAddr().String()
 	reader := bufio.NewReader(conn)
 
-	var headerBuf bytes.Buffer
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			slog.Debug("failed to read HTTP header after TLS termination", "error", err, "client", clientAddr)
-			conn.Close()
-			return
-		}
-		headerBuf.WriteString(line)
-
-		if line == "\r\n" || line == "\n" {
-			break
-		}
-		if headerBuf.Len() > 16384 {
-			slog.Warn("HTTP headers too large", "client", clientAddr)
-			conn.Write([]byte("HTTP/1.1 431 Request Header Fields Too Large\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n"))
-			conn.Close()
-			return
-		}
+	req, err := http.ReadRequest(reader)
+	if err != nil {
+		slog.Debug("failed to parse HTTP request", "error", err, "client", clientAddr)
+		conn.Close()
+		return
 	}
 
-	// Extract method and path for detailed logging
-	requestLine := extractRequestLine(headerBuf.String())
-	path := extractRequestPath(headerBuf.String())
+	path := req.URL.Path
+	method := req.Method
 
-	// Use static routes for routing
 	route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 	if err != nil {
-		slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "request_line", requestLine, "client", clientAddr)
+		slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr)
 		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nNo backend available\r\n"))
 		conn.Close()
 		return
 	}
 
-	slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_line", requestLine)
+	slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
 
-	backend, err := net.DialTimeout("tcp", route.Target, 5*time.Second)
+	// Add forwarding headers
+	req.Header.Set("X-Forwarded-For", stripPort(clientAddr))
+	req.Header.Set("X-Forwarded-Proto", "https")
+
+	// Handle path rewriting
+	if route.StripPrefix && path != targetPath {
+		req.URL.Path = targetPath
+	}
+
+	// SSE/WebSocket: fall back to raw TCP proxy (long-lived connections)
+	if strings.HasPrefix(path, "/sse/") || strings.HasPrefix(path, "/ws/") {
+		backend, dialErr := net.DialTimeout("tcp", route.Target, 5*time.Second)
+		if dialErr != nil {
+			slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", dialErr)
+			conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nBackend connection failed\r\n"))
+			conn.Close()
+			return
+		}
+		req.Write(backend)
+		if reader.Buffered() > 0 {
+			extra := make([]byte, reader.Buffered())
+			reader.Read(extra)
+			backend.Write(extra)
+		}
+		proxy(conn, backend, nil)
+		return
+	}
+
+	// Regular request: use pooled transport
+	req.URL.Scheme = "http"
+	req.URL.Host = route.Target
+	req.RequestURI = "" // Must be empty for RoundTrip
+
+	resp, err := backendTransport.RoundTrip(req)
 	if err != nil {
-		slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", err)
+		slog.Error("backend request failed", "method", method, "host", sni, "path", path, "backend", route.Target, "error", err)
 		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nBackend connection failed\r\n"))
 		conn.Close()
 		return
 	}
+	defer resp.Body.Close()
 
-	slog.Debug("backend connected", "host", sni, "path", path, "backend", route.Target)
-
-	// Rewrite path if strip_prefix is enabled
-	headers := headerBuf.Bytes()
-	if route.StripPrefix && path != targetPath {
-		headers = rewriteRequestPath(headers, path, targetPath)
+	// Log response status
+	if resp.StatusCode >= 400 {
+		slog.Warn("HTTP error response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
+	} else {
+		slog.Info("HTTP response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
 	}
 
-	// Forward the real client IP and protocol to backends
-	headers = addHeader(headers, "X-Forwarded-For", stripPort(clientAddr))
-	headers = addHeader(headers, "X-Forwarded-Proto", "https")
-	// Force connection close for regular requests, but keep alive for SSE/WebSocket
-	if !strings.HasPrefix(path, "/sse/") && !strings.HasPrefix(path, "/ws/") {
-		headers = addHeader(headers, "Connection", "close")
-	}
+	// Tell client we won't accept another request on this connection
+	resp.Header.Set("Connection", "close")
 
-	// Get buffered data and proxy
-	buffered := make([]byte, reader.Buffered())
-	reader.Read(buffered)
-	initialData := append(headers, buffered...)
-
-	// Extract method for logging
-	method := extractMethod(headerBuf.String())
-
-	proxyWithResponseLogging(conn, backend, initialData, method, sni, path, route.Target)
+	resp.Write(conn)
+	conn.Close()
 }
 
 // replayConn replays buffered data before reading from the underlying connection.
