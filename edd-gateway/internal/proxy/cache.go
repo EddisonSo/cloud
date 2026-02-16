@@ -17,9 +17,9 @@ type cachedResponse struct {
 }
 
 type responseCache struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	items   map[string]*list.Element // key → list element
-	order   *list.List               // front = most recent, back = LRU
+	order   *list.List               // front = newest, back = oldest
 	maxSize int                      // total byte cap
 	maxAge  time.Duration            // per-entry TTL
 	curSize int
@@ -39,25 +39,30 @@ func newResponseCache(maxSize int, maxAge time.Duration) *responseCache {
 }
 
 // Get returns a cached response if it exists and hasn't expired, nil otherwise.
-// Moves the entry to the front (most recently used).
+// Uses RLock for parallel reads — no list mutation on read path.
 func (rc *responseCache) Get(key string) *cachedResponse {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
+	rc.mu.RLock()
 	elem, ok := rc.items[key]
 	if !ok {
+		rc.mu.RUnlock()
 		return nil
 	}
 	entry := elem.Value.(*cachedResponse)
 	if time.Since(entry.createdAt) > rc.maxAge {
-		rc.removeLocked(elem)
+		rc.mu.RUnlock()
+		// Lazy expire under write lock
+		rc.mu.Lock()
+		if e, ok := rc.items[key]; ok && e == elem {
+			rc.removeLocked(elem)
+		}
+		rc.mu.Unlock()
 		return nil
 	}
-	rc.order.MoveToFront(elem)
+	rc.mu.RUnlock()
 	return entry
 }
 
-// Set stores a response in the cache. Evicts LRU entries if over capacity.
+// Set stores a response in the cache. Evicts oldest entries if over capacity.
 // Only caches status 200 with body <= maxEntrySize and no Set-Cookie header.
 func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 	if resp.StatusCode != 200 {
@@ -89,7 +94,7 @@ func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 		rc.removeLocked(elem)
 	}
 
-	// Evict LRU entries until there's room
+	// Evict oldest entries until there's room
 	for rc.curSize+entrySize > rc.maxSize && rc.order.Len() > 0 {
 		rc.removeLocked(rc.order.Back())
 	}
@@ -115,7 +120,7 @@ func (rc *responseCache) Delete(key string) {
 	rc.mu.Unlock()
 }
 
-// removeLocked removes an element from both the list and map. Caller must hold mu.
+// removeLocked removes an element from both the list and map. Caller must hold mu write lock.
 func (rc *responseCache) removeLocked(elem *list.Element) {
 	entry := rc.order.Remove(elem).(*cachedResponse)
 	delete(rc.items, entry.key)
@@ -128,7 +133,6 @@ func (rc *responseCache) startCleanup() {
 	for range ticker.C {
 		now := time.Now()
 		rc.mu.Lock()
-		// Walk from back (LRU) — expired entries are likely older
 		for elem := rc.order.Back(); elem != nil; {
 			entry := elem.Value.(*cachedResponse)
 			prev := elem.Prev()
