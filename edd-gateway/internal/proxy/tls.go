@@ -62,7 +62,7 @@ func (s *Server) handleTLS(conn net.Conn) {
 		ingressPort = 443
 	}
 
-	slog.Info("TLS connection", "sni", sni, "port", ingressPort, "client", clientAddr)
+	slog.Debug("TLS connection", "sni", sni, "port", ingressPort, "client", clientAddr)
 
 	// Check if this is a container domain (pattern: <id>.compute.cloud.eddisonso.com)
 	// Container domains have a subdomain before "compute.cloud."
@@ -127,7 +127,7 @@ func (s *Server) handleTLSTermination(rawConn net.Conn, header, payload []byte, 
 		return
 	}
 
-	slog.Info("TLS terminated", "sni", sni, "client", clientAddr)
+	slog.Debug("TLS terminated", "sni", sni, "client", clientAddr)
 
 	// Now handle the decrypted connection as HTTP
 	s.handleTerminatedHTTP(tlsConn, sni)
@@ -251,7 +251,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		return
 	}
 
-	slog.Info(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_line", requestLine)
+	slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_line", requestLine)
 
 	backend, err := net.DialTimeout("tcp", route.Target, 5*time.Second)
 	if err != nil {
@@ -261,7 +261,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		return
 	}
 
-	slog.Info("backend connected", "host", sni, "path", path, "backend", route.Target)
+	slog.Debug("backend connected", "host", sni, "path", path, "backend", route.Target)
 
 	// Rewrite path if strip_prefix is enabled
 	headers := headerBuf.Bytes()

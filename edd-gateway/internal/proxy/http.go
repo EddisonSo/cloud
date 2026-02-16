@@ -7,8 +7,18 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
+
+// bufPool reuses 8 KB byte-slices for proxy read loops,
+// avoiding ~256 KB of short-lived heap allocation per request.
+var bufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 8*1024)
+		return &buf
+	},
+}
 
 // handleHTTP handles HTTP connections by extracting the Host header
 // and routing to the appropriate container.
@@ -273,7 +283,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 	defer client.Close()
 	defer backend.Close()
 
-	slog.Info("starting proxy", "method", method, "host", host, "path", path, "backend", backendAddr)
+	slog.Debug("starting proxy", "method", method, "host", host, "path", path, "backend", backendAddr)
 
 	// Send the request to backend
 	if len(initialData) > 0 {
@@ -290,8 +300,10 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 	go func() {
 		defer func() { done <- struct{}{} }()
 
-		// Read response with buffering to capture status line
-		buf := make([]byte, 128*1024)
+		bufp := bufPool.Get().(*[]byte)
+		buf := *bufp
+		defer bufPool.Put(bufp)
+
 		statusLogged := false
 
 		for {
@@ -342,7 +354,9 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 	// Client -> Backend
 	go func() {
 		defer func() { done <- struct{}{} }()
-		buf := make([]byte, 128*1024)
+		bufp := bufPool.Get().(*[]byte)
+		buf := *bufp
+		defer bufPool.Put(bufp)
 		for {
 			n, err := client.Read(buf)
 			if n > 0 {
