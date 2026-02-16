@@ -20,9 +20,12 @@ The Storage Service (SFS - Simple File Share) provides file storage capabilities
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/storage/files` | List files in namespace |
-| POST | `/storage/upload` | Upload a file |
-| GET | `/storage/download` | Download a file |
-| DELETE | `/storage/delete` | Delete a file |
+| GET | `/storage/:namespace/:filename` | View/serve a file inline |
+| GET | `/storage/download/:namespace/:filename` | Force-download a file |
+| POST | `/storage/:namespace/:filename` | Upload a file |
+| DELETE | `/storage/:namespace/:filename` | Delete a file |
+
+All CRUD operations use the same path pattern (`/storage/:namespace/:filename`), which enables automatic gateway cache invalidation — uploads and deletes immediately evict cached GET responses for the same path.
 
 ### Namespaces
 
@@ -48,8 +51,8 @@ sequenceDiagram
     participant Master as GFS Master
     participant CS as Chunkserver
 
-    Client->>Backend: POST /storage/upload
-    Note over Client,Backend: Headers: X-File-Size, Authorization<br/>Body: multipart/form-data
+    Client->>Backend: POST /storage/:namespace/:filename
+    Note over Client,Backend: Headers: X-File-Size, Authorization<br/>Body: multipart/form-data or raw
     Backend->>Master: AllocateChunk()
     Master->>Backend: Chunk handle + locations
     Backend->>CS: Write data (2PC)
@@ -67,7 +70,7 @@ sequenceDiagram
     participant Master as GFS Master
     participant CS as Chunkserver
 
-    Client->>Backend: GET /storage/download?name=file.bin
+    Client->>Backend: GET /storage/download/:namespace/file.bin
     Backend->>Master: GetChunkLocations()
     Master->>Backend: Chunk locations
 
@@ -119,6 +122,12 @@ Namespaces provide logical separation of files:
 - `default` - Default namespace for unauthenticated access
 - Custom namespaces for user organization
 - Hidden namespaces (not shown in UI)
+
+## Deployment
+
+- **Replicas**: 4 backend pods spread across rp1/rp2/rp3/rp4
+- **Topology**: `topologySpreadConstraints` with `maxSkew: 1` and `DoNotSchedule` ensures one pod per node
+- **Node selector**: `backend: "true"`
 
 ## Configuration
 
