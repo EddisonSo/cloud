@@ -291,6 +291,8 @@ func main() {
 	mux.HandleFunc("/storage/delete", srv.handleDelete)
 	mux.HandleFunc("GET /storage/status", srv.handleStorageStatus)
 	mux.HandleFunc("GET /storage/download/{namespace}/{file...}", srv.handleFileDownload)
+	mux.HandleFunc("DELETE /storage/{namespace}/{file...}", srv.handleFileDelete)
+	mux.HandleFunc("POST /storage/{namespace}/{file...}", srv.handleFilePost)
 	mux.HandleFunc("GET /storage/{namespace}/{file...}", srv.handleFileGet)
 	// Admin endpoints (users and sessions are handled by auth service)
 	mux.HandleFunc("/admin/files", srv.handleAdminFiles)
@@ -1195,6 +1197,191 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, map[string]string{"status": "ok", "name": name})
+}
+
+// handleFileDelete handles DELETE /storage/{namespace}/{file...}
+func (s *server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
+	namespace := r.PathValue("namespace")
+	file := r.PathValue("file")
+
+	if namespace == "" || file == "" {
+		http.Error(w, "namespace and filename are required", http.StatusBadRequest)
+		return
+	}
+
+	file, err := url.PathUnescape(file)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	namespace, err = sanitizeNamespace(namespace)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	name, err := sanitizeName(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "files", "delete", namespace); !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := s.client.DeleteFileWithNamespace(ctx, name, s.gfsNamespace(namespace)); err != nil {
+		http.Error(w, fmt.Sprintf("delete failed: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	if s.notifier != nil {
+		if uid, ok := s.currentUserID(r); ok {
+			s.notifier.Notify(r.Context(), uid, "File Deleted",
+				fmt.Sprintf("'%s' deleted from %s", name, namespace),
+				fmt.Sprintf("/storage/%s", namespace), "storage", namespace)
+		}
+	}
+
+	writeJSON(w, map[string]string{"status": "ok", "name": name})
+}
+
+// handleFilePost handles POST /storage/{namespace}/{file...}
+func (s *server) handleFilePost(w http.ResponseWriter, r *http.Request) {
+	namespace := r.PathValue("namespace")
+	file := r.PathValue("file")
+
+	if namespace == "" || file == "" {
+		http.Error(w, "namespace and filename are required", http.StatusBadRequest)
+		return
+	}
+
+	file, err := url.PathUnescape(file)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	var nsErr error
+	namespace, nsErr = sanitizeNamespace(namespace)
+	if nsErr != nil {
+		http.Error(w, nsErr.Error(), http.StatusBadRequest)
+		return
+	}
+
+	name, nameErr := sanitizeName(file)
+	if nameErr != nil {
+		http.Error(w, nameErr.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if _, ok := s.requireAuthWithScope(w, r, "files", "create", namespace); !ok {
+		return
+	}
+
+	// Check namespace exists
+	exists, err := s.namespaceExists(namespace)
+	if err != nil {
+		http.Error(w, "failed to verify namespace", http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		http.Error(w, "namespace does not exist", http.StatusNotFound)
+		return
+	}
+
+	overwrite := r.URL.Query().Get("overwrite") == "true"
+	transferID := s.transferID(r)
+	ctx, cancel := context.WithTimeout(r.Context(), s.uploadTTL)
+	defer cancel()
+
+	// Check if file exists
+	existingFile, err := s.client.GetFileWithNamespace(ctx, name, s.gfsNamespace(namespace))
+	fileExists := err == nil && existingFile != nil
+
+	if fileExists {
+		if !overwrite {
+			http.Error(w, fmt.Sprintf("file already exists: %s", name), http.StatusConflict)
+			return
+		}
+		if err := s.client.DeleteFileWithNamespace(ctx, name, s.gfsNamespace(namespace)); err != nil {
+			http.Error(w, fmt.Sprintf("failed to delete existing file: %v", err), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("upload overwrite namespace=%s name=%s transfer=%s", namespace, name, transferID)
+	}
+
+	// Create new file
+	if _, err := s.client.CreateFileWithNamespace(ctx, name, s.gfsNamespace(namespace)); err != nil {
+		http.Error(w, fmt.Sprintf("prepare file failed: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	// Read body directly (or multipart)
+	var body io.Reader
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/") {
+		mr, err := r.MultipartReader()
+		if err != nil {
+			http.Error(w, "invalid multipart upload", http.StatusBadRequest)
+			return
+		}
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				http.Error(w, "invalid multipart upload", http.StatusBadRequest)
+				return
+			}
+			if part.FormName() == "file" {
+				body = part
+				break
+			}
+			part.Close()
+		}
+	} else {
+		body = r.Body
+	}
+
+	if body == nil {
+		http.Error(w, "missing file body", http.StatusBadRequest)
+		return
+	}
+
+	total := s.parseSizeHeader(r.Header.Get("X-File-Size"))
+	reporter := s.newReporter(transferID, "upload", total)
+	log.Printf("upload start namespace=%s name=%s size=%d transfer=%s", namespace, name, total, transferID)
+	reporter.Update(0)
+
+	counting := &countingReader{reader: body, reporter: reporter}
+	if _, err := s.client.AppendFromWithNamespace(ctx, name, s.gfsNamespace(namespace), counting); err != nil {
+		reporter.Error(err)
+		http.Error(w, fmt.Sprintf("upload failed: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	reporter.Done()
+	log.Printf("upload ok namespace=%s name=%s size=%d transfer=%s", namespace, name, total, transferID)
+
+	if s.notifier != nil {
+		if uid, ok := s.currentUserID(r); ok {
+			action := "uploaded"
+			if fileExists {
+				action = "updated"
+			}
+			s.notifier.Notify(r.Context(), uid, "File Uploaded",
+				fmt.Sprintf("'%s' %s in %s", name, action, namespace),
+				fmt.Sprintf("/storage/%s", namespace), "storage", namespace)
+		}
+	}
+
+	writeJSON(w, map[string]string{"status": "ok", "name": name, "namespace": namespace})
 }
 
 type loginRequest struct {

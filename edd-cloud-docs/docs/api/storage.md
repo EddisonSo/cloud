@@ -170,9 +170,52 @@ curl "https://storage.cloud.eddisonso.com/storage/files?namespace=my-files" \
 
 ---
 
-### POST /storage/upload
+### POST /storage/:namespace/:filename
 
-Upload a file using multipart form data.
+Upload a file using multipart form data or raw body.
+
+**Auth:** Session / API token
+**Token Scope:** `storage.<uid>.files.<namespace>` with `create`
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| namespace | string | path | Yes | Target namespace |
+| filename | string | path | Yes | File name |
+| overwrite | string | query | No | `"true"` to overwrite existing files |
+| file | file | form | No | File to upload (multipart/form-data) |
+
+**Example request (multipart):**
+```bash
+curl -X POST "https://storage.cloud.eddisonso.com/storage/my-files/report.pdf" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -F "file=@report.pdf"
+```
+
+**Example request (raw body):**
+```bash
+curl -X POST "https://storage.cloud.eddisonso.com/storage/my-files/report.pdf" \
+  -H "Authorization: Bearer eyJhbGci..." \
+  --data-binary "@report.pdf"
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "name": "report.pdf",
+  "namespace": "my-files"
+}
+```
+
+Returns `409` if the file already exists and `overwrite` is not set. Triggers a "File Uploaded" notification.
+
+**Note:** The legacy endpoint `POST /storage/upload?namespace=...` is still supported for backward compatibility.
+
+---
+
+### POST /storage/upload (legacy)
+
+Legacy upload endpoint using query parameters. **Prefer the REST-style `POST /storage/:namespace/:filename` endpoint above.**
 
 **Auth:** Session / API token
 **Token Scope:** `storage.<uid>.files.<namespace>` with `create`
@@ -226,9 +269,40 @@ curl -o report.pdf \
 
 ---
 
-### DELETE /storage/delete
+### DELETE /storage/:namespace/:filename
 
 Delete a file. Triggers a "File Deleted" notification.
+
+**Auth:** Session / API token
+**Token Scope:** `storage.<uid>.files.<namespace>` with `delete`
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| namespace | string | path | Yes | Namespace name |
+| filename | string | path | Yes | File name to delete |
+
+**Example request:**
+```bash
+curl -X DELETE \
+  "https://storage.cloud.eddisonso.com/storage/my-files/report.pdf" \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "name": "report.pdf"
+}
+```
+
+**Note:** The legacy endpoint `DELETE /storage/delete?namespace=...&name=...` is still supported for backward compatibility.
+
+---
+
+### DELETE /storage/delete (legacy)
+
+Legacy delete endpoint using query parameters. **Prefer the REST-style `DELETE /storage/:namespace/:filename` endpoint above.**
 
 **Auth:** Session / API token
 **Token Scope:** `storage.<uid>.files.<namespace>` with `delete`

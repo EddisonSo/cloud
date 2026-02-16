@@ -149,7 +149,7 @@ export function useFiles() {
         eventSource.close();
       };
 
-      const url = `${buildStorageBase()}/storage/upload?id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(namespace)}${overwrite ? "&overwrite=true" : ""}`;
+      const url = `${buildStorageBase()}/storage/${encodeURIComponent(namespace)}/${encodeURIComponent(file.name)}?id=${encodeURIComponent(transferId)}${overwrite ? "&overwrite=true" : ""}`;
       const response = await fetch(url, {
         method: "POST",
         body: formData,
@@ -186,7 +186,7 @@ export function useFiles() {
     const transferId = createTransferId();
     const token = getAuthToken();
 
-    let downloadUrl = `${buildStorageBase()}/storage/download?name=${encodeURIComponent(file.name)}&id=${encodeURIComponent(transferId)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`;
+    let downloadUrl = `${buildStorageBase()}/storage/download/${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}/${encodeURIComponent(file.name)}?id=${encodeURIComponent(transferId)}`;
     if (token) {
       downloadUrl += `&token=${encodeURIComponent(token)}`;
     }
@@ -204,7 +204,7 @@ export function useFiles() {
     setStatus(`Deleting ${file.name}...`);
     try {
       const response = await fetch(
-        `${buildStorageBase()}/storage/delete?name=${encodeURIComponent(file.name)}&namespace=${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}`,
+        `${buildStorageBase()}/storage/${encodeURIComponent(file.namespace || DEFAULT_NAMESPACE)}/${encodeURIComponent(file.name)}`,
         { method: "DELETE", headers: getAuthHeaders() }
       );
       if (!response.ok) {
