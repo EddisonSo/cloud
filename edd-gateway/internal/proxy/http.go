@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -19,15 +18,6 @@ var bufPool = sync.Pool{
 		buf := make([]byte, 8*1024)
 		return &buf
 	},
-}
-
-// backendTransport pools TCP connections to backend services,
-// eliminating per-request TCP handshake + teardown overhead.
-var backendTransport = &http.Transport{
-	MaxIdleConns:        100,
-	MaxIdleConnsPerHost: 20,
-	IdleConnTimeout:     90 * time.Second,
-	DisableCompression:  true,
 }
 
 // handleHTTP handles HTTP connections by extracting the Host header
