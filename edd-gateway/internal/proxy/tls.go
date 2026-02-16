@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -276,6 +277,20 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			return // proxy handles close
 		}
 
+		// Cache check for GET requests (not SSE/WS — already handled above)
+		if method == "GET" {
+			cacheKey := sni + ":" + path
+			if cached := respCache.Get(cacheKey); cached != nil {
+				slog.Debug("cache hit", "host", sni, "path", path)
+				writeCachedResponse(writer, cached, wantClose)
+				writer.Flush()
+				if wantClose {
+					break
+				}
+				continue
+			}
+		}
+
 		// Regular request: use pooled transport
 		req.URL.Scheme = "http"
 		req.URL.Host = route.Target
@@ -296,7 +311,37 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			slog.Info("HTTP response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
 		}
 
-		// Set keep-alive or close based on client preference
+		// For cacheable GET 200 responses, read body and cache
+		if method == "GET" && resp.StatusCode == 200 {
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr == nil {
+				cacheKey := sni + ":" + path
+				respCache.Set(cacheKey, resp, body)
+				// Build a cachedResponse to write from the body bytes
+				cached := &cachedResponse{
+					statusCode: resp.StatusCode,
+					header:     resp.Header,
+					body:       body,
+				}
+				if wantClose {
+					resp.Header.Set("Connection", "close")
+				} else {
+					resp.Header.Set("Connection", "keep-alive")
+					resp.Header.Set("Keep-Alive", "timeout=60")
+				}
+				writeCachedResponse(writer, cached, wantClose)
+				writer.Flush()
+				if wantClose {
+					break
+				}
+				continue
+			}
+			// ReadAll failed — fall through to close
+			break
+		}
+
+		// Non-cacheable response: write directly
 		if wantClose {
 			resp.Header.Set("Connection", "close")
 		} else {
@@ -313,6 +358,30 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		}
 	}
 	conn.Close()
+}
+
+// writeCachedResponse writes a cached HTTP response to the buffered writer.
+// Writes status line, headers, and body in a single flush for efficiency.
+func writeCachedResponse(w *bufio.Writer, c *cachedResponse, wantClose bool) {
+	fmt.Fprintf(w, "HTTP/1.1 %d %s\r\n", c.statusCode, http.StatusText(c.statusCode))
+	for k, vals := range c.header {
+		// Skip connection-related headers — we set them ourselves
+		lower := strings.ToLower(k)
+		if lower == "connection" || lower == "keep-alive" {
+			continue
+		}
+		for _, v := range vals {
+			fmt.Fprintf(w, "%s: %s\r\n", k, v)
+		}
+	}
+	if wantClose {
+		w.WriteString("Connection: close\r\n")
+	} else {
+		w.WriteString("Connection: keep-alive\r\nKeep-Alive: timeout=60\r\n")
+	}
+	fmt.Fprintf(w, "Content-Length: %d\r\n", len(c.body))
+	w.WriteString("\r\n")
+	w.Write(c.body)
 }
 
 // replayConn replays buffered data before reading from the underlying connection.

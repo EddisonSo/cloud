@@ -5,7 +5,7 @@ metadata:
   name: simple-file-share-backend
   namespace: core
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app: simple-file-share

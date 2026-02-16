@@ -38,6 +38,7 @@ The gateway auto-detects protocols on extra ports by inspecting the first bytes:
 - **TLS Termination**: Handles HTTPS with automatic certificate management
 - **Dynamic Routing**: Routes based on host and path prefix from PostgreSQL
 - **Route Caching**: LRU cache (100 entries) for O(1) route lookups
+- **Response Caching**: In-memory cache for small GET 200 responses (50MB cap, 30s TTL) to reduce backend load for hot files
 - **SSH Tunneling**: Provides SSH access to containers via port 2222
 - **WebSocket Support**: Proxies WebSocket connections for real-time features
 - **HTTP→HTTPS Redirect**: Automatic upgrade for core services
@@ -102,6 +103,24 @@ The gateway uses an LRU (Least Recently Used) cache to optimize route lookups:
 - **Invalidation**: Cache cleared on route table reload
 
 This means repeated requests to the same endpoints are served with minimal overhead, regardless of the total number of routes.
+
+### Response Cache
+
+The gateway caches small GET 200 responses in memory to reduce backend load for frequently accessed files:
+
+- **Cache Size**: 50 MB total capacity
+- **Entry Limit**: 1 MB per cached response
+- **TTL**: 30 seconds
+- **Key**: `host:path` (e.g., `storage.cloud.eddisonso.com:/api/files/123`)
+- **Eligibility**: Only caches responses that:
+  - Use GET method
+  - Return status 200
+  - Have body ≤ 1 MB
+  - Do not have `Set-Cookie` header
+  - Do not have `Cache-Control: no-store`
+- **Background Cleanup**: Expired entries removed every 10 seconds
+
+Cache hits are served directly from memory without backend round-trips, significantly improving latency for hot files. The cache is transparent to clients and respects HTTP caching directives.
 
 ### Example Routes
 
