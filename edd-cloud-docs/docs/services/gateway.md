@@ -118,9 +118,10 @@ The gateway caches small GET 200 responses in memory to reduce backend load for 
   - Have body ≤ 1 MB
   - Do not have `Set-Cookie` header
   - Do not have `Cache-Control: no-store`
+- **Invalidation**: Cache entries are automatically invalidated when mutating requests (PUT/POST/DELETE/PATCH) are made to the same path
 - **Background Cleanup**: Expired entries removed every 10 seconds
 
-Cache hits are served directly from memory without backend round-trips, significantly improving latency for hot files. The cache is transparent to clients and respects HTTP caching directives.
+Cache hits are served directly from memory without backend round-trips, significantly improving latency for hot files. Mutating requests immediately evict cached entries for the same path, ensuring fresh content on subsequent GET requests. The cache is transparent to clients and respects HTTP caching directives.
 
 ### Example Routes
 

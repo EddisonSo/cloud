@@ -103,6 +103,16 @@ func (rc *responseCache) Set(key string, resp *http.Response, body []byte) {
 	rc.curSize += entrySize
 }
 
+// Delete removes a cache entry by key, freeing its space.
+func (rc *responseCache) Delete(key string) {
+	rc.mu.Lock()
+	if entry, ok := rc.entries[key]; ok {
+		rc.curSize -= entry.size
+		delete(rc.entries, key)
+	}
+	rc.mu.Unlock()
+}
+
 // startCleanup runs a background goroutine that removes expired entries every 10s.
 func (rc *responseCache) startCleanup() {
 	ticker := time.NewTicker(10 * time.Second)

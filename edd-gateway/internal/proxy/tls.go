@@ -277,6 +277,11 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			return // proxy handles close
 		}
 
+		// Invalidate cache on mutating requests
+		if method != "GET" && method != "HEAD" {
+			respCache.Delete(sni + ":" + path)
+		}
+
 		// Cache check for GET requests (not SSE/WS — already handled above)
 		if method == "GET" {
 			cacheKey := sni + ":" + path
