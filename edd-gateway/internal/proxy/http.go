@@ -22,7 +22,7 @@ var bufPool = sync.Pool{
 }
 
 // respCache caches small GET 200 responses at the gateway layer,
-// avoiding backend round-trips for hot files (30s TTL, 50MB cap).
+// avoiding backend round-trips for hot files (30s TTL, 500MB cap).
 var respCache = newResponseCache(500*1024*1024, 30*time.Second)
 
 // backendTransport pools TCP connections to backend services,

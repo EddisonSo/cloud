@@ -38,7 +38,7 @@ The gateway auto-detects protocols on extra ports by inspecting the first bytes:
 - **TLS Termination**: Handles HTTPS with automatic certificate management
 - **Dynamic Routing**: Routes based on host and path prefix from PostgreSQL
 - **Route Caching**: LRU cache (100 entries) for O(1) route lookups
-- **Response Caching**: In-memory cache for small GET 200 responses (50MB cap, 30s TTL) to reduce backend load for hot files
+- **Response Caching**: In-memory LRU cache for small GET 200 responses (500MB cap, 30s TTL) to reduce backend load for hot files
 - **SSH Tunneling**: Provides SSH access to containers via port 2222
 - **WebSocket Support**: Proxies WebSocket connections for real-time features
 - **HTTP→HTTPS Redirect**: Automatic upgrade for core services
@@ -108,7 +108,7 @@ This means repeated requests to the same endpoints are served with minimal overh
 
 The gateway caches small GET 200 responses in memory to reduce backend load for frequently accessed files:
 
-- **Cache Size**: 50 MB total capacity
+- **Cache Size**: 500 MB total capacity
 - **Entry Limit**: 1 MB per cached response
 - **TTL**: 30 seconds
 - **Key**: `host:path` (e.g., `storage.cloud.eddisonso.com:/api/files/123`)
@@ -119,7 +119,7 @@ The gateway caches small GET 200 responses in memory to reduce backend load for 
   - Do not have `Set-Cookie` header
   - Do not have `Cache-Control: no-store`
 - **Invalidation**: Cache entries are automatically invalidated when mutating requests (PUT/POST/DELETE/PATCH) are made to the same path
-- **Background Cleanup**: Expired entries removed every 10 seconds
+- **Background Cleanup**: Expired entries removed every 5 minutes
 
 Cache hits are served directly from memory without backend round-trips, significantly improving latency for hot files. Mutating requests immediately evict cached entries for the same path, ensuring fresh content on subsequent GET requests.
 
