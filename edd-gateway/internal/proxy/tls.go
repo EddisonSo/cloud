@@ -292,9 +292,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	// Tell client we won't accept another request on this connection
 	resp.Header.Set("Connection", "close")
 
-	bw := bufio.NewWriter(conn)
-	resp.Write(bw)
-	bw.Flush()
+	resp.Write(conn)
 	conn.Close()
 }
 
