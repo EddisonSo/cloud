@@ -5,6 +5,10 @@ metadata:
   namespace: default
 spec:
   secretName: eddisonso-wildcard-tls
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
   issuerRef:
     name: letsencrypt-cloudflare
     kind: ClusterIssuer
