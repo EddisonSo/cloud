@@ -16,6 +16,14 @@ spec:
         app: simple-file-share
         tier: backend
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: simple-file-share
+              tier: backend
       nodeSelector:
         backend: "true"
       imagePullSecrets:

@@ -45,6 +45,7 @@ jobs:
       notifications: ${{ steps.filter.outputs.notifications }}
       alerting: ${{ steps.filter.outputs.alerting }}
       any_service: ${{ steps.filter.outputs.any_service }}
+      manifests: ${{ steps.filter.outputs.manifests }}
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +94,8 @@ jobs:
               - 'alerting-service/**'
               - 'go-gfs/**'
               - 'proto/**'
+            manifests:
+              - 'manifests/**'
             any_service:
               - 'edd-cloud-interface/**'
               - 'edd-cloud-auth/**'
@@ -103,6 +106,7 @@ jobs:
               - 'notification-service/**'
               - 'alerting-service/**'
               - 'log-service/**'
+              - 'manifests/**'
 
   # Build SFS service
   build-sfs:
@@ -550,6 +554,7 @@ jobs:
       gfs_built: ${{ steps.check.outputs.gfs_built }}
       notifications_built: ${{ steps.check.outputs.notifications_built }}
       alerting_built: ${{ steps.check.outputs.alerting_built }}
+      manifests_changed: ${{ needs.detect-changes.outputs.manifests }}
       image_tag: ${{ needs.detect-changes.outputs.image_tag }}
     steps:
       - uses: docker/login-action@v3
@@ -712,6 +717,8 @@ jobs:
     env:
       IMAGE_TAG: ${{ needs.create-manifests.outputs.image_tag }}
     steps:
+      - uses: actions/checkout@v4
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
       - name: Configure kubectl
         env:
           GFS_CI_KUBECONFIG_B64: ${{ secrets.GFS_CI_KUBECONFIG_B64 }}
@@ -719,6 +726,17 @@ jobs:
           mkdir -p ~/.kube
           echo "$GFS_CI_KUBECONFIG_B64" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
+      - name: Apply manifest changes
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
+        run: |
+          # Save current running image tags (manifests have 'latest' placeholder)
+          SFS_IMG=$(kubectl -n $NS get deploy/simple-file-share-backend -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          FE_IMG=$(kubectl -n $NS get deploy/simple-file-share-frontend -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          # Apply manifests (picks up replicas, topology constraints, env changes, etc.)
+          kubectl apply -f manifests/sfs/simple-file-share.yaml
+          # Restore image tags to avoid downgrade to 'latest'
+          [ -n "$SFS_IMG" ] && kubectl -n $NS set image deploy/simple-file-share-backend backend="$SFS_IMG"
+          [ -n "$FE_IMG" ] && kubectl -n $NS set image deploy/simple-file-share-frontend frontend="$FE_IMG"
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
         run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
