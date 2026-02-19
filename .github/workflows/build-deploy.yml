@@ -96,6 +96,7 @@ jobs:
               - 'proto/**'
             manifests:
               - 'manifests/**'
+              - 'edd-gateway/manifests/**'
             any_service:
               - 'edd-cloud-interface/**'
               - 'edd-cloud-auth/**'
@@ -737,6 +738,13 @@ jobs:
           # Restore image tags to avoid downgrade to 'latest'
           [ -n "$SFS_IMG" ] && kubectl -n $NS set image deploy/simple-file-share-backend backend="$SFS_IMG"
           [ -n "$FE_IMG" ] && kubectl -n $NS set image deploy/simple-file-share-frontend frontend="$FE_IMG"
+      - name: Apply gateway manifest changes
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
+        run: |
+          GW_IMG=$(kubectl -n $NS get deploy/gateway -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          kubectl apply -f edd-gateway/manifests/gateway.yaml
+          kubectl apply -f edd-gateway/manifests/gateway-routes.yaml
+          [ -n "$GW_IMG" ] && kubectl -n $NS set image deploy/gateway gateway="$GW_IMG"
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
         run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
