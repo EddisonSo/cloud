@@ -742,7 +742,8 @@ jobs:
         if: needs.create-manifests.outputs.manifests_changed == 'true'
         run: |
           GW_IMG=$(kubectl -n $NS get deploy/gateway -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
-          kubectl apply -f edd-gateway/manifests/gateway.yaml
+          # RBAC resources (ServiceAccount, Role, RoleBinding) require cluster admin — CI account can only manage Deployments/Services
+          kubectl apply -f edd-gateway/manifests/gateway.yaml 2>&1 || echo "::warning::Some gateway resources could not be applied (RBAC resources are managed by cluster admin)"
           kubectl apply -f edd-gateway/manifests/gateway-routes.yaml
           [ -n "$GW_IMG" ] && kubectl -n $NS set image deploy/gateway gateway="$GW_IMG"
       - name: Deploy SFS
