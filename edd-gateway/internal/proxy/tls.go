@@ -220,8 +220,8 @@ func (s *Server) handleIPRedirect(rawConn net.Conn, header, payload []byte, ip, 
 // backend connection pooling and bufio.Writer to coalesce TLS record writes.
 func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 	clientAddr := conn.RemoteAddr().String()
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
+	reader := bufio.NewReaderSize(conn, 16*1024)
+	writer := bufio.NewWriterSize(conn, 16*1024)
 
 	for {
 		// Set idle timeout for next request on this keep-alive connection
@@ -316,14 +316,19 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			slog.Info("HTTP response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
 		}
 
-		// For cacheable GET 200 responses, read body and cache
-		if method == "GET" && resp.StatusCode == 200 {
+		// For small cacheable GET 200 responses, buffer and cache.
+		// Large responses stream directly to avoid unbounded memory usage.
+		cacheable := method == "GET" && resp.StatusCode == 200 &&
+			resp.ContentLength >= 0 && resp.ContentLength <= maxEntrySize &&
+			resp.Header.Get("Set-Cookie") == "" &&
+			resp.Header.Get("Cache-Control") != "no-store"
+
+		if cacheable {
 			body, readErr := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if readErr == nil {
 				cacheKey := sni + ":" + path
 				respCache.Set(cacheKey, resp, body)
-				// Build a cachedResponse to write from the body bytes
 				cached := &cachedResponse{
 					statusCode: resp.StatusCode,
 					header:     resp.Header,
@@ -346,7 +351,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			break
 		}
 
-		// Non-cacheable response: write directly
+		// Stream response directly (non-cacheable or large body)
 		if wantClose {
 			resp.Header.Set("Connection", "close")
 		} else {
