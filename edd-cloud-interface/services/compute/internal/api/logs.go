@@ -60,13 +60,8 @@ func (h *Handler) HandleContainerLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Get the running pod name
-	podName, err := h.k8s.GetPodName(r.Context(), container.Namespace)
-	if err != nil {
-		slog.Error("failed to get pod name", "error", err, "container", containerID)
-		http.Error(w, "failed to locate container pod", http.StatusInternalServerError)
-		return
-	}
+	// Pod name is always "container" (hardcoded in CreatePod)
+	podName := "container"
 
 	// Upgrade to WebSocket
 	ws, err := logsUpgrader.Upgrade(w, r, nil)
