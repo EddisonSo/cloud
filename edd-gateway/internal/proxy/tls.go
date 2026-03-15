@@ -258,7 +258,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		}
 
 		// SSE/WebSocket: fall back to raw TCP proxy (long-lived connections)
-		if strings.HasPrefix(path, "/sse/") || strings.HasPrefix(path, "/ws/") {
+		isWebSocket := strings.EqualFold(req.Header.Get("Upgrade"), "websocket")
+		if isWebSocket || strings.HasPrefix(path, "/sse/") || strings.HasPrefix(path, "/ws/") {
 			// Flush any buffered writer data before switching to raw proxy
 			writer.Flush()
 			backend, dialErr := net.DialTimeout("tcp", route.Target, 5*time.Second)
