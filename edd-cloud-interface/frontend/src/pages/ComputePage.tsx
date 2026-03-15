@@ -34,6 +34,7 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
     loadContainers,
     createContainer,
     containerAction,
+    images,
   } = useContainers(user);
 
   const {
@@ -241,6 +242,7 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
         <PageHeader title="Create container" description="Configure a new stateful container." />
         <CreateContainerForm
           sshKeys={sshKeys}
+          images={images}
           onCreate={handleCreateContainer}
           onCancel={() => navigate("/compute/containers")}
           creating={creating}

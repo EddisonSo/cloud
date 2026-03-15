@@ -44,6 +44,7 @@ export interface CreateContainerData {
   enable_ssh: boolean;
   ingress_rules: IngressRule[];
   mount_paths: string[];
+  image?: string;
 }
 
 // ── Storage ──────────────────────────────────────────────

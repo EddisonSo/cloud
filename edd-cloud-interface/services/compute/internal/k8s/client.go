@@ -3,6 +3,7 @@ package k8s
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"sync"
@@ -61,6 +62,37 @@ func (c *Client) DeleteNamespace(ctx context.Context, name string) error {
 	err := c.clientset.CoreV1().Namespaces().Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("delete namespace: %w", err)
+	}
+	return nil
+}
+
+// GetRegistryPullCredentials reads registry pull credentials from the K8s secret in the service namespace
+func (c *Client) GetRegistryPullCredentials(ctx context.Context) (map[string][]byte, error) {
+	secret, err := c.clientset.CoreV1().Secrets("default").Get(ctx, "registry-pull-credentials", metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get registry pull credentials: %w", err)
+	}
+	return secret.Data, nil
+}
+
+// CreateImagePullSecret creates a docker registry pull secret in a container namespace
+func (c *Client) CreateImagePullSecret(ctx context.Context, namespace, registryURL, username, token string) error {
+	dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`,
+		registryURL, username, token,
+		base64.StdEncoding.EncodeToString([]byte(username+":"+token)))
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "registry-pull-secret",
+			Namespace: namespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(dockerConfig),
+		},
+	}
+	_, err := c.clientset.CoreV1().Secrets(namespace).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		return fmt.Errorf("create image pull secret: %w", err)
 	}
 	return nil
 }
@@ -341,6 +373,12 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 			},
 			RestartPolicy: corev1.RestartPolicyAlways,
 		},
+	}
+
+	if strings.HasPrefix(image, "registry.cloud.eddisonso.com/") {
+		pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
+			{Name: "registry-pull-secret"},
+		}
 	}
 
 	_, err := c.clientset.CoreV1().Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})

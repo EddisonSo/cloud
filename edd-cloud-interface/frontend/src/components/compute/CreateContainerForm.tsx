@@ -8,8 +8,15 @@ import { Select } from "@/components/ui/select";
 import { X, Plus, Trash2 } from "lucide-react";
 import type { SshKey, CreateContainerData } from "@/types";
 
+interface AvailableImage {
+  name: string;
+  image: string;
+  source: "builtin" | "registry";
+}
+
 interface CreateContainerFormProps {
   sshKeys: SshKey[];
+  images?: AvailableImage[];
   onCreate: (data: CreateContainerData) => Promise<void>;
   onCancel: () => void;
   creating: boolean;
@@ -17,6 +24,7 @@ interface CreateContainerFormProps {
 
 export function CreateContainerForm({
   sshKeys,
+  images = [],
   onCreate,
   onCancel,
   creating,
@@ -25,6 +33,7 @@ export function CreateContainerForm({
   const [memoryMb, setMemoryMb] = useState<number>(512);
   const [storageGb, setStorageGb] = useState<number>(5);
   const [instanceType, setInstanceType] = useState<string>("nano");
+  const [selectedImage, setSelectedImage] = useState<string>("");
   const [selectedKeyIds, setSelectedKeyIds] = useState<string[]>([]);
   const [enableSsh, setEnableSsh] = useState<boolean>(true);
   const [ingressRules, setIngressRules] = useState<{ port: number; target_port: number }[]>([]);
@@ -54,6 +63,7 @@ export function CreateContainerForm({
       enable_ssh: enableSsh,
       ingress_rules: ingressRules,
       mount_paths: mountPaths,
+      image: selectedImage || undefined,
     });
   };
 
@@ -161,6 +171,21 @@ export function CreateContainerForm({
               <option value="tiny">Tiny (AMD64, 1 CPU)</option>
               <option value="small">Small (AMD64, 2 CPU)</option>
               <option value="medium">Medium (AMD64, 4 CPU)</option>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="c-image">Image</Label>
+            <Select
+              id="c-image"
+              value={selectedImage}
+              onChange={(e) => setSelectedImage(e.target.value)}
+              className="w-full"
+            >
+              <option value="">Default (Debian Base)</option>
+              {images.filter((i) => i.source === "registry").map((img) => (
+                <option key={img.image} value={img.image}>{img.name}</option>
+              ))}
             </Select>
           </div>
 

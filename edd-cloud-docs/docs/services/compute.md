@@ -9,6 +9,7 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 ## Features
 
 - **Container Management**: Create, start, stop, delete containers
+- **Custom Images**: Launch containers from images stored in the internal registry (`registry.cloud.eddisonso.com`)
 - **SSH Access**: Enable SSH access to containers
 - **Port Forwarding**: Expose container ports via ingress rules
 - **Real-time Updates**: WebSocket-based status updates
@@ -24,6 +25,12 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 | DELETE | `/compute/containers/:id` | Delete container |
 | POST | `/compute/containers/:id/start` | Start container |
 | POST | `/compute/containers/:id/stop` | Stop container |
+
+### Images
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/compute/images` | List available container images (builtin + registry) |
 
 ### SSH Keys
 

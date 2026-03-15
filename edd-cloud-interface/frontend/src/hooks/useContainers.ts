@@ -3,6 +3,12 @@ import { buildComputeBase, buildComputeWsBase, getAuthHeaders, getAuthToken } fr
 import { registerCacheClear } from "@/lib/cache";
 import type { Container, ContainerAction, ContainerStatusUpdate, ComputeWsMessage, CreateContainerData } from "@/types";
 
+interface AvailableImage {
+  name: string;
+  image: string;
+  source: "builtin" | "registry";
+}
+
 // Module-level cache that persists across component mounts
 let cachedContainers: Container[] | null = null;
 let containersLoaded = false;
@@ -18,6 +24,7 @@ export function useContainers(user: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [actions, setActions] = useState<Record<string, ContainerAction | null>>({});
+  const [images, setImages] = useState<AvailableImage[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Cleanup abort controller on unmount
@@ -69,6 +76,17 @@ export function useContainers(user: string | null) {
       setLoading(false);
     }
   }, []);
+
+  const loadImages = useCallback(async () => {
+    try {
+      const response = await fetch(`${buildComputeBase()}/compute/images`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) setImages(await response.json());
+    } catch { /* non-fatal */ }
+  }, []);
+
+  useEffect(() => { loadImages(); }, [loadImages]);
 
   const createContainer = useCallback(async (data: CreateContainerData) => {
     const response = await fetch(`${buildComputeBase()}/compute/containers`, {
@@ -172,5 +190,6 @@ export function useContainers(user: string | null) {
     loadContainers,
     createContainer,
     containerAction,
+    images,
   };
 }

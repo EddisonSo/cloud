@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type containerRequest struct {
 	SSHKeyIDs    []int64  `json:"ssh_key_ids"`
 	SSHEnabled   bool     `json:"ssh_enabled"`
 	MountPaths   []string `json:"mount_paths"` // directories to persist (e.g., ["/root", "/var/data"])
+	Image        string   `json:"image,omitempty"`
 }
 
 type containerResponse struct {
@@ -167,6 +169,16 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve image
+	image := defaultImage
+	if req.Image != "" {
+		if req.Image != defaultImage && !strings.HasPrefix(req.Image, "registry.cloud.eddisonso.com/") {
+			http.Error(w, "invalid image: must be from registry.cloud.eddisonso.com", http.StatusBadRequest)
+			return
+		}
+		image = req.Image
+	}
+
 	// Generate container ID and namespace (lowercase for K8s compatibility)
 	containerID := uuid.New().String()[:8]
 	namespace := strings.ToLower(fmt.Sprintf("compute-%s-%s", userID, containerID))
@@ -181,7 +193,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		Status:       "pending",
 		MemoryMB:     memoryMB,
 		StorageGB:    storageGB,
-		Image:        defaultImage,
+		Image:        image,
 		InstanceType: instanceType,
 		MountPaths:   mountPaths,
 		SSHEnabled:   req.SSHEnabled,
@@ -249,6 +261,21 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 		h.db.UpdateContainerStatus(container.ID, "failed")
 		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
 		return
+	}
+
+	// If using a registry image, create imagePullSecret
+	if strings.HasPrefix(container.Image, "registry.cloud.eddisonso.com/") {
+		registrySecret, err := h.k8s.GetRegistryPullCredentials(ctx)
+		if err != nil {
+			slog.Error("failed to get registry pull credentials", "error", err)
+		} else {
+			username := string(registrySecret["username"])
+			token := string(registrySecret["token"])
+			if err := h.k8s.CreateImagePullSecret(ctx, container.Namespace,
+				"registry.cloud.eddisonso.com", username, token); err != nil {
+				slog.Error("failed to create pull secret", "error", err)
+			}
+		}
 	}
 
 	// Create Pod with instance type spec and mount paths
@@ -563,6 +590,50 @@ func containerToResponse(c *db.Container) containerResponse {
 	}
 
 	return resp
+}
+
+// ListImages returns available container images (builtin + registry)
+func (h *Handler) ListImages(w http.ResponseWriter, r *http.Request) {
+	images := []map[string]string{
+		{"name": "Debian (Base)", "image": defaultImage, "source": "builtin"},
+	}
+
+	// Query internal registry for catalog
+	registryURL := os.Getenv("REGISTRY_URL")
+	if registryURL == "" {
+		registryURL = "http://edd-registry:80"
+	}
+
+	resp, err := http.Get(registryURL + "/v2/_catalog")
+	if err == nil && resp.StatusCode == http.StatusOK {
+		defer resp.Body.Close()
+		var catalog struct {
+			Repositories []string `json:"repositories"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&catalog) == nil {
+			for _, repo := range catalog.Repositories {
+				tagResp, err := http.Get(fmt.Sprintf("%s/v2/%s/tags/list", registryURL, repo))
+				if err != nil || tagResp.StatusCode != http.StatusOK {
+					continue
+				}
+				var tagList struct {
+					Tags []string `json:"tags"`
+				}
+				json.NewDecoder(tagResp.Body).Decode(&tagList)
+				tagResp.Body.Close()
+				for _, tag := range tagList.Tags {
+					images = append(images, map[string]string{
+						"name":   fmt.Sprintf("%s:%s", repo, tag),
+						"image":  fmt.Sprintf("registry.cloud.eddisonso.com/%s:%s", repo, tag),
+						"source": "registry",
+					})
+				}
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(images)
 }
 
 // GetMountPaths returns the persistent mount paths for a container

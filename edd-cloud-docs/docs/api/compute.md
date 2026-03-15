@@ -90,6 +90,7 @@ Create a new container.
 | ssh_key_ids | int[] | body | Yes | SSH key IDs to inject (at least one) |
 | ssh_enabled | bool | body | No | Enable SSH access (default false) |
 | mount_paths | string[] | body | No | Absolute paths to persist (default `["/root"]`) |
+| image | string | body | No | Container image (default: Debian base). Must be `registry.cloud.eddisonso.com/<repo>:<tag>` or omitted. Use `GET /compute/images` to list available images. |
 
 **Example request:**
 ```bash
@@ -253,6 +254,42 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sto
   "https_enabled": false
 }
 ```
+
+---
+
+### GET /compute/images
+
+List available container images (builtin defaults and images from the internal registry).
+
+**Auth:** Session / API token
+**Token Scope:** `compute.<uid>.containers` with `read`
+
+**Example request:**
+```bash
+curl https://compute.cloud.eddisonso.com/compute/images \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+[
+  {
+    "name": "Debian (Base)",
+    "image": "eddisonso/ecloud-debian:latest",
+    "source": "builtin"
+  },
+  {
+    "name": "my-app:v1.0",
+    "image": "registry.cloud.eddisonso.com/my-app:v1.0",
+    "source": "registry"
+  }
+]
+```
+
+Each entry has:
+- `name` — human-readable label
+- `image` — full image reference to pass as the `image` field when creating a container
+- `source` — `"builtin"` for default images, `"registry"` for images from the internal registry
 
 ---
 
