@@ -110,6 +110,9 @@ func main() {
 }
 
 func (s *server) registerRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	mux.HandleFunc("/v2/", s.routeV2)
 }
 
