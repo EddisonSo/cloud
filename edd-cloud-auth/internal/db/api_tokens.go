@@ -159,3 +159,13 @@ func (db *DB) UpdateAPITokenLastUsed(id string, ts int64) error {
 	_, err := db.Exec(`UPDATE api_tokens SET last_used_at = $1 WHERE id = $2`, ts, id)
 	return err
 }
+
+// CheckTokenHash returns true if a token with the given SHA-256 hex hash exists
+// and has not expired.
+func (db *DB) CheckTokenHash(hash string) (bool, error) {
+	var exists bool
+	err := db.QueryRow(`
+		SELECT EXISTS(SELECT 1 FROM api_tokens WHERE token_hash = $1 AND (expires_at = 0 OR expires_at > $2))
+	`, hash, time.Now().Unix()).Scan(&exists)
+	return exists, err
+}

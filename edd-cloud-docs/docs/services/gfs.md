@@ -150,6 +150,18 @@ gfs.WithConnectionPool(maxIdlePerHost, idleTimeout)
 - Validates idle connections before reuse
 - Auto-cleanup of stale connections
 
+### Configurable Upload Buffer Size
+
+By default the SDK allocates two 64MB buffers (128MB total) per concurrent upload for double-buffered streaming. Services that handle many concurrent uploads (e.g. the image registry) can reduce this with `WithUploadBufferSize`:
+
+```go
+client, err := gfs.New(ctx, "gfs-master:9000",
+    gfs.WithUploadBufferSize(64 * 1024),  // 64KB per buffer (128KB total per upload)
+)
+```
+
+This option only affects the streaming buffer allocation in `AppendFrom`. Chunk boundary calculations and chunk allocation RPCs continue to use `maxChunkSize` (default 64MB). Set to 0 to restore the default behaviour.
+
 ## Deployment
 
 GFS runs as separate Kubernetes deployments:

@@ -116,9 +116,10 @@ func (p *PreparedUpload) AppendFrom(ctx context.Context, r io.Reader) (int64, er
 	c := p.client
 
 	// Double buffer for pipelining: read next chunk while writing current
+	bufSize := c.effectiveUploadBufferSize()
 	bufs := [2][]byte{
-		make([]byte, int(c.maxChunkSize)),
-		make([]byte, int(c.maxChunkSize)),
+		make([]byte, int(bufSize)),
+		make([]byte, int(bufSize)),
 	}
 
 	var total int64

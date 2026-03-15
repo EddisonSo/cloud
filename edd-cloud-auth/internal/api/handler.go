@@ -104,6 +104,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/webauthn/login/begin", h.handleWebAuthnLoginBegin)
 	mux.HandleFunc("POST /api/webauthn/login/finish", h.handleWebAuthnLoginFinish)
 
+	// Docker registry token endpoint
+	mux.HandleFunc("GET /v2/token", h.handleRegistryToken)
+
 	// Health check
 	mux.HandleFunc("GET /healthz", h.handleHealthz)
 }

@@ -33,6 +33,7 @@ type clientConfig struct {
 	dialOptions      []grpc.DialOption
 	chunkTimeout     time.Duration
 	maxChunkSize     int64
+	uploadBufferSize int64 // Buffer size for double-buffered uploads (0 = use maxChunkSize)
 	readConcurrency  int
 	secretProvider   SecretProvider
 	replicaPicker    ReplicaPicker
@@ -62,16 +63,17 @@ func New(ctx context.Context, masterAddr string, opts ...Option) (*Client, error
 	}
 
 	client := &Client{
-		masterAddr:      masterAddr,
-		conn:            conn,
-		master:          pb.NewMasterClient(conn),
-		chunkTimeout:    cfg.chunkTimeout,
-		maxChunkSize:    cfg.maxChunkSize,
-		readConcurrency: cfg.readConcurrency,
-		secretProvider:  cfg.secretProvider,
-		replicaPicker:   cfg.replicaPicker,
-		chunkCache:      make(map[fileKey]*chunkCache),
-		knownFiles:      make(map[fileKey]struct{}),
+		masterAddr:       masterAddr,
+		conn:             conn,
+		master:           pb.NewMasterClient(conn),
+		chunkTimeout:     cfg.chunkTimeout,
+		maxChunkSize:     cfg.maxChunkSize,
+		uploadBufferSize: cfg.uploadBufferSize,
+		readConcurrency:  cfg.readConcurrency,
+		secretProvider:   cfg.secretProvider,
+		replicaPicker:    cfg.replicaPicker,
+		chunkCache:       make(map[fileKey]*chunkCache),
+		knownFiles:       make(map[fileKey]struct{}),
 	}
 
 	if cfg.enableConnPool {
@@ -83,14 +85,15 @@ func New(ctx context.Context, masterAddr string, opts ...Option) (*Client, error
 
 // Client is the SDK entry point for interacting with Go-GFS.
 type Client struct {
-	masterAddr      string
-	conn            *grpc.ClientConn
-	master          pb.MasterClient
-	chunkTimeout    time.Duration
-	maxChunkSize    int64
-	readConcurrency int
-	secretProvider  SecretProvider
-	replicaPicker   ReplicaPicker
+	masterAddr       string
+	conn             *grpc.ClientConn
+	master           pb.MasterClient
+	chunkTimeout     time.Duration
+	maxChunkSize     int64
+	uploadBufferSize int64
+	readConcurrency  int
+	secretProvider   SecretProvider
+	replicaPicker    ReplicaPicker
 
 	chunkCacheMu sync.RWMutex
 	chunkCache   map[fileKey]*chunkCache
@@ -135,6 +138,17 @@ func WithMaxChunkSize(size int64) Option {
 	}
 }
 
+// WithUploadBufferSize sets the per-buffer size used during double-buffered uploads.
+// This controls how much memory each concurrent upload consumes (2x this value for double-buffering).
+// If not set or set to 0, defaults to maxChunkSize (64MB).
+func WithUploadBufferSize(size int64) Option {
+	return func(cfg *clientConfig) {
+		if size > 0 {
+			cfg.uploadBufferSize = size
+		}
+	}
+}
+
 // WithSecretProvider overrides the JWT signing secret provider.
 func WithSecretProvider(provider SecretProvider) Option {
 	return func(cfg *clientConfig) {
@@ -172,6 +186,15 @@ func WithConnectionPool(maxIdlePerHost int, idleTimeout time.Duration) Option {
 		cfg.connPoolMaxIdle = maxIdlePerHost
 		cfg.connPoolIdleTime = idleTimeout
 	}
+}
+
+// effectiveUploadBufferSize returns the buffer size to use for double-buffered uploads.
+// Falls back to maxChunkSize when uploadBufferSize is not explicitly configured.
+func (c *Client) effectiveUploadBufferSize() int64 {
+	if c.uploadBufferSize > 0 {
+		return c.uploadBufferSize
+	}
+	return c.maxChunkSize
 }
 
 // isFileKnown checks if a file is in the known files cache.
