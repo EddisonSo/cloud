@@ -176,7 +176,7 @@ ORDER BY r.name`
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(repos)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"repositories": repos})
 }
 
 // handleAPIGetRepo handles GET /api/repos/{name}.
@@ -272,7 +272,7 @@ ORDER BY t.name`
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(tags)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"name": repoName, "tags": tags})
 }
 
 // handleAPISetVisibility handles PUT /api/repos/{name}/visibility.
