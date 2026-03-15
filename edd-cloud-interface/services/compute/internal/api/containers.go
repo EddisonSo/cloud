@@ -598,13 +598,20 @@ func (h *Handler) ListImages(w http.ResponseWriter, r *http.Request) {
 		{"name": "Debian (Base)", "image": defaultImage, "source": "builtin"},
 	}
 
-	// Query internal registry for catalog
+	// Query internal registry for catalog, forwarding user's session token
 	registryURL := os.Getenv("REGISTRY_URL")
 	if registryURL == "" {
 		registryURL = "http://edd-registry:80"
 	}
 
-	resp, err := http.Get(registryURL + "/v2/_catalog")
+	// Forward user's auth token so the registry returns their private repos too
+	authHeader := r.Header.Get("Authorization")
+
+	catalogReq, _ := http.NewRequestWithContext(r.Context(), "GET", registryURL+"/v2/_catalog", nil)
+	if authHeader != "" {
+		catalogReq.Header.Set("Authorization", authHeader)
+	}
+	resp, err := http.DefaultClient.Do(catalogReq)
 	if err == nil && resp.StatusCode == http.StatusOK {
 		defer resp.Body.Close()
 		var catalog struct {
@@ -612,8 +619,16 @@ func (h *Handler) ListImages(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.NewDecoder(resp.Body).Decode(&catalog) == nil {
 			for _, repo := range catalog.Repositories {
-				tagResp, err := http.Get(fmt.Sprintf("%s/v2/%s/tags/list", registryURL, repo))
+				tagReq, _ := http.NewRequestWithContext(r.Context(), "GET",
+					fmt.Sprintf("%s/v2/%s/tags/list", registryURL, repo), nil)
+				if authHeader != "" {
+					tagReq.Header.Set("Authorization", authHeader)
+				}
+				tagResp, err := http.DefaultClient.Do(tagReq)
 				if err != nil || tagResp.StatusCode != http.StatusOK {
+					if tagResp != nil {
+						tagResp.Body.Close()
+					}
 					continue
 				}
 				var tagList struct {
