@@ -38,6 +38,9 @@ CLAUDE.md
 .claude/
 claude_context.md
 
+# Superpowers AI
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
