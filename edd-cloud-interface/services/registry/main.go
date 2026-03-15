@@ -52,7 +52,6 @@ func main() {
 	ctx := context.Background()
 	gfsClient, err := gfs.New(ctx, *master,
 		gfs.WithConnectionPool(8, 60*time.Second),
-		gfs.WithUploadBufferSize(64*1024),
 	)
 	if err != nil {
 		log.Fatalf("failed to connect to gfs master: %v", err)
