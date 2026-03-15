@@ -116,8 +116,13 @@ func (s *server) registerRoutes(mux *http.ServeMux) {
 func (s *server) routeV2(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	// GET /v2/ — API version check
+	// GET /v2/ — API version check (requires auth per Docker token protocol)
 	if path == "/v2/" && r.Method == http.MethodGet {
+		auth := s.authenticate(r)
+		if auth == nil {
+			s.requireAuth(w, "", "")
+			return
+		}
 		w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
 		w.WriteHeader(http.StatusOK)
 		return
