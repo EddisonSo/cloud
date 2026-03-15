@@ -529,6 +529,54 @@ For service account tokens, the response includes the service account's current 
 
 ---
 
+## Docker Registry Token
+
+### GET /v2/token
+
+Issues a short-lived JWT for Docker Token Authentication. This endpoint is called automatically by Docker/OCI clients when accessing `registry.cloud.eddisonso.com`. It is not typically called directly.
+
+**Auth:** HTTP Basic (optional — omit for anonymous/public access)
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| service | string | query | Yes | Registry hostname (e.g. `registry.cloud.eddisonso.com`) |
+| scope | string | query | No | OCI scope string (e.g. `repository:ecloud-auth:pull,push`) |
+
+**Example request (user login):**
+```bash
+curl -u "eddison:mypassword" \
+  "https://auth.cloud.eddisonso.com/v2/token?service=registry.cloud.eddisonso.com&scope=repository:ecloud-auth:pull,push"
+```
+
+**Example request (service account):**
+```bash
+curl -u "my-sa:ecloud_eyJhbGci..." \
+  "https://auth.cloud.eddisonso.com/v2/token?service=registry.cloud.eddisonso.com&scope=repository:ecloud-auth:pull"
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGci...",
+  "expires_in": 300,
+  "issued_at": "2026-03-15T12:00:00Z"
+}
+```
+
+The returned `token` is a JWT valid for 5 minutes. The `access` claim contains the granted OCI scopes. Actions not permitted (e.g. push to another user's private repo) are silently dropped from the granted set — the token is still issued, just with reduced scope.
+
+**Access rules:**
+
+| Identity | Pull (public) | Pull (private) | Push |
+|----------|--------------|----------------|------|
+| Anonymous | Yes | No | No |
+| Authenticated user | Yes | Own repos | Own repos |
+| Service account | Yes | Scoped repos | Scoped repos |
+
+For service account tokens, scopes are mapped from the `storage.<userID>.registry.<repo>` scope format to OCI `pull`/`push` actions. A wildcard `storage.<userID>.registry` scope grants access to all of that user's repositories.
+
+---
+
 ## Service Accounts
 
 Service accounts separate identity and permissions from credentials. Create a service account with scoped permissions, then generate tokens that inherit those permissions. Updating a service account's scopes takes effect for all its tokens within the 5-minute cache TTL.
