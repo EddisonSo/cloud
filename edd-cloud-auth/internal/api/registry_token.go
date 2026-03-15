@@ -58,21 +58,22 @@ func (h *Handler) handleRegistryToken(w http.ResponseWriter, r *http.Request) {
 			// Authenticated as a regular user
 			tokenSubject = userID
 			granted = h.filterAccessByUser(requested, userID)
-		} else {
+		} else if strings.HasPrefix(password, "ecloud_") {
 			// Try service account token auth (ecloud_ prefix)
-			if strings.HasPrefix(password, "ecloud_") {
-				userID, saID, err := h.authenticateRegistryServiceAccount(username, password)
-				if err == nil {
-					tokenSubject = userID
-					granted = h.filterAccessByServiceAccount(requested, saID, userID)
-				} else {
-					// Auth failed — issue empty token (no access)
-					granted = nil
-				}
+			userID, saID, err := h.authenticateRegistryServiceAccount(username, password)
+			if err == nil {
+				tokenSubject = userID
+				granted = h.filterAccessByServiceAccount(requested, saID, userID)
 			} else {
-				// Invalid credentials — issue empty token
 				granted = nil
 			}
+		} else if access, sub, ok := h.validateInternalToken(password); ok {
+			// Internal service token (JWT minted by compute/other services with shared secret)
+			tokenSubject = sub
+			granted = access
+		} else {
+			// Invalid credentials — issue empty token
+			granted = nil
 		}
 	} else {
 		// Anonymous — pull-only on public repos
@@ -302,6 +303,29 @@ func (h *Handler) filterAccessByServiceAccount(requested []registryAccess, saID,
 		}
 	}
 	return granted
+}
+
+// validateInternalToken checks if a password is a valid internal JWT with pre-authorized access.
+// Used by compute service to create imagePullSecrets with scoped pull tokens.
+func (h *Handler) validateInternalToken(tokenStr string) ([]registryAccess, string, bool) {
+	type internalClaims struct {
+		Access []registryAccess `json:"access,omitempty"`
+		jwt.RegisteredClaims
+	}
+	token, err := jwt.ParseWithClaims(tokenStr, &internalClaims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return h.jwtSecret, nil
+	})
+	if err != nil {
+		return nil, "", false
+	}
+	claims, ok := token.Claims.(*internalClaims)
+	if !ok || claims.Subject == "" || len(claims.Access) == 0 {
+		return nil, "", false
+	}
+	return claims.Access, claims.Subject, true
 }
 
 // filterAccessAnonymous grants pull-only access to public repos.

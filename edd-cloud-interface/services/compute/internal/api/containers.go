@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -263,18 +264,22 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 		return
 	}
 
-	// If using a registry image, create imagePullSecret
+	// If using a registry image, create imagePullSecret with a short-lived OCI token
 	if strings.HasPrefix(container.Image, "registry.cloud.eddisonso.com/") {
-		registrySecret, err := h.k8s.GetRegistryPullCredentials(ctx)
+		repoName := strings.TrimPrefix(container.Image, "registry.cloud.eddisonso.com/")
+		// Strip tag/digest from repo name
+		if idx := strings.LastIndex(repoName, ":"); idx != -1 {
+			repoName = repoName[:idx]
+		}
+		if idx := strings.LastIndex(repoName, "@"); idx != -1 {
+			repoName = repoName[:idx]
+		}
+		token, err := mintRegistryPullToken(container.UserID, repoName)
 		if err != nil {
-			slog.Error("failed to get registry pull credentials", "error", err)
-		} else {
-			username := string(registrySecret["username"])
-			token := string(registrySecret["token"])
-			if err := h.k8s.CreateImagePullSecret(ctx, container.Namespace,
-				"registry.cloud.eddisonso.com", username, token); err != nil {
-				slog.Error("failed to create pull secret", "error", err)
-			}
+			slog.Error("failed to mint registry pull token", "error", err)
+		} else if err := h.k8s.CreateImagePullSecret(ctx, container.Namespace,
+			"registry.cloud.eddisonso.com", container.UserID, token); err != nil {
+			slog.Error("failed to create pull secret", "error", err)
 		}
 	}
 
@@ -764,4 +769,42 @@ func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
 		"mount_paths": req.MountPaths,
 		"restarted":   wasRunning,
 	})
+}
+
+// mintRegistryPullToken creates a short-lived OCI registry JWT granting pull access to a repository.
+// Uses the shared JWT_SECRET that the auth service and registry both trust.
+func mintRegistryPullToken(userID, repoName string) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return "", fmt.Errorf("JWT_SECRET not set")
+	}
+
+	type registryAccess struct {
+		Type    string   `json:"type"`
+		Name    string   `json:"name"`
+		Actions []string `json:"actions"`
+	}
+	type registryClaims struct {
+		Access []registryAccess `json:"access,omitempty"`
+		jwt.RegisteredClaims
+	}
+
+	now := time.Now()
+	claims := registryClaims{
+		Access: []registryAccess{{
+			Type:    "repository",
+			Name:    repoName,
+			Actions: []string{"pull"},
+		}},
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(10 * time.Minute)),
+			Issuer:    "auth.cloud.eddisonso.com",
+			Subject:   userID,
+			Audience:  jwt.ClaimStrings{"registry.cloud.eddisonso.com"},
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
 }

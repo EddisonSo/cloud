@@ -67,15 +67,6 @@ func (c *Client) DeleteNamespace(ctx context.Context, name string) error {
 	return nil
 }
 
-// GetRegistryPullCredentials reads registry pull credentials from the K8s secret in the service namespace
-func (c *Client) GetRegistryPullCredentials(ctx context.Context) (map[string][]byte, error) {
-	secret, err := c.clientset.CoreV1().Secrets("default").Get(ctx, "registry-pull-credentials", metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("get registry pull credentials: %w", err)
-	}
-	return secret.Data, nil
-}
-
 // CreateImagePullSecret creates a docker registry pull secret in a container namespace
 func (c *Client) CreateImagePullSecret(ctx context.Context, namespace, registryURL, username, token string) error {
 	dockerConfig := fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`,
