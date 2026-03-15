@@ -25,6 +25,7 @@ env:
   CLUSTER_MONITOR_IMAGE: docker.io/eddisonso/cluster-monitor
   NOTIFICATIONS_IMAGE: docker.io/eddisonso/ecloud-notifications
   ALERTING_IMAGE: docker.io/eddisonso/alerting-service
+  REGISTRY_IMAGE: docker.io/eddisonso/ecloud-registry
 
 jobs:
   # Detect which services have changes
@@ -44,6 +45,7 @@ jobs:
       cluster-monitor: ${{ steps.filter.outputs.cluster-monitor }}
       notifications: ${{ steps.filter.outputs.notifications }}
       alerting: ${{ steps.filter.outputs.alerting }}
+      registry: ${{ steps.filter.outputs.registry }}
       any_service: ${{ steps.filter.outputs.any_service }}
       manifests: ${{ steps.filter.outputs.manifests }}
       image_tag: ${{ steps.tag.outputs.image_tag }}
@@ -94,6 +96,9 @@ jobs:
               - 'alerting-service/**'
               - 'go-gfs/**'
               - 'proto/**'
+            registry:
+              - 'edd-cloud-interface/services/registry/**'
+              - 'go-gfs/**'
             manifests:
               - 'manifests/**'
               - 'edd-gateway/manifests/**'
@@ -522,6 +527,46 @@ jobs:
             -t ${ALERTING_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
+  # Build Registry service
+  build-registry:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.registry == 'true' || github.event.inputs.force_all == 'true'
+    env:
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install proto tooling
+        run: |
+          sudo apt-get update && sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: Generate go-gfs protobufs
+        working-directory: go-gfs
+        run: make proto
+      - name: Build & push
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            -f edd-cloud-interface/services/registry/Dockerfile \
+            -t ${REGISTRY_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
+            --provenance=false --sbom=false --push .
+
   # Create manifests for built services
   create-manifests:
     needs:
@@ -538,6 +583,7 @@ jobs:
       - build-gfs
       - build-notifications
       - build-alerting
+      - build-registry
     if: always() && (needs.detect-changes.outputs.any_service == 'true' || github.event.inputs.force_all == 'true')
     runs-on: ubuntu-latest
     env:
@@ -555,6 +601,7 @@ jobs:
       gfs_built: ${{ steps.check.outputs.gfs_built }}
       notifications_built: ${{ steps.check.outputs.notifications_built }}
       alerting_built: ${{ steps.check.outputs.alerting_built }}
+      registry_built: ${{ steps.check.outputs.registry_built }}
       manifests_changed: ${{ needs.detect-changes.outputs.manifests }}
       image_tag: ${{ needs.detect-changes.outputs.image_tag }}
     steps:
@@ -577,6 +624,7 @@ jobs:
           echo "gfs_built=${{ needs.build-gfs.result == 'success' }}" >> $GITHUB_OUTPUT
           echo "notifications_built=${{ needs.build-notifications.result == 'success' }}" >> $GITHUB_OUTPUT
           echo "alerting_built=${{ needs.build-alerting.result == 'success' }}" >> $GITHUB_OUTPUT
+          echo "registry_built=${{ needs.build-registry.result == 'success' }}" >> $GITHUB_OUTPUT
       - name: Create SFS manifest
         if: needs.build-sfs.result == 'success'
         run: |
@@ -709,6 +757,17 @@ jobs:
             ${ALERTING_IMAGE}:${IMAGE_TAG}-amd64
           docker manifest push ${ALERTING_IMAGE}:${IMAGE_TAG}
           docker manifest push ${ALERTING_IMAGE}:latest
+      - name: Create Registry manifest
+        if: needs.build-registry.result == 'success'
+        run: |
+          docker manifest create ${REGISTRY_IMAGE}:${IMAGE_TAG} \
+            ${REGISTRY_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${REGISTRY_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest create ${REGISTRY_IMAGE}:latest \
+            ${REGISTRY_IMAGE}:${IMAGE_TAG}-arm64 \
+            ${REGISTRY_IMAGE}:${IMAGE_TAG}-amd64
+          docker manifest push ${REGISTRY_IMAGE}:${IMAGE_TAG}
+          docker manifest push ${REGISTRY_IMAGE}:latest
 
   # Deploy only the services that were built
   deploy:
@@ -746,6 +805,12 @@ jobs:
           kubectl apply -f edd-gateway/manifests/gateway.yaml 2>&1 || echo "::warning::Some gateway resources could not be applied (RBAC resources are managed by cluster admin)"
           kubectl apply -f edd-gateway/manifests/gateway-routes.yaml
           [ -n "$GW_IMG" ] && kubectl -n $NS set image deploy/gateway gateway="$GW_IMG"
+      - name: Apply registry manifest changes
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
+        run: |
+          REG_IMG=$(kubectl -n $NS get deploy/edd-registry -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          kubectl apply -f manifests/edd-registry/edd-registry.yaml
+          [ -n "$REG_IMG" ] && kubectl -n $NS set image deploy/edd-registry registry="$REG_IMG"
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
         run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
@@ -782,3 +847,6 @@ jobs:
       - name: Deploy Alerting
         if: needs.create-manifests.outputs.alerting_built == 'true'
         run: kubectl -n $NS set image deployment/alerting-service alerting-service=${ALERTING_IMAGE}:${IMAGE_TAG}
+      - name: Deploy Registry
+        if: needs.create-manifests.outputs.registry_built == 'true'
+        run: kubectl -n $NS set image deployment/edd-registry registry=${REGISTRY_IMAGE}:${IMAGE_TAG}
