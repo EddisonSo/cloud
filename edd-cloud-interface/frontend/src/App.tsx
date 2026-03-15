@@ -13,6 +13,7 @@ import {
   ServiceAccountsPage,
   SettingsPage,
   NotFoundPage,
+  RegistryPage,
 } from "@/pages";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/compute" replace />} />
               <Route path="/storage" element={<StoragePage />} />
+              <Route path="/storage/registry/*" element={<RegistryPage />} />
               <Route path="/storage/:namespace" element={<StoragePage />} />
               <Route path="/compute" element={<Navigate to="/compute/containers" replace />} />
               <Route path="/compute/containers" element={<ComputePage view="containers" />} />

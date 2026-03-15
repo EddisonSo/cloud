@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Select } from "@/components/ui/select";
+import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { X, Plus, Trash2 } from "lucide-react";
 import type { SshKey, CreateContainerData } from "@/types";
 
@@ -159,34 +159,45 @@ export function CreateContainerForm({
 
           <div className="space-y-2">
             <Label htmlFor="c-instance-type">Instance Type</Label>
-            <Select
-              id="c-instance-type"
+            <DropdownSelect
               value={instanceType}
-              onChange={(e) => setInstanceType(e.target.value)}
-              className="w-full"
-            >
-              <option value="nano">Nano (ARM64, 0.5 CPU)</option>
-              <option value="micro">Micro (ARM64, 1 CPU)</option>
-              <option value="mini">Mini (ARM64, 2 CPU)</option>
-              <option value="tiny">Tiny (AMD64, 1 CPU)</option>
-              <option value="small">Small (AMD64, 2 CPU)</option>
-              <option value="medium">Medium (AMD64, 4 CPU)</option>
-            </Select>
+              onChange={(val) => setInstanceType(val)}
+              groups={[
+                {
+                  label: "ARM64",
+                  options: [
+                    { value: "nano", label: "Nano (ARM64, 0.5 CPU)" },
+                    { value: "micro", label: "Micro (ARM64, 1 CPU)" },
+                    { value: "mini", label: "Mini (ARM64, 2 CPU)" },
+                  ],
+                },
+                {
+                  label: "AMD64",
+                  options: [
+                    { value: "tiny", label: "Tiny (AMD64, 1 CPU)" },
+                    { value: "small", label: "Small (AMD64, 2 CPU)" },
+                    { value: "medium", label: "Medium (AMD64, 4 CPU)" },
+                  ],
+                },
+              ]}
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="c-image">Image</Label>
-            <Select
-              id="c-image"
+            <DropdownSelect
               value={selectedImage}
-              onChange={(e) => setSelectedImage(e.target.value)}
-              className="w-full"
-            >
-              <option value="">Default (Debian Base)</option>
-              {images.filter((i) => i.source === "registry").map((img) => (
-                <option key={img.image} value={img.image}>{img.name}</option>
-              ))}
-            </Select>
+              onChange={(val) => setSelectedImage(val)}
+              placeholder="Default (Debian Base)"
+              searchable
+              options={[
+                { value: "", label: "Default (Debian Base)" },
+                ...images.filter((i) => i.source === "registry").map((img) => ({
+                  value: img.image,
+                  label: img.name,
+                })),
+              ]}
+            />
           </div>
 
           <div className="space-y-2">

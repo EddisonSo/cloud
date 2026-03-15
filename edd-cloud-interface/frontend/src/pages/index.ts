@@ -1,4 +1,5 @@
 export { StoragePage } from "./StoragePage";
+export { RegistryPage } from "./RegistryPage";
 export { ComputePage } from "./ComputePage";
 export { MessageQueuePage } from "./MessageQueuePage";
 export { DatastorePage } from "./DatastorePage";

@@ -58,6 +58,9 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client, notifier *notifypub.Publ
 	// Cloud terminal endpoint
 	h.mux.HandleFunc("GET /compute/containers/{id}/terminal", h.authMiddleware(h.scopeCheckContainer("update", h.HandleTerminal)))
 
+	// Container log streaming endpoint
+	h.mux.HandleFunc("GET /compute/containers/{id}/logs", h.authMiddleware(h.scopeCheckContainer("read", h.HandleContainerLogs)))
+
 	// SSH access toggle (for gateway SSH routing)
 	h.mux.HandleFunc("GET /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheckContainer("read", h.GetSSHAccess)))
 	h.mux.HandleFunc("PUT /compute/containers/{id}/ssh", h.authMiddleware(h.scopeCheckContainer("update", h.UpdateSSHAccess)))

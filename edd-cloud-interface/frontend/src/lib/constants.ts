@@ -7,7 +7,8 @@ import {
   Settings,
   Box,
   Key,
-  KeyRound
+  KeyRound,
+  Package,
 } from "lucide-react";
 import type { NavItem } from "@/types";
 
@@ -22,7 +23,16 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "ssh-keys", label: "SSH Keys", icon: Key, path: "/compute/ssh-keys" },
     ],
   },
-  { id: "storage", label: "Storage", icon: HardDrive, path: "/storage" },
+  {
+    id: "storage",
+    label: "Storage",
+    icon: HardDrive,
+    path: "/storage",
+    subItems: [
+      { id: "files", label: "Files", icon: HardDrive, path: "/storage" },
+      { id: "registry", label: "Registry", icon: Package, path: "/storage/registry" },
+    ],
+  },
   { id: "message-queue", label: "Message Queue", icon: MessageSquare, path: "/message-queue" },
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   {

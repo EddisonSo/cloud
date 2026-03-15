@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
@@ -677,6 +678,31 @@ func (c *Client) ListAllNamespaces(ctx context.Context) ([]NamespaceInfo, error)
 		result = append(result, info)
 	}
 	return result, nil
+}
+
+// GetPodName returns the name of the running pod in the given namespace.
+func (c *Client) GetPodName(ctx context.Context, namespace string) (string, error) {
+	pods, err := c.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, pod := range pods.Items {
+		if pod.Status.Phase == corev1.PodRunning {
+			return pod.Name, nil
+		}
+	}
+	return "", fmt.Errorf("no running pod found in namespace %s", namespace)
+}
+
+// GetPodLogs streams logs from the given pod.
+func (c *Client) GetPodLogs(ctx context.Context, namespace, podName string, follow bool, tailLines int64) (io.ReadCloser, error) {
+	opts := &corev1.PodLogOptions{
+		Container: "main",
+		Follow:    follow,
+		Timestamps: true,
+		TailLines: &tailLines,
+	}
+	return c.clientset.CoreV1().Pods(namespace).GetLogs(podName, opts).Stream(ctx)
 }
 
 // extractJSONField is a simple helper to extract a field value from JSON

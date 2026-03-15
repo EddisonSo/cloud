@@ -598,51 +598,55 @@ func (h *Handler) ListImages(w http.ResponseWriter, r *http.Request) {
 		{"name": "Debian (Base)", "image": defaultImage, "source": "builtin"},
 	}
 
-	// Query internal registry for catalog, forwarding user's session token
 	registryURL := os.Getenv("REGISTRY_URL")
 	if registryURL == "" {
 		registryURL = "http://edd-registry:80"
 	}
 
-	// Forward user's auth token so the registry returns their private repos too
 	authHeader := r.Header.Get("Authorization")
 
-	catalogReq, _ := http.NewRequestWithContext(r.Context(), "GET", registryURL+"/v2/_catalog", nil)
+	req, _ := http.NewRequestWithContext(r.Context(), "GET", registryURL+"/api/repos", nil)
 	if authHeader != "" {
-		catalogReq.Header.Set("Authorization", authHeader)
+		req.Header.Set("Authorization", authHeader)
 	}
-	resp, err := http.DefaultClient.Do(catalogReq)
-	if err == nil && resp.StatusCode == http.StatusOK {
-		defer resp.Body.Close()
-		var catalog struct {
-			Repositories []string `json:"repositories"`
-		}
-		if json.NewDecoder(resp.Body).Decode(&catalog) == nil {
-			for _, repo := range catalog.Repositories {
-				tagReq, _ := http.NewRequestWithContext(r.Context(), "GET",
-					fmt.Sprintf("%s/v2/%s/tags/list", registryURL, repo), nil)
-				if authHeader != "" {
-					tagReq.Header.Set("Authorization", authHeader)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(images)
+		return
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		Repositories []struct {
+			Name string `json:"name"`
+		} `json:"repositories"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&data) == nil {
+		for _, repo := range data.Repositories {
+			tagReq, _ := http.NewRequestWithContext(r.Context(), "GET",
+				fmt.Sprintf("%s/api/repos/%s/tags", registryURL, repo.Name), nil)
+			if authHeader != "" {
+				tagReq.Header.Set("Authorization", authHeader)
+			}
+			tagResp, err := http.DefaultClient.Do(tagReq)
+			if err != nil || tagResp.StatusCode != http.StatusOK {
+				if tagResp != nil {
+					tagResp.Body.Close()
 				}
-				tagResp, err := http.DefaultClient.Do(tagReq)
-				if err != nil || tagResp.StatusCode != http.StatusOK {
-					if tagResp != nil {
-						tagResp.Body.Close()
-					}
-					continue
-				}
-				var tagList struct {
-					Tags []string `json:"tags"`
-				}
-				json.NewDecoder(tagResp.Body).Decode(&tagList)
-				tagResp.Body.Close()
-				for _, tag := range tagList.Tags {
-					images = append(images, map[string]string{
-						"name":   fmt.Sprintf("%s:%s", repo, tag),
-						"image":  fmt.Sprintf("registry.cloud.eddisonso.com/%s:%s", repo, tag),
-						"source": "registry",
-					})
-				}
+				continue
+			}
+			var tagData struct {
+				Tags []struct{ Name string `json:"name"` } `json:"tags"`
+			}
+			json.NewDecoder(tagResp.Body).Decode(&tagData)
+			tagResp.Body.Close()
+			for _, tag := range tagData.Tags {
+				images = append(images, map[string]string{
+					"name":   fmt.Sprintf("%s:%s", repo.Name, tag.Name),
+					"image":  fmt.Sprintf("registry.cloud.eddisonso.com/%s:%s", repo.Name, tag.Name),
+					"source": "registry",
+				})
 			}
 		}
 	}

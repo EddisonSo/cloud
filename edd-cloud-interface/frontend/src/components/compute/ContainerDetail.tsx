@@ -7,6 +7,7 @@ import { CopyableText } from "@/components/common";
 import { ArrowLeft, Plus, Trash2, Terminal, Play, Square } from "lucide-react";
 import { formatBytes } from "@/lib/formatters";
 import type { Container, ContainerAction, IngressRule } from "@/types";
+import { ContainerLogs } from "./ContainerLogs";
 
 interface ContainerAccessState {
   container: Container | null;
@@ -49,6 +50,7 @@ export function ContainerDetail({
   const [newPort, setNewPort] = useState<string>("");
   const [newTargetPort, setNewTargetPort] = useState<string>("");
   const [newMountPath, setNewMountPath] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"info" | "logs">("info");
 
   const action = actions?.[container.id];
   const isRunning = container.status === "running";
@@ -90,6 +92,24 @@ export function ContainerDetail({
         <StatusChip status={container.status} />
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setActiveTab("info")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "info" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+        >
+          Info
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "logs" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+        >
+          Logs
+        </button>
+      </div>
+
+      {activeTab === "info" && (
+      <>
       {/* Info Section */}
       <div className="bg-card border border-border rounded-lg mb-4">
         <div className="px-5 py-4 border-b border-border">
@@ -317,6 +337,12 @@ export function ContainerDetail({
           )}
         </div>
       </div>
+      </>
+      )}
+
+      {activeTab === "logs" && (
+        <ContainerLogs containerId={container.id} active={activeTab === "logs"} />
+      )}
     </div>
   );
 }

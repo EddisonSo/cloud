@@ -60,6 +60,10 @@ export function buildHealthBase(): string {
   return buildServiceBase("health");
 }
 
+export function buildRegistryBase(): string {
+  return buildServiceBase("registry");
+}
+
 export function buildNotificationsBase(): string {
   return buildServiceBase("notifications");
 }
