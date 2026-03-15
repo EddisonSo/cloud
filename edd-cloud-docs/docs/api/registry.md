@@ -81,11 +81,11 @@ curl "https://registry.cloud.eddisonso.com/v2/_catalog?n=10&last=myuser/myimage"
 
 ## Blobs
 
-### HEAD /v2/{name}/blobs/{digest}
+### HEAD /v2/\{name\}/blobs/\{digest\}
 
 Check if a blob exists. Returns `200` with `Content-Length` if found, `404` if not.
 
-**Auth:** `pull` on `{name}`
+**Auth:** `pull` on `\{name\}`
 
 ```bash
 curl -I "https://registry.cloud.eddisonso.com/v2/myuser/myimage/blobs/sha256:abc123..." \
@@ -94,11 +94,11 @@ curl -I "https://registry.cloud.eddisonso.com/v2/myuser/myimage/blobs/sha256:abc
 
 ---
 
-### GET /v2/{name}/blobs/{digest}
+### GET /v2/\{name\}/blobs/\{digest\}
 
 Download a blob by its content digest.
 
-**Auth:** `pull` on `{name}`
+**Auth:** `pull` on `\{name\}`
 
 ```bash
 curl -o layer.tar.gz \
@@ -110,11 +110,11 @@ curl -o layer.tar.gz \
 
 ---
 
-### DELETE /v2/{name}/blobs/{digest}
+### DELETE /v2/\{name\}/blobs/\{digest\}
 
 Mark a blob for garbage collection. The blob is not removed from GFS immediately — it is swept on the next GC cycle (every 24 hours).
 
-**Auth:** `delete` on `{name}`
+**Auth:** `delete` on `\{name\}`
 
 ```bash
 curl -X DELETE \
@@ -125,11 +125,11 @@ curl -X DELETE \
 
 ---
 
-### POST /v2/{name}/blobs/uploads/
+### POST /v2/\{name\}/blobs/uploads/
 
 Start a blob upload session. Supports both chunked and monolithic (single-PUT) uploads.
 
-**Auth:** `push` on `{name}`
+**Auth:** `push` on `\{name\}`
 
 **Monolithic upload** (include `digest` query param and full body):
 ```bash
@@ -153,11 +153,11 @@ curl -X POST \
 
 ---
 
-### PATCH /v2/{name}/blobs/uploads/{uuid}
+### PATCH /v2/\{name\}/blobs/uploads/\{uuid\}
 
 Append a chunk to an in-progress upload.
 
-**Auth:** `push` on `{name}`
+**Auth:** `push` on `\{name\}`
 
 | Param | Type | In | Description |
 |-------|------|----|-------------|
@@ -176,11 +176,11 @@ curl -X PATCH \
 
 ---
 
-### PUT /v2/{name}/blobs/uploads/{uuid}
+### PUT /v2/\{name\}/blobs/uploads/\{uuid\}
 
 Finalize a chunked upload. Optionally include the last chunk in the body.
 
-**Auth:** `push` on `{name}`
+**Auth:** `push` on `\{name\}`
 
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
@@ -200,11 +200,11 @@ curl -X PUT \
 
 ## Manifests
 
-### HEAD /v2/{name}/manifests/{ref}
+### HEAD /v2/\{name\}/manifests/\{ref\}
 
-Check if a manifest exists. `{ref}` can be a tag name or a `sha256:...` digest.
+Check if a manifest exists. `\{ref\}` can be a tag name or a `sha256:...` digest.
 
-**Auth:** `pull` on `{name}`
+**Auth:** `pull` on `\{name\}`
 
 ```bash
 curl -I \
@@ -214,11 +214,11 @@ curl -I \
 
 ---
 
-### GET /v2/{name}/manifests/{ref}
+### GET /v2/\{name\}/manifests/\{ref\}
 
 Fetch a manifest by tag or digest.
 
-**Auth:** `pull` on `{name}`
+**Auth:** `pull` on `\{name\}`
 
 ```bash
 curl \
@@ -249,11 +249,11 @@ curl \
 
 ---
 
-### PUT /v2/{name}/manifests/{ref}
+### PUT /v2/\{name\}/manifests/\{ref\}
 
 Push a manifest. Creates a new tag or updates an existing one. All referenced blobs must already be uploaded.
 
-**Auth:** `push` on `{name}`
+**Auth:** `push` on `\{name\}`
 
 ```bash
 curl -X PUT \
@@ -268,11 +268,11 @@ curl -X PUT \
 
 ---
 
-### DELETE /v2/{name}/manifests/{ref}
+### DELETE /v2/\{name\}/manifests/\{ref\}
 
 Delete a manifest by tag or digest. Deleting a tag removes only the tag. Deleting a digest removes the manifest record and all tags pointing to it.
 
-**Auth:** `delete` on `{name}`
+**Auth:** `delete` on `\{name\}`
 
 ```bash
 curl -X DELETE \
@@ -285,11 +285,11 @@ curl -X DELETE \
 
 ## Tags
 
-### GET /v2/{name}/tags/list
+### GET /v2/\{name\}/tags/list
 
 List all tags for a repository.
 
-**Auth:** `pull` on `{name}`
+**Auth:** `pull` on `\{name\}`
 **Query params:** `n` (page size), `last` (pagination cursor)
 
 ```bash
