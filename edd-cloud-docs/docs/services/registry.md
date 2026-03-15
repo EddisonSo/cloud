@@ -62,6 +62,7 @@ Blob deletion via the API only marks the blob for GC; actual GFS object removal 
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string (from K8s Secret) |
 | `JWT_SECRET` | Yes | Shared HMAC secret for JWT validation (from K8s Secret) |
+| `NATS_URL` | No | NATS server URL (e.g. `nats://nats:4222`). When set, push and delete events are published via the notification publisher. |
 
 | Flag | Default | Description |
 |---|---|---|

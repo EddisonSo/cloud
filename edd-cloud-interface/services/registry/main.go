@@ -14,6 +14,7 @@ import (
 	"time"
 
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
+	notifypub "eddisonso.com/notification-service/pkg/publisher"
 	_ "github.com/lib/pq"
 )
 
@@ -23,6 +24,7 @@ type server struct {
 	gfs       *gfs.Client
 	db        *sql.DB
 	jwtSecret []byte
+	notifier  *notifypub.Publisher
 }
 
 func main() {
@@ -66,6 +68,17 @@ func main() {
 		gfs:       gfsClient,
 		db:        db,
 		jwtSecret: []byte(jwtSecret),
+	}
+
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		np, err := notifypub.New(natsURL, "edd-registry")
+		if err != nil {
+			slog.Warn("failed to create notification publisher", "error", err)
+		} else {
+			srv.notifier = np
+			defer np.Close()
+		}
 	}
 
 	mux := http.NewServeMux()

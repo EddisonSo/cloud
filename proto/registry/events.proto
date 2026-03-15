@@ -1,0 +1,31 @@
+syntax = "proto3";
+package registry;
+option go_package = "eddisonso.com/edd-cloud/proto/registry";
+import "common/types.proto";
+
+message ImagePushed {
+  common.EventMetadata metadata = 1;
+  string repository = 2;
+  string tag = 3;
+  string digest = 4;
+  string actor = 5;
+}
+
+message ImageDeleted {
+  common.EventMetadata metadata = 1;
+  string repository = 2;
+  string tag = 3;
+  string digest = 4;
+  string actor = 5;
+}
+
+message RepositoryCreated {
+  common.EventMetadata metadata = 1;
+  string repository = 2;
+  string owner_id = 3;
+}
+
+message RepositoryDeleted {
+  common.EventMetadata metadata = 1;
+  string repository = 2;
+}

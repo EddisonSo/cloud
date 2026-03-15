@@ -23,9 +23,11 @@ flowchart TB
     Gateway --> Logs[Log Service]
     Gateway --> Notif[Notification Service]
     Gateway --> Docs[Documentation]
+    Gateway --> Registry[Registry Service<br/>OCI v2]
 
     Auth --> NATS[NATS JetStream]
     Compute --> NATS
+    Registry --> NATS
     NATS --> Storage
     NATS --> Gateway
     NATS --> Notif
@@ -65,7 +67,7 @@ The cluster consists of 8 nodes with mixed architectures:
 |---------|----------|
 | s0 | gateway, gfs-master, postgres (primary), haproxy |
 | rp1 | postgres-replica |
-| rp2, rp3, rp4 | auth-service, edd-compute, log-service, cluster-monitor, alerting-service, notification-service, simple-file-share, edd-cloud-docs, nats |
+| rp2, rp3, rp4 | auth-service, edd-compute, log-service, cluster-monitor, alerting-service, notification-service, simple-file-share, edd-cloud-docs, edd-registry, nats |
 | s1, s2, s3 | k3s control plane, etcd, gfs-chunkservers (hostNetwork) |
 
 ## Network Architecture
@@ -99,6 +101,7 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 | `health.cloud.eddisonso.com` | Health/Monitoring API, Log streaming | cluster-monitor:80, log-service:80 |
 | `notifications.cloud.eddisonso.com` | Notification API | notification-service:80 |
 | `docs.cloud.eddisonso.com` | Documentation | edd-cloud-docs:80 |
+| `registry.cloud.eddisonso.com` | Container Registry (OCI v2) | edd-registry:80 |
 
 **`cloud-api.eddisonso.com` is DEPRECATED.** Legacy routes on this domain still exist in the gateway configuration but all new development uses the `*.cloud.eddisonso.com` subdomains.
 
@@ -119,6 +122,7 @@ All external traffic enters the cluster through the custom `edd-gateway`, which 
 | gfs-chunkserver-N | hostNetwork | 9080, 9081 | TCP (client), TCP (replication) |
 | postgres | ClusterIP | 5432 | PostgreSQL |
 | haproxy | ClusterIP | 5432 | PostgreSQL |
+| edd-registry | ClusterIP | 80 | HTTP (OCI v2) |
 | nats | ClusterIP | 4222, 8222 | NATS, HTTP |
 
 ### DNS
@@ -204,6 +208,7 @@ Each service owns its own database for loose coupling:
 | **SFS** | `sfs_db` | Namespaces, file metadata |
 | **Compute** | `compute_db` | Containers, SSH keys, ingress rules |
 | **Notifications** | `notifications_db` | User notifications |
+| **Registry** | `registry_db` | Repositories, manifests, tags, blobs, upload sessions |
 | **Gateway** | `gateway_db` | Static routes |
 
 ## Event-Driven Communication
@@ -215,6 +220,7 @@ flowchart TB
     Auth[Auth Service] -->|auth.user.*| NATS[NATS JetStream]
     ClusterMon[Cluster Monitor] -->|cluster.*| NATS
     LogSvc[Log Service] -->|log.error.*| NATS
+    Registry[Registry Service] -->|notify.*| NATS
 
     NATS -->|auth.user.*| SFS[Storage Service]
     NATS -->|auth.user.*| Compute[Compute Service]

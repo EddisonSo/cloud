@@ -278,6 +278,14 @@ func (s *server) handleManifestPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if s.notifier != nil && auth != nil {
+		s.notifier.Notify(r.Context(), auth.UserID,
+			"Image Pushed",
+			fmt.Sprintf("Image %s:%s pushed to registry", repoName, reference),
+			fmt.Sprintf("https://registry.cloud.eddisonso.com/v2/%s/manifests/%s", repoName, reference),
+			"registry", fmt.Sprintf("registry.%s", repoName))
+	}
+
 	w.Header().Set("Location", fmt.Sprintf("/v2/%s/manifests/%s", repoName, digest))
 	w.Header().Set("Docker-Content-Digest", digest)
 	w.WriteHeader(http.StatusCreated)
@@ -345,6 +353,14 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 	if err := s.cleanupManifest(r.Context(), repoID, repoName, digest, excludeTag); err != nil {
 		slog.Error("handleManifestDelete: cleanupManifest", "err", err)
 		// Non-fatal: GC will handle remaining cleanup
+	}
+
+	if s.notifier != nil && auth != nil {
+		s.notifier.Notify(r.Context(), auth.UserID,
+			"Image Deleted",
+			fmt.Sprintf("Image %s:%s deleted from registry", repoName, reference),
+			fmt.Sprintf("https://registry.cloud.eddisonso.com/v2/%s/manifests/%s", repoName, reference),
+			"registry", fmt.Sprintf("registry.%s", repoName))
 	}
 
 	w.WriteHeader(http.StatusAccepted)

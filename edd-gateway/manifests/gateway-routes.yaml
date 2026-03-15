@@ -156,3 +156,9 @@ data:
         path: /
         target: edd-cloud-docs:80
         strip_prefix: false
+
+      # Container registry service
+      - host: registry.cloud.eddisonso.com
+        path: /
+        target: edd-registry:80
+        strip_prefix: false
