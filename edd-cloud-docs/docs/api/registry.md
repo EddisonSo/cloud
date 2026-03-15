@@ -376,6 +376,7 @@ curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/tags \
 **Response:**
 ```json
 {
+  "name": "myuser/myapp",
   "tags": [
     {
       "name": "v1.0.0",
