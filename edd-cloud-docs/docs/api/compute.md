@@ -656,3 +656,34 @@ wss://compute.cloud.eddisonso.com/compute/containers/:id/terminal
 ```
 
 The container must be running. The server allocates a PTY (`xterm-256color`, 24x80) and proxies binary data between the WebSocket and the container's SSH session.
+
+---
+
+### GET /compute/containers/:id/logs
+
+WebSocket log stream for a running container. Streams stdout/stderr lines with RFC3339Nano timestamps.
+
+**Auth:** Session / API token
+**Token Scope:** `compute.<uid>.containers.<id>` with `read`
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| id | string | path | Yes | Container ID |
+| tail | int | query | No | Number of historical lines to send before following (default `100`) |
+
+**Connection:**
+```
+wss://compute.cloud.eddisonso.com/compute/containers/:id/logs?tail=100
+```
+
+The auth token may be passed as a `token` query parameter when a `Authorization` header is not possible (e.g., browser WebSocket connections):
+```
+wss://compute.cloud.eddisonso.com/compute/containers/:id/logs?token=<session_token>&tail=100
+```
+
+The container must be running. Each WebSocket message is one log line in the format:
+```
+2026-03-15T17:00:01.123456789Z Server started on :8080
+```
+
+The stream follows the container until the client disconnects or the container stops.

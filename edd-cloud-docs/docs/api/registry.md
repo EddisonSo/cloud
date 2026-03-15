@@ -308,6 +308,122 @@ curl \
 
 ---
 
+## Dashboard API
+
+These endpoints are used by the cloud dashboard (`cloud.eddisonso.com`) and accept session JWTs issued by the auth service. They are separate from the OCI `/v2/` endpoints used by Docker.
+
+**Auth:** Session JWT in `Authorization: Bearer <token>` header.
+
+CORS is enabled for `cloud.eddisonso.com` and `*.cloud.eddisonso.com` origins.
+
+---
+
+### GET /api/repos
+
+List repositories. Authenticated users see their own repositories plus all public repositories. Unauthenticated callers see only public repositories.
+
+**Auth:** Optional (session)
+
+```bash
+curl https://registry.cloud.eddisonso.com/api/repos \
+  -H "Authorization: Bearer $SESSION_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "repositories": [
+    {
+      "name": "myuser/myapp",
+      "visibility": 1,
+      "owner_id": "usr_abc123",
+      "tag_count": 3,
+      "total_size": 52428800,
+      "last_pushed": "2026-03-15T17:00:00Z"
+    }
+  ]
+}
+```
+
+`visibility`: `1` = public, `0` = private.
+
+---
+
+### GET /api/repos/\{name\}
+
+Get details for a single repository.
+
+**Auth:** Session (required for private repositories; optional for public)
+
+```bash
+curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp \
+  -H "Authorization: Bearer $SESSION_TOKEN"
+```
+
+---
+
+### GET /api/repos/\{name\}/tags
+
+List tags for a repository, including digest, size, and push date.
+
+**Auth:** Session (required for private repositories; optional for public)
+
+```bash
+curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/tags \
+  -H "Authorization: Bearer $SESSION_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "tags": [
+    {
+      "name": "v1.0.0",
+      "digest": "sha256:611fec88...",
+      "size": 25165824,
+      "pushed_at": "2026-03-15T17:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### PUT /api/repos/\{name\}/visibility
+
+Toggle a repository between public and private. Only the owner may change visibility.
+
+**Auth:** Session (owner only)
+
+```bash
+curl -X PUT https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/visibility \
+  -H "Authorization: Bearer $SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"visibility": 1}'
+```
+
+`visibility`: `1` = public, `0` = private.
+
+**Response:** `204 No Content`
+
+---
+
+### DELETE /api/repos/\{name\}/tags/\{tag\}
+
+Delete a tag. Only the owner may delete tags. If no other tag points to the same manifest, the manifest and unreferenced blobs are scheduled for garbage collection.
+
+**Auth:** Session (owner only)
+
+```bash
+curl -X DELETE \
+  "https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/tags/v1.0.0" \
+  -H "Authorization: Bearer $SESSION_TOKEN"
+```
+
+**Response:** `204 No Content`
+
+---
+
 ## Push/Pull Examples
 
 ### Push an image
