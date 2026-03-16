@@ -81,7 +81,7 @@ export function ContainerDetail({
   };
 
   return (
-    <div className="max-w-3xl">
+    <div>
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="outline" size="sm" onClick={onBack}>
@@ -109,7 +109,7 @@ export function ContainerDetail({
       </div>
 
       {activeTab === "info" && (
-      <>
+      <div className="max-w-3xl">
       {/* Info Section */}
       <div className="bg-card border border-border rounded-lg mb-4">
         <div className="px-5 py-4 border-b border-border">
@@ -337,7 +337,7 @@ export function ContainerDetail({
           )}
         </div>
       </div>
-      </>
+      </div>
       )}
 
       {activeTab === "logs" && (

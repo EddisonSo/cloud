@@ -91,7 +91,7 @@ export function ContainerLogs({ containerId, active }: ContainerLogsProps) {
         ref={containerRef}
         onScroll={handleScroll}
         className="relative overflow-y-auto font-mono text-xs bg-[#0d0d14] rounded-b-lg"
-        style={{ height: "500px" }}
+        style={{ height: "calc(100vh - 280px)", minHeight: "300px" }}
       >
         {logs.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
