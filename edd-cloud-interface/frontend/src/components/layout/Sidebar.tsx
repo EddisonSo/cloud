@@ -86,7 +86,7 @@ export function Sidebar({ healthOk = true, collapsed = false, onClose }: Sidebar
                         <NavLink
                           key={subItem.id}
                           to={subItem.path}
-                          onClick={onClose}
+                          onClick={() => { if (window.innerWidth < 768) onClose?.(); }}
                           className={cn(
                             "flex items-center gap-3 pl-12 pr-5 py-1.5 text-[13px] transition-colors relative",
                             "text-muted-foreground hover:text-foreground hover:bg-accent/50",
@@ -110,7 +110,7 @@ export function Sidebar({ healthOk = true, collapsed = false, onClose }: Sidebar
             <NavLink
               key={item.id}
               to={item.path}
-              onClick={onClose}
+              onClick={() => { if (window.innerWidth < 768) onClose?.(); }}
               className={cn(
                 "flex items-center gap-3 px-5 py-2 text-[13px] font-medium transition-colors relative",
                 "text-muted-foreground hover:text-foreground hover:bg-accent/50",
