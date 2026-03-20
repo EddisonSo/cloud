@@ -42,20 +42,10 @@ func (s *server) authenticate(r *http.Request) *authResult {
 	}
 	tokenStr := strings.TrimPrefix(auth, "Bearer ")
 
-	// Try OCI registry token first
-	token, err := jwt.ParseWithClaims(tokenStr, &registryClaims{}, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		return s.jwtSecret, nil
-	})
-	if err == nil {
-		if claims, ok := token.Claims.(*registryClaims); ok {
-			return &authResult{UserID: claims.Subject, Access: claims.Access}
-		}
-	}
-
-	// Try session token (from auth service, used for internal service-to-service calls)
+	// Try session token first (from auth service, used by the frontend dashboard).
+	// Must be checked before OCI registry tokens because both share the same
+	// signing key and registryClaims would successfully parse a session JWT,
+	// but would use Subject (username) as the UserID instead of the user_id claim.
 	sessToken, err := jwt.ParseWithClaims(tokenStr, &sessionClaims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -65,6 +55,19 @@ func (s *server) authenticate(r *http.Request) *authResult {
 	if err == nil {
 		if claims, ok := sessToken.Claims.(*sessionClaims); ok && claims.UserID != "" {
 			return &authResult{UserID: claims.UserID, IsSession: true}
+		}
+	}
+
+	// Try OCI registry token (from /v2/token, used by docker push/pull)
+	token, err := jwt.ParseWithClaims(tokenStr, &registryClaims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return s.jwtSecret, nil
+	})
+	if err == nil {
+		if claims, ok := token.Claims.(*registryClaims); ok {
+			return &authResult{UserID: claims.Subject, Access: claims.Access}
 		}
 	}
 
