@@ -69,7 +69,7 @@ export function RepoList({ repos, onSelect }: RepoListProps) {
             <div className="flex items-center gap-2 md:block">
               <span className="md:hidden text-xs text-muted-foreground">Last pushed:</span>
               <span className="text-sm text-muted-foreground">
-                {repo.last_pushed ? formatTimestamp(parseInt(repo.last_pushed, 10)) : "-"}
+                {repo.last_pushed ? formatTimestamp(Math.floor(new Date(repo.last_pushed).getTime() / 1000)) : "-"}
               </span>
             </div>
             <div className="hidden md:block">

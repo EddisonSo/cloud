@@ -175,7 +175,7 @@ export function RepoDetail({
                   <div className="flex items-center gap-2 md:block">
                     <span className="md:hidden text-xs text-muted-foreground">Pushed:</span>
                     <span className="text-sm text-muted-foreground">
-                      {tag.pushed_at ? formatTimestamp(parseInt(tag.pushed_at, 10)) : "-"}
+                      {tag.pushed_at ? formatTimestamp(Math.floor(new Date(tag.pushed_at).getTime() / 1000)) : "-"}
                     </span>
                   </div>
                   {isOwner && (
