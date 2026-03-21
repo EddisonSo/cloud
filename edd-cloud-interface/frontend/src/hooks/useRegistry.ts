@@ -65,7 +65,7 @@ export function useRegistry(userId?: string) {
   }, []);
 
   const myRepos = repos.filter((r) => r.owner_id === userId);
-  const publicRepos = repos.filter((r) => r.visibility > 0 && r.owner_id !== userId);
+  const publicRepos = repos.filter((r) => r.visibility > 0);
 
   return { repos, myRepos, publicRepos, loading, error, loadRepos, loadTags, setVisibility, deleteTag };
 }
