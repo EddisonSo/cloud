@@ -28,6 +28,7 @@ export function SshKeyList({
   const [name, setName] = useState<string>("");
   const [publicKey, setPublicKey] = useState<string>("");
   const [adding, setAdding] = useState<boolean>(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -91,6 +92,11 @@ export function SshKeyList({
         </Card>
       ) : null}
 
+      {/* Error banner (shown for both add and delete failures) */}
+      {error && !showAdd && (
+        <p className="text-destructive text-sm">{error}</p>
+      )}
+
       {/* Key List */}
       {loading ? (
         <p className="text-muted-foreground py-4">Loading SSH keys...</p>
@@ -133,7 +139,18 @@ export function SshKeyList({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => onDelete?.(key.id)}
+                  disabled={deletingId === String(key.id)}
+                  onClick={async () => {
+                    setError("");
+                    setDeletingId(String(key.id));
+                    try {
+                      await onDelete?.(String(key.id));
+                    } catch (err) {
+                      setError((err as Error).message || "Failed to delete SSH key");
+                    } finally {
+                      setDeletingId(null);
+                    }
+                  }}
                   title="Delete key"
                 >
                   <Trash2 className="w-4 h-4" />

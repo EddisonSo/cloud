@@ -72,8 +72,7 @@ export function useSshKeys() {
       const message = await response.text();
       throw new Error(message || "Failed to add SSH key");
     }
-    await loadSshKeys(true);
-    return response.json();
+    return loadSshKeys(true);
   }, [loadSshKeys]);
 
   const deleteSshKey = useCallback(async (id: string) => {
