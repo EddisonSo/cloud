@@ -35,7 +35,8 @@ dist/
 
 # Claude
 CLAUDE.md
-.claude/
+.claude/*
+!.claude/agents/
 claude_context.md
 
 # Superpowers AI
