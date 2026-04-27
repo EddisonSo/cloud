@@ -48,7 +48,7 @@ http_port: 8222
 jetstream {
   store_dir: /data
   max_mem: 512M
-  max_file: 4G
+  max_file: 8G
 }
 
 debug: false
