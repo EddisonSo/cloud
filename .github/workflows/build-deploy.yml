@@ -811,6 +811,10 @@ jobs:
           REG_IMG=$(kubectl -n $NS get deploy/edd-registry -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
           kubectl apply -f manifests/edd-registry/edd-registry.yaml
           [ -n "$REG_IMG" ] && kubectl -n $NS set image deploy/edd-registry registry="$REG_IMG"
+      - name: Apply NATS manifest changes
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
+        run: |
+          kubectl apply -f manifests/nats/nats.yaml
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
         run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
