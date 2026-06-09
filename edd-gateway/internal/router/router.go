@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -113,7 +113,19 @@ var (
 	ErrNoIP            = errors.New("container has no external IP")
 	ErrProtocolBlocked = errors.New("protocol access not enabled")
 	ErrNoRoute         = errors.New("no matching route")
+	ErrDomainExists    = errors.New("domain already in use")
 )
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505), so callers can map it to ErrDomainExists without
+// relying on fragile error-string matching.
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "23505"
+	}
+	return false
+}
 
 // StaticRoute holds routing info for a static path-based route.
 type StaticRoute struct {
@@ -579,6 +591,9 @@ func (r *Router) CreateCustomDomain(cd *CustomDomain) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, cd.ID, cd.UserID, cd.ContainerID, cd.Domain, cd.TargetPort, cd.VerifyToken, cd.Status)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrDomainExists
+		}
 		return fmt.Errorf("insert custom domain: %w", err)
 	}
 	return r.reload()
