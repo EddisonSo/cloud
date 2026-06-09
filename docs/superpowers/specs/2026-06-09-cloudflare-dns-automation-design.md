@@ -1,7 +1,9 @@
 # Cloudflare DNS Automation for Custom Domains (Per-User Tokens)
 
 **Date:** 2026-06-09
-**Status:** Approved (rev 2 — per-user tokens; rev 1's platform-wide token was dropped)
+**Status:** Approved (rev 3 — multiple connections per user; rev 2 allowed only one
+token per user, forcing a connect→map→disconnect→connect dance when zones live
+in separately-scoped tokens; rev 1's platform-wide token was dropped)
 **Service:** edd-gateway (+ Networking tab touch)
 
 ## Problem
@@ -39,15 +41,34 @@ correctly (`proxied: false` forced), instantly, with verification implied.
 
 ## Design
 
-### 1. Token storage — encrypted at rest in the gateway's Postgres
+### 1. Token storage — multiple connections per user, encrypted at rest
+
+A user holds any number of **connections**, each one Cloudflare API token
+(typically scoped to a single zone — tighter blast radius than one broad
+token). Connections accumulate; there is no connect/disconnect dance to switch
+zones.
 
 ```sql
-CREATE TABLE IF NOT EXISTS user_cloudflare_tokens (
-    user_id          TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS cloudflare_connections (
+    id               TEXT PRIMARY KEY,            -- cfc_<random>
+    user_id          TEXT NOT NULL,
     token_ciphertext BYTEA NOT NULL,
+    zones            TEXT[] NOT NULL DEFAULT '{}', -- zone names snapshot
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX ON cloudflare_connections(user_id);
 ```
+
+`zones` is snapshotted at connect time (from the save-time ListZones
+validation) and used both for display and to pick the right connection when a
+domain is added. A per-connection **refresh** re-snapshots (token scopes can be
+edited in Cloudflare without rolling the secret, and "all zones" tokens gain
+zones when the account does).
+
+**Migration from rev 2:** at startup, if the old `user_cloudflare_tokens`
+table exists, its rows are copied into `cloudflare_connections` (deterministic
+ids, empty zones) and the old table is dropped. Empty-zones connections are
+lazily backfilled on the first GET (live ListZones, persisted).
 
 - Tokens are sealed with **AES-256-GCM** using a 32-byte platform key from K8s
   Secret `gateway-token-key` (env `TOKEN_ENCRYPTION_KEY`, hex-encoded,
@@ -80,15 +101,22 @@ user's decrypted token (`cloudflare.New(token)`). Methods:
 All calls send `Authorization: Bearer <token>`; CF's `{success, errors,
 result}` envelope is decoded and `success:false` surfaces as an error.
 
-### 3. Token management API (existing authenticated mux, JWT + CORS)
+### 3. Connections API (existing authenticated mux, JWT + CORS)
 
-- `PUT /api/cloudflare-token` body `{token}` — **validate on save** by calling
-  `ListZones` with it; failure → 400 "token invalid or lacks zone access";
-  success → seal + upsert row, respond `{configured: true, zones: [names]}`.
-- `GET /api/cloudflare-token` → `{configured: bool, zones?: [names]}` (zones
-  fetched live when configured; the token itself is never returned).
-- `DELETE /api/cloudflare-token` → remove the row, 204.
-- All three return 503 if `TOKEN_ENCRYPTION_KEY` is unset.
+- `POST /api/cloudflare-connections` body `{token}` — **validate on save** via
+  `ListZones`; failure → 400 "token invalid or lacks zone access"; success →
+  seal + insert with the zones snapshot, respond 201
+  `{id, zones, created_at}`.
+- `GET /api/cloudflare-connections` → `{connections: [{id, zones,
+  created_at}]}` (tokens never returned; empty-zones rows are lazily
+  backfilled here).
+- `POST /api/cloudflare-connections/{id}/refresh` — re-run ListZones with the
+  stored token, persist and return the new snapshot.
+- `DELETE /api/cloudflare-connections/{id}` — ownership-checked, 204. Existing
+  domains and DNS records are untouched.
+- All return 503 if `TOKEN_ENCRYPTION_KEY` is unset. (Rev 2's
+  `/api/cloudflare-token` endpoint is removed — the dashboard is the only
+  consumer and deploys in lockstep.)
 
 ### 4. createDomain flow
 
@@ -97,10 +125,11 @@ After existing validation (syntax, port, container ownership):
 ```
 insert row status='pending'         // FIRST — a duplicate-domain 409 exits here
 if insert failed: respond 409/500   // before any DNS write can happen
-token := load+decrypt requesting user's CF token (if box configured)
-if token exists:
-    cf := cloudflare.New(token)
-    zoneID, err := cf.FindZone(domain)
+conn := the user's connection whose stored zones best match the domain
+        (longest dot-suffix across ALL connections; nil if none match)
+if conn != nil:
+    cf := cloudflare.New(decrypt(conn.token))
+    zoneID, err := cf.FindZone(domain)   // live revalidation + zone ID
     if err == nil && cf.UpsertCNAME(zoneID, domain, "ingress.cloud.eddisonso.com") == nil:
         SetCustomDomainStatus(id, 'verified')   // stamps verified_at
         preIssue(domain)
@@ -109,6 +138,11 @@ if token exists:
     // ErrZoneNotFound or any error: log warning, fall through
 respond 201 with TXT instructions   // manual path, unchanged
 ```
+
+Domain-delete cleanup picks the connection the same way (stored-zone match)
+before the guarded `DeleteRecord`. If no connection's zones match (e.g. stale
+snapshot), the manual path applies — the user can refresh the connection and
+retry.
 
 Ordering matters: the upsert deliberately overwrites whatever record sits at
 the name, so it must never run for a create that fails — otherwise a 409 could
@@ -120,11 +154,18 @@ container) while reporting an error.
 
 `dns_automated` is response-only — no change to the `custom_domains` schema.
 
-### 5. Frontend (Networking tab)
+### 5. Frontend (Networking → Domains sub-tab)
 
-- New "Cloudflare integration" card: paste token → save → shows
-  "Connected — zones: …" on success; disconnect button. Helper text tells the
-  user to create a token scoped to `Zone:Read` + `DNS:Edit` on just their zone.
+- **Nav restructure:** Networking gains a sub-item **Domains** (same pattern
+  as Compute → Containers / SSH Keys): nav entry `/networking/domains`,
+  `/networking` redirects there. The existing page content moves under it,
+  leaving room for future sub-tabs.
+- **Cloudflare connections card** (replaces the single-token card): lists each
+  connection with its zones, a **Refresh zones** action, and a **Disconnect**
+  button — plus an always-visible "Add connection" token input. Connecting
+  `eddisonso.com` and `eddisonso2.com` as two separately-scoped tokens and
+  mapping hostnames under both, with no disconnect dance, is the acceptance
+  test.
 - Add-domain flow unchanged; on a `dns_automated: true` response the form
   shows "DNS configured automatically — your domain is going live" and the
   TXT instructions card never appears (status is already `verified`).
