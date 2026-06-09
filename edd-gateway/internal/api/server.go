@@ -41,19 +41,33 @@ func New(r *router.Router, v *auth.SessionValidator, newID idGen, preIssue func(
 // newCFClient builds a Cloudflare client from a plaintext token; overridable in tests.
 var newCFClient = func(token string) *cloudflare.Client { return cloudflare.New(token) }
 
-// userCF returns a Cloudflare client for the user's stored token, or nil if
-// the integration is disabled, no token is stored, or decryption fails.
-func (s *Server) userCF(userID string) *cloudflare.Client {
+// cfForDomain returns a Cloudflare client for the user's connection whose
+// stored zones best match the domain (longest dot-suffix wins across all
+// connections), or nil when the integration is disabled / nothing matches /
+// decryption fails.
+func (s *Server) cfForDomain(userID, domain string) *cloudflare.Client {
 	if s.box == nil {
 		return nil
 	}
-	ct, err := s.router.GetCloudflareToken(userID)
+	conns, err := s.router.ListCloudflareConnections(userID)
 	if err != nil {
-		return nil // ErrNotFound or DB error -> manual flow
+		return nil
 	}
-	tok, err := s.box.Open(ct)
+	var best *router.CloudflareConnection
+	bestLen := 0
+	for i := range conns {
+		for _, z := range conns[i].Zones {
+			if (domain == z || strings.HasSuffix(domain, "."+z)) && len(z) > bestLen {
+				best, bestLen = &conns[i], len(z)
+			}
+		}
+	}
+	if best == nil {
+		return nil
+	}
+	tok, err := s.box.Open(best.Ciphertext)
 	if err != nil {
-		slog.Warn("cloudflare token decryption failed (key rotated?)", "user", userID)
+		slog.Warn("cloudflare token decryption failed (key rotated?)", "user", userID, "connection", best.ID)
 		return nil
 	}
 	return newCFClient(string(tok))
@@ -65,7 +79,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/domains", s.auth(s.handleDomains))
 	mux.HandleFunc("/api/domains/", s.auth(s.handleDomainByID))
-	mux.HandleFunc("/api/cloudflare-token", s.auth(s.handleCloudflareToken))
+	mux.HandleFunc("/api/cloudflare-connections", s.auth(s.handleCloudflareConnections))
+	mux.HandleFunc("/api/cloudflare-connections/", s.auth(s.handleCloudflareConnectionByID))
 	return corsMiddleware(mux)
 }
 
@@ -217,7 +232,7 @@ func (s *Server) createDomain(w http.ResponseWriter, r *http.Request, userID str
 	// a create that fails (e.g. duplicate-domain 409) — that would rewrite the
 	// user's zone while reporting an error.
 	dnsAutomated := false
-	if cf := s.userCF(userID); cf != nil {
+	if cf := s.cfForDomain(userID, d); cf != nil {
 		zoneID, err := cf.FindZone(d)
 		switch {
 		case err == nil:
@@ -267,7 +282,7 @@ func (s *Server) handleDomainByID(w http.ResponseWriter, r *http.Request, userID
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		if cf := s.userCF(userID); cf != nil {
+		if cf := s.cfForDomain(userID, cd.Domain); cf != nil {
 			zoneID, err := cf.FindZone(cd.Domain)
 			switch {
 			case err == nil:

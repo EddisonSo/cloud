@@ -4,7 +4,9 @@ import (
 	"container/list"
 	"context"
 	"crypto/md5"
+	cryptorand "crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -229,14 +231,38 @@ func New(connStr string) (*Router, error) {
 	}
 
 	if _, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS user_cloudflare_tokens (
-			user_id          TEXT PRIMARY KEY,
+		CREATE TABLE IF NOT EXISTS cloudflare_connections (
+			id               TEXT PRIMARY KEY,
+			user_id          TEXT NOT NULL,
 			token_ciphertext BYTEA NOT NULL,
+			zones            TEXT[] NOT NULL DEFAULT '{}',
 			created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 		)
 	`); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("create user_cloudflare_tokens table: %w", err)
+		return nil, fmt.Errorf("create cloudflare_connections table: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_cloudflare_connections_user ON cloudflare_connections(user_id)`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create cloudflare_connections user index: %w", err)
+	}
+	// One-time migration from the rev-2 single-token table: copy rows
+	// (deterministic ids so it is idempotent), then drop the old table.
+	var oldTable sql.NullString
+	if err := db.QueryRow(`SELECT to_regclass('user_cloudflare_tokens')::text`).Scan(&oldTable); err == nil && oldTable.Valid {
+		if _, err := db.Exec(`
+			INSERT INTO cloudflare_connections (id, user_id, token_ciphertext, created_at)
+			SELECT 'cfc_' || md5(user_id), user_id, token_ciphertext, created_at
+			FROM user_cloudflare_tokens
+			ON CONFLICT (id) DO NOTHING
+		`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("migrate cloudflare tokens: %w", err)
+		}
+		if _, err := db.Exec(`DROP TABLE user_cloudflare_tokens`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("drop user_cloudflare_tokens: %w", err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -730,33 +756,79 @@ func (r *Router) CustomDomainAllowed(host string) bool {
 	return ok
 }
 
-// GetCloudflareToken returns the sealed Cloudflare token for a user.
-func (r *Router) GetCloudflareToken(userID string) ([]byte, error) {
-	var ct []byte
-	err := r.db.QueryRow(`SELECT token_ciphertext FROM user_cloudflare_tokens WHERE user_id = $1`, userID).Scan(&ct)
-	if err == sql.ErrNoRows {
-		return nil, ErrNotFound
-	}
-	return ct, err
+// CloudflareConnection is one user-provided Cloudflare token and the zones it
+// could see when connected (or last refreshed).
+type CloudflareConnection struct {
+	ID         string
+	UserID     string
+	Ciphertext []byte
+	Zones      []string
+	CreatedAt  time.Time
 }
 
-// SetCloudflareToken upserts a user's sealed Cloudflare token.
-func (r *Router) SetCloudflareToken(userID string, ciphertext []byte) error {
+// AddCloudflareConnection stores a sealed token + zones snapshot, returning the id.
+func (r *Router) AddCloudflareConnection(userID string, ciphertext []byte, zones []string) (string, error) {
+	id := "cfc_" + newRandomHex(12)
 	_, err := r.db.Exec(`
-		INSERT INTO user_cloudflare_tokens (user_id, token_ciphertext) VALUES ($1, $2)
-		ON CONFLICT (user_id) DO UPDATE SET token_ciphertext = EXCLUDED.token_ciphertext, created_at = now()
-	`, userID, ciphertext)
+		INSERT INTO cloudflare_connections (id, user_id, token_ciphertext, zones)
+		VALUES ($1, $2, $3, $4)
+	`, id, userID, ciphertext, pq.Array(zones))
 	if err != nil {
-		return fmt.Errorf("set cloudflare token: %w", err)
+		return "", fmt.Errorf("add cloudflare connection: %w", err)
+	}
+	return id, nil
+}
+
+// ListCloudflareConnections returns all of a user's connections (with ciphertext,
+// for internal use — API handlers must not expose it).
+func (r *Router) ListCloudflareConnections(userID string) ([]CloudflareConnection, error) {
+	rows, err := r.db.Query(`
+		SELECT id, user_id, token_ciphertext, zones, created_at
+		FROM cloudflare_connections WHERE user_id = $1 ORDER BY created_at
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CloudflareConnection
+	for rows.Next() {
+		var c CloudflareConnection
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Ciphertext, pq.Array(&c.Zones), &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// UpdateCloudflareConnectionZones re-snapshots a connection's zones (owner-scoped).
+func (r *Router) UpdateCloudflareConnectionZones(id, userID string, zones []string) error {
+	res, err := r.db.Exec(`UPDATE cloudflare_connections SET zones = $1 WHERE id = $2 AND user_id = $3`,
+		pq.Array(zones), id, userID)
+	if err != nil {
+		return fmt.Errorf("update cloudflare connection zones: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
 
-// DeleteCloudflareToken removes a user's sealed Cloudflare token.
-func (r *Router) DeleteCloudflareToken(userID string) error {
-	_, err := r.db.Exec(`DELETE FROM user_cloudflare_tokens WHERE user_id = $1`, userID)
+// DeleteCloudflareConnection removes one connection, scoped to its owner.
+func (r *Router) DeleteCloudflareConnection(id, userID string) error {
+	res, err := r.db.Exec(`DELETE FROM cloudflare_connections WHERE id = $1 AND user_id = $2`, id, userID)
 	if err != nil {
-		return fmt.Errorf("delete cloudflare token: %w", err)
+		return fmt.Errorf("delete cloudflare connection: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
 	}
 	return nil
+}
+
+// newRandomHex returns n random bytes hex-encoded.
+func newRandomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = cryptorand.Read(b)
+	return hex.EncodeToString(b)
 }

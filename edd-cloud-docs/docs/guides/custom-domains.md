@@ -29,33 +29,46 @@ flowchart TD
 
 ## Connect Cloudflare (optional)
 
-If your domain's DNS is managed on Cloudflare, you can skip all manual record setup. When a Cloudflare API token is connected, adding a domain automatically creates the correct DNS record in your zone — the domain goes straight to **Verified** with no TXT record or manual CNAME required.
+If your domain's DNS is managed on Cloudflare, you can skip all manual record setup. When a Cloudflare connection is active for a zone, adding a domain automatically creates the correct DNS record — the domain goes straight to **Verified** with no TXT record or manual CNAME required.
 
-### Create and connect your token
+You can add multiple Cloudflare connections. The typical pattern is one API token per zone (each scoped to Zone:Read + DNS:Edit on only that zone), but a single token that covers several zones works just as well. All connections remain active at the same time — there is no need to disconnect one before using another.
+
+When you add a custom domain, the platform automatically selects the connection whose stored zones include the hostname. If no connection matches, it falls back to the standard manual verification flow for that domain.
+
+### Add a connection
 
 1. In the Cloudflare dashboard, go to **My Profile → API Tokens → Create Token**, then choose **Create Custom Token**.
-2. Grant the following permissions — scope them to your specific zone, not "All zones":
+2. Grant the following permissions — scope them to your specific zone, not "All zones" (unless you want one token to cover multiple zones):
    - **Zone — Zone — Read**
    - **Zone — DNS — Edit**
 3. Copy the generated token.
-4. In the Edd Cloud dashboard, open the **Networking** tab and find the **Cloudflare integration** card.
-5. Paste the token and click **Connect**. The token is validated immediately — it is rejected if it cannot list your zones. Once accepted, the card shows your connected zones.
+4. In the Edd Cloud dashboard, go to **Networking → Domains** and find the **Cloudflare connections** card.
+5. Paste the token and click **Add connection**. The token is validated immediately — it is rejected if it cannot list your zones. Once accepted, the connection appears in the list with its visible zones.
 
-From that point on, adding a custom domain:
+Repeat for each zone you want covered. Each connection is stored independently and stays active until you remove it.
+
+From that point on, adding a custom domain whose hostname is inside a connected zone:
 
 - Creates a DNS-only (grey cloud) CNAME in your Cloudflare zone automatically.
 - Sets the domain status to **Verified** immediately.
 - Triggers TLS certificate pre-fetch — no further action required.
 
-The token is stored encrypted. You can disconnect it at any time from the same card; disconnecting does not delete existing custom domains or their DNS records.
+### Manage existing connections
+
+Each connection in the list offers two actions:
+
+- **Refresh** — re-reads the token's zones from Cloudflare and updates the stored snapshot. Use this if you widen the token's scope, or if you use an all-zones token and have added a new zone to your Cloudflare account since connecting.
+- **Disconnect** — removes that connection from the platform. Existing custom domains and their DNS records are left untouched; only the automation for future domains is removed.
+
+All tokens are stored encrypted.
 
 :::note
-If the domain being added falls outside all zones accessible to your token, the platform falls back to the standard manual verification flow for that domain only.
+If the domain being added falls outside all zones covered by your connections, the platform falls back to the standard manual verification flow for that domain only.
 :::
 
 ## Step 1: Add a domain
 
-Open the dashboard at `https://cloud.eddisonso.com` and navigate to the **Networking** tab.
+Open the dashboard at `https://cloud.eddisonso.com` and navigate to **Networking → Domains**.
 
 Click **Add domain** and complete the form:
 
@@ -167,4 +180,4 @@ The domain is registered to another container. If you previously registered it, 
 
 **Redirect loop, or HTTPS certificate never issues**
 
-Your DNS traffic record is likely proxied through a CDN. Switch the CNAME or A record to DNS-only (the grey cloud icon on Cloudflare). Alternatively, connect Cloudflare in the **Networking tab → Cloudflare integration** card and re-add the domain — the platform will create a correct DNS-only record, replacing the proxied one.
+Your DNS traffic record is likely proxied through a CDN. Switch the CNAME or A record to DNS-only (the grey cloud icon on Cloudflare). Alternatively, connect Cloudflare in **Networking → Domains** under the **Cloudflare connections** card and re-add the domain — the platform will create a correct DNS-only record, replacing the proxied one.
