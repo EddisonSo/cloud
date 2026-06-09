@@ -55,6 +55,10 @@ func New(dsn string, r *router.Router) (*Manager, error) {
 		CA:     ca,
 		Email:  os.Getenv("ACME_EMAIL"),
 		Agreed: true,
+		// Only TLS-ALPN-01 is wired (the gateway terminates TLS on :443 and routes
+		// acme-tls/1 challenges through GetCertificate). HTTP-01 is not solved here,
+		// so disable it to avoid a failed challenge round-trip on every issuance.
+		DisableHTTPChallenge: true,
 	})
 	cfg.Issuers = []certmagic.Issuer{issuer}
 
