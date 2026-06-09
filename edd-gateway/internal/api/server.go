@@ -205,6 +205,15 @@ func (s *Server) verifyNow(w http.ResponseWriter, r *http.Request, userID, id st
 		writeJSON(w, http.StatusOK, map[string]string{"status": "verified"})
 		return
 	}
+	// No match. If the domain had expired to 'failed', reset it to 'pending' so
+	// the background worker resumes polling and the 7-day window restarts — this
+	// is the documented retry path.
+	if cd.Status == "failed" {
+		if err := s.router.SetCustomDomainStatus(cd.ID, "pending", false); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "pending",
 		"detail": fmt.Sprintf("TXT %s not found or does not match", domains.VerifyRecordName(cd.Domain)),

@@ -106,7 +106,7 @@ export function DomainList({ domains, loading, onVerify, onDelete }: DomainListP
 
           {/* Actions */}
           <div className="flex items-center gap-2 md:justify-end w-full md:w-auto">
-            {domain.status === "pending" && (
+            {(domain.status === "pending" || domain.status === "failed") && (
               <Button
                 size="sm"
                 variant="outline"
@@ -134,8 +134,8 @@ export function DomainList({ domains, loading, onVerify, onDelete }: DomainListP
             <div className="md:col-span-4 text-xs text-destructive">{actionError[domain.id]}</div>
           )}
 
-          {/* DNS setup instructions for pending domains */}
-          {domain.status === "pending" && (
+          {/* DNS setup instructions for pending or failed (retryable) domains */}
+          {(domain.status === "pending" || domain.status === "failed") && (
             <div className="md:col-span-4 w-full rounded-md bg-muted/50 border border-border px-4 py-3 space-y-2 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">DNS setup required</p>
               <p>Add the following TXT record to verify ownership:</p>
