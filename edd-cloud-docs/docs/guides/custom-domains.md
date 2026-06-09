@@ -15,14 +15,43 @@ You can point your own domain — a subdomain like `app.example.com` or an apex 
 
 ```mermaid
 flowchart TD
-    A[Add domain in dashboard] --> B[Add TXT record to prove ownership]
-    B --> C[Add CNAME or A record to route traffic]
-    C --> D[Click 'Verify now' or wait for background check]
-    D -->|TXT found| E[Status: Verified]
-    D -->|TXT not found after 7 days| F[Status: Failed — retry to reset]
+    A[Add domain in dashboard] --> B{Cloudflare\nintegrated?}
+    B -->|Yes — zone matched| AUTO[DNS record created automatically]
+    B -->|No / zone not matched| TXT[Add TXT record to prove ownership]
+    TXT --> CNAME[Add CNAME or A record to route traffic\nDNS-only — do not proxy]
+    CNAME --> VER[Click 'Verify now' or wait for background check]
+    VER -->|TXT found| E[Status: Verified]
+    VER -->|TXT not found after 7 days| F[Status: Failed — retry to reset]
+    AUTO --> E
     E --> G[Gateway pre-fetches TLS certificate]
     G --> H[Status: Live — HTTPS serving]
 ```
+
+## Connect Cloudflare (optional)
+
+If your domain's DNS is managed on Cloudflare, you can skip all manual record setup. When a Cloudflare API token is connected, adding a domain automatically creates the correct DNS record in your zone — the domain goes straight to **Verified** with no TXT record or manual CNAME required.
+
+### Create and connect your token
+
+1. In the Cloudflare dashboard, go to **My Profile → API Tokens → Create Token**, then choose **Create Custom Token**.
+2. Grant the following permissions — scope them to your specific zone, not "All zones":
+   - **Zone — Zone — Read**
+   - **Zone — DNS — Edit**
+3. Copy the generated token.
+4. In the Edd Cloud dashboard, open the **Networking** tab and find the **Cloudflare integration** card.
+5. Paste the token and click **Connect**. The token is validated immediately — it is rejected if it cannot list your zones. Once accepted, the card shows your connected zones.
+
+From that point on, adding a custom domain:
+
+- Creates a DNS-only (grey cloud) CNAME in your Cloudflare zone automatically.
+- Sets the domain status to **Verified** immediately.
+- Triggers TLS certificate pre-fetch — no further action required.
+
+The token is stored encrypted. You can disconnect it at any time from the same card; disconnecting does not delete existing custom domains or their DNS records.
+
+:::note
+If the domain being added falls outside all zones accessible to your token, the platform falls back to the standard manual verification flow for that domain only.
+:::
 
 ## Step 1: Add a domain
 
@@ -78,6 +107,14 @@ Apex domains cannot use a CNAME. Add an **A record** pointing to the cluster ing
 | **Name** | `example.com` (apex) |
 | **Value** | `192.168.3.200` |
 
+:::warning DNS-only — do not proxy the traffic record
+The CNAME or A record that routes traffic to the cluster **must be DNS-only**. On Cloudflare, the cloud icon next to the record must be **grey (DNS only)**, not orange (Proxied).
+
+A proxied record routes requests through Cloudflare's CDN before they reach the cluster. This prevents the platform from completing ACME certificate issuance and causes an HTTP-to-HTTPS redirect loop that makes the domain unreachable.
+
+This restriction applies only to manually created records. The automatic Cloudflare integration (described above) always creates the record with proxying disabled.
+:::
+
 Both the TXT record (step 2) and the CNAME/A record (this step) must be in place for the domain to go fully live.
 
 ## Step 4: Verify
@@ -127,3 +164,7 @@ On first access to a brand-new domain the initial request may take a few seconds
 **"domain already in use" error when adding**
 
 The domain is registered to another container. If you previously registered it, delete the old entry first, then re-add it.
+
+**Redirect loop, or HTTPS certificate never issues**
+
+Your DNS traffic record is likely proxied through a CDN. Switch the CNAME or A record to DNS-only (the grey cloud icon on Cloudflare). Alternatively, connect Cloudflare in the **Networking tab → Cloudflare integration** card and re-add the domain — the platform will create a correct DNS-only record, replacing the proxied one.

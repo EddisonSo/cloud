@@ -18,6 +18,7 @@ import (
 	"eddisonso.com/edd-gateway/internal/k8s"
 	"eddisonso.com/edd-gateway/internal/proxy"
 	"eddisonso.com/edd-gateway/internal/router"
+	"eddisonso.com/edd-gateway/internal/secretbox"
 	"eddisonso.com/edd-gateway/internal/tlsmgr"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"gopkg.in/yaml.v3"
@@ -161,7 +162,17 @@ func main() {
 	if tlsMgr != nil {
 		preIssue = tlsMgr.PreIssue
 	}
-	apiSrv := api.New(r, validator, newDomainID, preIssue)
+	var box *secretbox.Box
+	if keyHex := os.Getenv("TOKEN_ENCRYPTION_KEY"); keyHex != "" {
+		b, err := secretbox.New(keyHex)
+		if err != nil {
+			slog.Error("invalid TOKEN_ENCRYPTION_KEY", "error", err)
+			os.Exit(1)
+		}
+		box = b
+		slog.Info("Cloudflare token integration enabled")
+	}
+	apiSrv := api.New(r, validator, newDomainID, preIssue, box)
 	go func() {
 		slog.Info("management API listening", "addr", "127.0.0.1:9092")
 		if err := http.ListenAndServe("127.0.0.1:9092", apiSrv.Handler()); err != nil {

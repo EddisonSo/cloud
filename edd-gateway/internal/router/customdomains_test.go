@@ -103,3 +103,31 @@ func TestCustomDomainAllowed(t *testing.T) {
 	_ = r.DeleteCustomDomain("cd_a1", "u1")
 	_ = r.DeleteCustomDomain("cd_orph", "u1")
 }
+
+func TestCloudflareTokenStore(t *testing.T) {
+	r := testRouter(t)
+	if _, err := r.GetCloudflareToken("u_tok"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	if err := r.SetCloudflareToken("u_tok", []byte{1, 2, 3}); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	ct, err := r.GetCloudflareToken("u_tok")
+	if err != nil || len(ct) != 3 {
+		t.Fatalf("Get: %v %v", err, ct)
+	}
+	// upsert overwrites
+	if err := r.SetCloudflareToken("u_tok", []byte{9}); err != nil {
+		t.Fatalf("Set2: %v", err)
+	}
+	ct, _ = r.GetCloudflareToken("u_tok")
+	if len(ct) != 1 || ct[0] != 9 {
+		t.Fatalf("upsert failed: %v", ct)
+	}
+	if err := r.DeleteCloudflareToken("u_tok"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := r.GetCloudflareToken("u_tok"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	}
+}

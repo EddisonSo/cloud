@@ -228,6 +228,17 @@ func New(connStr string) (*Router, error) {
 		return nil, fmt.Errorf("create custom_domains user index: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS user_cloudflare_tokens (
+			user_id          TEXT PRIMARY KEY,
+			token_ciphertext BYTEA NOT NULL,
+			created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+		)
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create user_cloudflare_tokens table: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Router{
 		db:            db,
@@ -583,12 +594,13 @@ func (r *Router) ValidateSSHKey(containerID string, pubKey ssh.PublicKey) (bool,
 	return count > 0, nil
 }
 
-// CreateCustomDomain inserts a new pending custom domain. The UNIQUE(domain)
+// CreateCustomDomain inserts a new custom domain (verified_at is stamped when
+// inserted directly as 'verified'). The UNIQUE(domain)
 // constraint surfaces as an error the API maps to "domain already in use".
 func (r *Router) CreateCustomDomain(cd *CustomDomain) error {
 	_, err := r.db.Exec(`
-		INSERT INTO custom_domains (id, user_id, container_id, domain, target_port, verify_token, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO custom_domains (id, user_id, container_id, domain, target_port, verify_token, status, verified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 = 'verified' THEN now() END)
 	`, cd.ID, cd.UserID, cd.ContainerID, cd.Domain, cd.TargetPort, cd.VerifyToken, cd.Status)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -716,4 +728,35 @@ func (r *Router) CustomDomainAllowed(host string) bool {
 	_, ok := r.customDomains[host]
 	r.mu.RUnlock()
 	return ok
+}
+
+// GetCloudflareToken returns the sealed Cloudflare token for a user.
+func (r *Router) GetCloudflareToken(userID string) ([]byte, error) {
+	var ct []byte
+	err := r.db.QueryRow(`SELECT token_ciphertext FROM user_cloudflare_tokens WHERE user_id = $1`, userID).Scan(&ct)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	return ct, err
+}
+
+// SetCloudflareToken upserts a user's sealed Cloudflare token.
+func (r *Router) SetCloudflareToken(userID string, ciphertext []byte) error {
+	_, err := r.db.Exec(`
+		INSERT INTO user_cloudflare_tokens (user_id, token_ciphertext) VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET token_ciphertext = EXCLUDED.token_ciphertext, created_at = now()
+	`, userID, ciphertext)
+	if err != nil {
+		return fmt.Errorf("set cloudflare token: %w", err)
+	}
+	return nil
+}
+
+// DeleteCloudflareToken removes a user's sealed Cloudflare token.
+func (r *Router) DeleteCloudflareToken(userID string) error {
+	_, err := r.db.Exec(`DELETE FROM user_cloudflare_tokens WHERE user_id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("delete cloudflare token: %w", err)
+	}
+	return nil
 }

@@ -81,6 +81,12 @@ spec:
               value: "admin@eddisonso.com"
             - name: ACME_STAGING
               value: "false"
+            - name: TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-token-key
+                  key: TOKEN_ENCRYPTION_KEY
+                  optional: true
           ports:
             - name: ssh
               containerPort: 2222

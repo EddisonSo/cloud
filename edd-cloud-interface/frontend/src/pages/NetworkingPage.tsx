@@ -1,6 +1,6 @@
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { PageHeader } from "@/components/ui/page-header";
-import { DomainList, AddDomainForm } from "@/components/networking";
+import { DomainList, AddDomainForm, CloudflareCard } from "@/components/networking";
 import { useCustomDomains } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -13,6 +13,9 @@ export function NetworkingPage() {
     createDomain,
     verifyDomain,
     deleteDomain,
+    cloudflare,
+    saveCloudflareToken,
+    deleteCloudflareToken,
   } = useCustomDomains(user);
 
   if (!user) {
@@ -51,9 +54,16 @@ export function NetworkingPage() {
           </p>
         </div>
         <div className="p-5">
-          <AddDomainForm onAdd={createDomain} />
+          <AddDomainForm onCreate={createDomain} />
         </div>
       </div>
+
+      {/* Cloudflare integration */}
+      <CloudflareCard
+        status={cloudflare}
+        onSave={saveCloudflareToken}
+        onDisconnect={deleteCloudflareToken}
+      />
 
       {/* Domain list */}
       <div className="bg-card border border-border rounded-lg">

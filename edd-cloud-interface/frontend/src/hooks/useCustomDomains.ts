@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { buildServiceBase, getAuthHeaders } from "@/lib/api";
-import type { CustomDomain, CreateCustomDomainData } from "@/types";
+import type { CustomDomain, CreateCustomDomainData, CloudflareStatus } from "@/types";
 
 export function useCustomDomains(user: string | null) {
   const [domains, setDomains] = useState<CustomDomain[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cloudflare, setCloudflare] = useState<CloudflareStatus | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Abort in-flight request on unmount
@@ -94,14 +95,39 @@ export function useCustomDomains(user: string | null) {
     [loadDomains]
   );
 
-  // Load domains whenever the authenticated user changes
+  const loadCloudflare = useCallback(async () => {
+    const res = await fetch(`${base()}/api/cloudflare-token`, { headers: getAuthHeaders() });
+    if (res.ok) setCloudflare(await res.json());
+  }, []);
+
+  const saveCloudflareToken = useCallback(async (token: string): Promise<CloudflareStatus> => {
+    const res = await fetch(`${base()}/api/cloudflare-token`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) throw new Error((await res.text()) || "Failed to save token");
+    const status = (await res.json()) as CloudflareStatus;
+    setCloudflare(status);
+    return status;
+  }, []);
+
+  const deleteCloudflareToken = useCallback(async () => {
+    const res = await fetch(`${base()}/api/cloudflare-token`, { method: "DELETE", headers: getAuthHeaders() });
+    if (!res.ok) throw new Error("Failed to disconnect");
+    setCloudflare({ configured: false });
+  }, []);
+
+  // Load domains and cloudflare status whenever the authenticated user changes
   useEffect(() => {
     if (user) {
       loadDomains();
+      loadCloudflare();
     } else {
       setDomains([]);
+      setCloudflare(null);
     }
-  }, [user, loadDomains]);
+  }, [user, loadDomains, loadCloudflare]);
 
   return {
     domains,
@@ -112,5 +138,9 @@ export function useCustomDomains(user: string | null) {
     createDomain,
     verifyDomain,
     deleteDomain,
+    cloudflare,
+    loadCloudflare,
+    saveCloudflareToken,
+    deleteCloudflareToken,
   };
 }
