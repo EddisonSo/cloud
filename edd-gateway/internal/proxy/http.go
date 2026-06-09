@@ -107,6 +107,21 @@ func (s *Server) handleHTTP(conn net.Conn) {
 
 	slog.Info("HTTP connection", "host", hostname, "path", path, "port", ingressPort, "client", clientAddr)
 
+	// Custom (bring-your-own) domains are HTTPS-only — the cert is provisioned
+	// on-demand on the TLS path. Redirect plain HTTP to HTTPS (same as static
+	// routes), otherwise an http:// request has no backend and 502s.
+	if s.router.CustomDomainAllowed(hostname) {
+		fullPath := path
+		if parts := strings.SplitN(extractRequestLine(headerBuf.String()), " ", 3); len(parts) >= 2 {
+			fullPath = parts[1] // preserve query string
+		}
+		redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
+		slog.Info("custom domain HTTP->HTTPS redirect", "host", hostname, "location", redirectURL)
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
+		conn.Close()
+		return
+	}
+
 	// Try to resolve in order: static routes -> container -> fallback
 	var backendAddr string
 	var modifiedHeaders []byte
