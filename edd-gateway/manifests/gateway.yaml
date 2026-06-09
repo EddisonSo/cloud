@@ -80,7 +80,7 @@ spec:
             - name: ACME_EMAIL
               value: "admin@eddisonso.com"
             - name: ACME_STAGING
-              value: "true"
+              value: "false"
           ports:
             - name: ssh
               containerPort: 2222
