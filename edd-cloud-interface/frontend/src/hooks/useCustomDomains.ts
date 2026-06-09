@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { buildServiceBase, getAuthHeaders } from "@/lib/api";
-import type { CustomDomain, CreateCustomDomainData, CloudflareStatus } from "@/types";
+import type { CustomDomain, CreateCustomDomainData, CloudflareConnection } from "@/types";
 
 export function useCustomDomains(user: string | null) {
   const [domains, setDomains] = useState<CustomDomain[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [cloudflare, setCloudflare] = useState<CloudflareStatus | null>(null);
+  const [connections, setConnections] = useState<CloudflareConnection[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   // Abort in-flight request on unmount
@@ -95,39 +95,71 @@ export function useCustomDomains(user: string | null) {
     [loadDomains]
   );
 
-  const loadCloudflare = useCallback(async () => {
-    const res = await fetch(`${base()}/api/cloudflare-token`, { headers: getAuthHeaders() });
-    if (res.ok) setCloudflare(await res.json());
-  }, []);
-
-  const saveCloudflareToken = useCallback(async (token: string): Promise<CloudflareStatus> => {
-    const res = await fetch(`${base()}/api/cloudflare-token`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({ token }),
+  const loadConnections = useCallback(async () => {
+    const res = await fetch(`${base()}/api/cloudflare-connections`, {
+      headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error((await res.text()) || "Failed to save token");
-    const status = (await res.json()) as CloudflareStatus;
-    setCloudflare(status);
-    return status;
+    if (res.ok) {
+      const payload = await res.json();
+      setConnections(payload.connections ?? []);
+    }
   }, []);
 
-  const deleteCloudflareToken = useCallback(async () => {
-    const res = await fetch(`${base()}/api/cloudflare-token`, { method: "DELETE", headers: getAuthHeaders() });
-    if (!res.ok) throw new Error("Failed to disconnect");
-    setCloudflare({ configured: false });
-  }, []);
+  const addConnection = useCallback(
+    async (token: string): Promise<CloudflareConnection> => {
+      const res = await fetch(`${base()}/api/cloudflare-connections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        throw new Error((await res.text()) || "Failed to add connection");
+      }
+      const created = (await res.json()) as CloudflareConnection;
+      await loadConnections();
+      return created;
+    },
+    [loadConnections]
+  );
 
-  // Load domains and cloudflare status whenever the authenticated user changes
+  const removeConnection = useCallback(
+    async (id: string): Promise<void> => {
+      const res = await fetch(`${base()}/api/cloudflare-connections/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to disconnect");
+      }
+      await loadConnections();
+    },
+    [loadConnections]
+  );
+
+  const refreshConnection = useCallback(
+    async (id: string): Promise<void> => {
+      const res = await fetch(`${base()}/api/cloudflare-connections/${id}/refresh`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        throw new Error((await res.text()) || "Failed to refresh connection");
+      }
+      await loadConnections();
+    },
+    [loadConnections]
+  );
+
+  // Load domains and connections whenever the authenticated user changes
   useEffect(() => {
     if (user) {
       loadDomains();
-      loadCloudflare();
+      loadConnections();
     } else {
       setDomains([]);
-      setCloudflare(null);
+      setConnections([]);
     }
-  }, [user, loadDomains, loadCloudflare]);
+  }, [user, loadDomains, loadConnections]);
 
   return {
     domains,
@@ -138,9 +170,10 @@ export function useCustomDomains(user: string | null) {
     createDomain,
     verifyDomain,
     deleteDomain,
-    cloudflare,
-    loadCloudflare,
-    saveCloudflareToken,
-    deleteCloudflareToken,
+    connections,
+    loadConnections,
+    addConnection,
+    removeConnection,
+    refreshConnection,
   };
 }

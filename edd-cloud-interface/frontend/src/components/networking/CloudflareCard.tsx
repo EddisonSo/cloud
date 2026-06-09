@@ -1,32 +1,93 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { CloudflareStatus } from "@/types";
+import type { CloudflareConnection } from "@/types";
+
+interface ConnectionRowProps {
+  connection: CloudflareConnection;
+  onRefresh: (id: string) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}
+
+function ConnectionRow({ connection, onRefresh, onRemove }: ConnectionRowProps) {
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshBusy(true);
+    try {
+      await onRefresh(connection.id);
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setRemoveBusy(true);
+    try {
+      await onRemove(connection.id);
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  const zonesLabel =
+    connection.zones.length > 0
+      ? connection.zones.join(", ")
+      : "no zones visible — refresh or reconnect";
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-2 border-b border-border last:border-0">
+      <span className="text-sm flex-1 text-muted-foreground font-mono">{zonesLabel}</span>
+      <div className="flex gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={refreshBusy || removeBusy}
+        >
+          {refreshBusy ? "Refreshing..." : "Refresh"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleRemove}
+          disabled={refreshBusy || removeBusy}
+          className="text-destructive hover:text-destructive"
+        >
+          {removeBusy ? "Disconnecting..." : "Disconnect"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function CloudflareCard({
-  status,
-  onSave,
-  onDisconnect,
+  connections,
+  onAdd,
+  onRemove,
+  onRefresh,
 }: {
-  status: CloudflareStatus | null;
-  onSave: (token: string) => Promise<CloudflareStatus>;
-  onDisconnect: () => Promise<void>;
+  connections: CloudflareConnection[];
+  onAdd: (token: string) => Promise<CloudflareConnection>;
+  onRemove: (id: string) => Promise<void>;
+  onRefresh: (id: string) => Promise<void>;
 }) {
   const [token, setToken] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const save = async (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
-    setBusy(true);
+    setAddBusy(true);
     try {
-      await onSave(token);
+      await onAdd(token);
       setToken("");
     } catch (e) {
       setErr((e as Error).message);
     } finally {
-      setBusy(false);
+      setAddBusy(false);
     }
   };
 
@@ -34,34 +95,42 @@ export function CloudflareCard({
     <div className="bg-card border border-border rounded-lg p-5 mb-6">
       <h2 className="text-sm font-semibold mb-1">Cloudflare integration</h2>
       <p className="text-xs text-muted-foreground mb-4">
-        Connect a Cloudflare API token (scoped to Zone:Read + DNS:Edit on your zone)
-        and DNS records are created automatically when you add a domain.
+        Connect a Cloudflare API token and DNS records are created automatically when
+        you add a domain. One token per zone works great — scope each to Zone:Read +
+        DNS:Edit. Add as many connections as you have zones.
       </p>
-      {status?.configured ? (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm">
-            {status.zones && status.zones.length > 0
-              ? `Connected — zones: ${status.zones.join(", ")}`
-              : "Connected (token no longer lists zones — consider reconnecting)"}
-          </p>
-          <Button size="sm" variant="outline" onClick={() => onDisconnect()}>
-            Disconnect
-          </Button>
+
+      {/* Connection list */}
+      {connections.length > 0 ? (
+        <div className="mb-4">
+          {connections.map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              connection={conn}
+              onRefresh={onRefresh}
+              onRemove={onRemove}
+            />
+          ))}
         </div>
       ) : (
-        <form onSubmit={save} className="flex flex-col sm:flex-row gap-2 max-w-xl">
-          <Input
-            type="password"
-            placeholder="Cloudflare API token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            required
-          />
-          <Button type="submit" disabled={busy}>
-            {busy ? "Verifying..." : "Connect"}
-          </Button>
-        </form>
+        <p className="text-sm text-muted-foreground mb-4">
+          No Cloudflare connections — add a token to automate DNS.
+        </p>
       )}
+
+      {/* Add form */}
+      <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2 max-w-xl">
+        <Input
+          type="password"
+          placeholder="Cloudflare API token"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          required
+        />
+        <Button type="submit" disabled={addBusy} className="shrink-0">
+          {addBusy ? "Verifying..." : "Add connection"}
+        </Button>
+      </form>
       {err && <p className="text-sm text-destructive mt-2">{err}</p>}
     </div>
   );

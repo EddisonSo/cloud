@@ -46,7 +46,15 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "sa-tokens", label: "Account Tokens", icon: Key, path: "/service-accounts/tokens" },
     ],
   },
-  { id: "networking", label: "Networking", icon: Globe, path: "/networking" },
+  {
+    id: "networking",
+    label: "Networking",
+    icon: Globe,
+    path: "/networking",
+    subItems: [
+      { id: "domains", label: "Domains", icon: Globe, path: "/networking/domains" },
+    ],
+  },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
 ];
 

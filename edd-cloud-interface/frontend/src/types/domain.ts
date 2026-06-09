@@ -268,7 +268,8 @@ export interface CreateCustomDomainData {
   target_port: number;
 }
 
-export interface CloudflareStatus {
-  configured: boolean;
-  zones?: string[];
+export interface CloudflareConnection {
+  id: string;
+  zones: string[];
+  created_at?: string;
 }

@@ -13,17 +13,18 @@ export function NetworkingPage() {
     createDomain,
     verifyDomain,
     deleteDomain,
-    cloudflare,
-    saveCloudflareToken,
-    deleteCloudflareToken,
+    connections,
+    addConnection,
+    removeConnection,
+    refreshConnection,
   } = useCustomDomains(user);
 
   if (!user) {
     return (
       <div>
-        <Breadcrumb items={[{ label: "Networking" }]} />
+        <Breadcrumb items={[{ label: "Networking" }, { label: "Domains" }]} />
         <PageHeader
-          title="Networking"
+          title="Domains"
           description="Point your own domains at your containers."
         />
         <p className="text-sm text-muted-foreground">Sign in to manage custom domains.</p>
@@ -33,9 +34,9 @@ export function NetworkingPage() {
 
   return (
     <div>
-      <Breadcrumb items={[{ label: "Networking" }]} />
+      <Breadcrumb items={[{ label: "Networking" }, { label: "Domains" }]} />
       <PageHeader
-        title="Networking"
+        title="Domains"
         description="Point your own domains at your containers."
       />
 
@@ -60,9 +61,10 @@ export function NetworkingPage() {
 
       {/* Cloudflare integration */}
       <CloudflareCard
-        status={cloudflare}
-        onSave={saveCloudflareToken}
-        onDisconnect={deleteCloudflareToken}
+        connections={connections}
+        onAdd={addConnection}
+        onRemove={removeConnection}
+        onRefresh={refreshConnection}
       />
 
       {/* Domain list */}
