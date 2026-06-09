@@ -11,9 +11,15 @@ import (
 	"strings"
 
 	"eddisonso.com/edd-gateway/internal/auth"
+	"eddisonso.com/edd-gateway/internal/cloudflare"
 	"eddisonso.com/edd-gateway/internal/domains"
 	"eddisonso.com/edd-gateway/internal/router"
+	"eddisonso.com/edd-gateway/internal/secretbox"
 )
+
+// ingressTarget is the stable host custom-domain CNAMEs point at (covered by
+// the DDNS-maintained *.cloud.eddisonso.com wildcard).
+const ingressTarget = "ingress.cloud.eddisonso.com"
 
 // idGen returns a unique id for a new domain row.
 type idGen func() string
@@ -24,11 +30,33 @@ type Server struct {
 	validator *auth.SessionValidator
 	newID     idGen
 	preIssue  func(domain string)
+	box       *secretbox.Box // nil = Cloudflare token integration disabled
 }
 
 // New builds the API server.
-func New(r *router.Router, v *auth.SessionValidator, newID idGen, preIssue func(string)) *Server {
-	return &Server{router: r, validator: v, newID: newID, preIssue: preIssue}
+func New(r *router.Router, v *auth.SessionValidator, newID idGen, preIssue func(string), box *secretbox.Box) *Server {
+	return &Server{router: r, validator: v, newID: newID, preIssue: preIssue, box: box}
+}
+
+// newCFClient builds a Cloudflare client from a plaintext token; overridable in tests.
+var newCFClient = func(token string) *cloudflare.Client { return cloudflare.New(token) }
+
+// userCF returns a Cloudflare client for the user's stored token, or nil if
+// the integration is disabled, no token is stored, or decryption fails.
+func (s *Server) userCF(userID string) *cloudflare.Client {
+	if s.box == nil {
+		return nil
+	}
+	ct, err := s.router.GetCloudflareToken(userID)
+	if err != nil {
+		return nil // ErrNotFound or DB error -> manual flow
+	}
+	tok, err := s.box.Open(ct)
+	if err != nil {
+		slog.Warn("cloudflare token decryption failed (key rotated?)", "user", userID)
+		return nil
+	}
+	return newCFClient(string(tok))
 }
 
 // Handler returns the HTTP mux for the API, wrapped in CORS so the dashboard
@@ -37,6 +65,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/domains", s.auth(s.handleDomains))
 	mux.HandleFunc("/api/domains/", s.auth(s.handleDomainByID))
+	mux.HandleFunc("/api/cloudflare-token", s.auth(s.handleCloudflareToken))
 	return corsMiddleware(mux)
 }
 
@@ -90,13 +119,14 @@ func (s *Server) auth(next func(http.ResponseWriter, *http.Request, string)) htt
 }
 
 type domainResponse struct {
-	ID          string `json:"id"`
-	Domain      string `json:"domain"`
-	ContainerID string `json:"container_id"`
-	TargetPort  int    `json:"target_port"`
-	Status      string `json:"status"`
-	VerifyName  string `json:"verify_name"`
-	VerifyToken string `json:"verify_token"`
+	ID           string `json:"id"`
+	Domain       string `json:"domain"`
+	ContainerID  string `json:"container_id"`
+	TargetPort   int    `json:"target_port"`
+	Status       string `json:"status"`
+	VerifyName   string `json:"verify_name"`
+	VerifyToken  string `json:"verify_token"`
+	DNSAutomated bool   `json:"dns_automated,omitempty"`
 }
 
 func toResponse(cd *router.CustomDomain) domainResponse {
@@ -182,8 +212,36 @@ func (s *Server) createDomain(w http.ResponseWriter, r *http.Request, userID str
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	slog.Info("custom domain created", "domain", d, "user", userID, "container", req.ContainerID)
-	writeJSON(w, http.StatusCreated, toResponse(cd))
+	// DNS automation runs only AFTER the row exists: the upsert deliberately
+	// overwrites whatever record sits at this name, so it must never fire for
+	// a create that fails (e.g. duplicate-domain 409) — that would rewrite the
+	// user's zone while reporting an error.
+	dnsAutomated := false
+	if cf := s.userCF(userID); cf != nil {
+		zoneID, err := cf.FindZone(d)
+		switch {
+		case err == nil:
+			if err := cf.UpsertCNAME(zoneID, d, ingressTarget); err == nil {
+				if err := s.router.SetCustomDomainStatus(cd.ID, "verified", true); err == nil {
+					cd.Status = "verified"
+					dnsAutomated = true
+					if s.preIssue != nil {
+						s.preIssue(d)
+					}
+				} else {
+					slog.Error("failed to mark domain verified after DNS automation", "domain", d, "error", err)
+				}
+			} else {
+				slog.Warn("cloudflare CNAME upsert failed; falling back to manual verification", "domain", d, "error", err)
+			}
+		case !errors.Is(err, cloudflare.ErrZoneNotFound):
+			slog.Warn("cloudflare zone lookup failed; falling back to manual verification", "domain", d, "error", err)
+		}
+	}
+	slog.Info("custom domain created", "domain", d, "user", userID, "container", req.ContainerID, "dns_automated", dnsAutomated)
+	resp := toResponse(cd)
+	resp.DNSAutomated = dnsAutomated
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // handleDomainByID: DELETE /api/domains/{id}, POST /api/domains/{id}/verify.
@@ -208,6 +266,17 @@ func (s *Server) handleDomainByID(w http.ResponseWriter, r *http.Request, userID
 		if err := s.router.DeleteCustomDomain(id, userID); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
+		}
+		if cf := s.userCF(userID); cf != nil {
+			zoneID, err := cf.FindZone(cd.Domain)
+			switch {
+			case err == nil:
+				if err := cf.DeleteRecord(zoneID, cd.Domain, ingressTarget); err != nil {
+					slog.Warn("cloudflare record cleanup failed", "domain", cd.Domain, "error", err)
+				}
+			case !errors.Is(err, cloudflare.ErrZoneNotFound):
+				slog.Warn("cloudflare record cleanup skipped: zone lookup failed", "domain", cd.Domain, "error", err)
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return

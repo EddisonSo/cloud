@@ -95,18 +95,25 @@ result}` envelope is decoded and `success:false` surfaces as an error.
 After existing validation (syntax, port, container ownership):
 
 ```
+insert row status='pending'         // FIRST — a duplicate-domain 409 exits here
+if insert failed: respond 409/500   // before any DNS write can happen
 token := load+decrypt requesting user's CF token (if box configured)
 if token exists:
     cf := cloudflare.New(token)
     zoneID, err := cf.FindZone(domain)
     if err == nil && cf.UpsertCNAME(zoneID, domain, "ingress.cloud.eddisonso.com") == nil:
-        insert status='verified' (verified_at stamped in the INSERT)
+        SetCustomDomainStatus(id, 'verified')   // stamps verified_at
         preIssue(domain)
         respond 201 {.., dns_automated: true}
         return
     // ErrZoneNotFound or any error: log warning, fall through
-insert status='pending'; respond with TXT instructions  // manual path, unchanged
+respond 201 with TXT instructions   // manual path, unchanged
 ```
+
+Ordering matters: the upsert deliberately overwrites whatever record sits at
+the name, so it must never run for a create that fails — otherwise a 409 could
+rewrite the user's zone (and even repoint their hostname at another user's
+container) while reporting an error.
 
 `DELETE /domains/{id}`: after the DB delete, best-effort guarded
 `DeleteRecord` using that user's token; failures log a warning only.
