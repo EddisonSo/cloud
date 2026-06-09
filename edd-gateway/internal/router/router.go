@@ -136,17 +136,31 @@ type Container struct {
 	PortMap      map[int]int // ingress port -> target port
 }
 
+// CustomDomain holds a user-claimed domain mapped to a container port.
+type CustomDomain struct {
+	ID          string
+	UserID      string
+	ContainerID string
+	Domain      string // lowercased, e.g. "abc.com"
+	TargetPort  int
+	VerifyToken string
+	Status      string // pending | verified | active | failed
+	CreatedAt   time.Time
+	VerifiedAt  sql.NullTime
+}
+
 // Router resolves container IDs and static routes.
 // Uses LRU caching for route lookups.
 type Router struct {
-	db         *sql.DB
-	containers map[string]*Container // containerID -> Container
-	routes     []StaticRoute         // sorted by path length (longest first)
-	cache      *routeCache           // LRU cache for route lookups
-	mu         sync.RWMutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
+	db            *sql.DB
+	containers    map[string]*Container    // containerID -> Container
+	routes        []StaticRoute            // sorted by path length (longest first)
+	customDomains map[string]*CustomDomain // lowercased domain -> mapping (verified/active only)
+	cache         *routeCache              // LRU cache for route lookups
+	mu            sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 // New creates a router backed by PostgreSQL.
@@ -177,13 +191,39 @@ func New(connStr string) (*Router, error) {
 		return nil, fmt.Errorf("create static_routes table: %w", err)
 	}
 
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS custom_domains (
+			id           TEXT PRIMARY KEY,
+			user_id      TEXT NOT NULL,
+			container_id TEXT NOT NULL,
+			domain       TEXT NOT NULL UNIQUE,
+			target_port  INTEGER NOT NULL,
+			verify_token TEXT NOT NULL,
+			status       TEXT NOT NULL DEFAULT 'pending',
+			created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+			verified_at  TIMESTAMPTZ
+		)
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create custom_domains table: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_custom_domains_status ON custom_domains(status)`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create custom_domains status index: %w", err)
+	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_custom_domains_user ON custom_domains(user_id)`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create custom_domains user index: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Router{
-		db:         db,
-		containers: make(map[string]*Container),
-		cache:      newRouteCache(routeCacheSize),
-		ctx:        ctx,
-		cancel:     cancel,
+		db:            db,
+		containers:    make(map[string]*Container),
+		customDomains: make(map[string]*CustomDomain),
+		cache:         newRouteCache(routeCacheSize),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	// Initial load
@@ -273,10 +313,39 @@ func (r *Router) reload() error {
 		return len(routes[i].PathPrefix) > len(routes[j].PathPrefix)
 	})
 
+	// Load verified/active custom domains
+	customDomains := make(map[string]*CustomDomain)
+	cdRows, err := r.db.Query(`SELECT ` + customDomainCols + `
+		FROM custom_domains WHERE status IN ('verified','active')`)
+	if err != nil {
+		return fmt.Errorf("query custom domains: %w", err)
+	}
+	defer cdRows.Close()
+	for cdRows.Next() {
+		cd, err := scanCustomDomain(cdRows)
+		if err != nil {
+			return fmt.Errorf("scan custom domain: %w", err)
+		}
+		// Only publish a domain whose container is currently loaded (running with
+		// an IP). This keeps the resolver consistent and, critically, prevents the
+		// on-demand TLS allowlist (CustomDomainAllowed) from leaking: a deleted or
+		// stopped container's domain must not keep triggering Let's Encrypt
+		// issuance/renewal. Replaces the spec's ON DELETE CASCADE, which the
+		// gateway can't enforce since it doesn't own the containers table.
+		if _, ok := containers[cd.ContainerID]; !ok {
+			continue
+		}
+		customDomains[cd.Domain] = cd
+	}
+	if err := cdRows.Err(); err != nil {
+		return fmt.Errorf("iterate custom domains: %w", err)
+	}
+
 	// Atomic swap
 	r.mu.Lock()
 	r.containers = containers
 	r.routes = routes
+	r.customDomains = customDomains
 	r.mu.Unlock()
 
 	// Clear cache since routes changed
@@ -500,4 +569,136 @@ func (r *Router) ValidateSSHKey(containerID string, pubKey ssh.PublicKey) (bool,
 		return false, fmt.Errorf("validate ssh key: %w", err)
 	}
 	return count > 0, nil
+}
+
+// CreateCustomDomain inserts a new pending custom domain. The UNIQUE(domain)
+// constraint surfaces as an error the API maps to "domain already in use".
+func (r *Router) CreateCustomDomain(cd *CustomDomain) error {
+	_, err := r.db.Exec(`
+		INSERT INTO custom_domains (id, user_id, container_id, domain, target_port, verify_token, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, cd.ID, cd.UserID, cd.ContainerID, cd.Domain, cd.TargetPort, cd.VerifyToken, cd.Status)
+	if err != nil {
+		return fmt.Errorf("insert custom domain: %w", err)
+	}
+	return r.reload()
+}
+
+func scanCustomDomain(s interface{ Scan(...any) error }) (*CustomDomain, error) {
+	var cd CustomDomain
+	if err := s.Scan(&cd.ID, &cd.UserID, &cd.ContainerID, &cd.Domain, &cd.TargetPort,
+		&cd.VerifyToken, &cd.Status, &cd.CreatedAt, &cd.VerifiedAt); err != nil {
+		return nil, err
+	}
+	return &cd, nil
+}
+
+const customDomainCols = `id, user_id, container_id, domain, target_port, verify_token, status, created_at, verified_at`
+
+// GetCustomDomain returns one domain by id.
+func (r *Router) GetCustomDomain(id string) (*CustomDomain, error) {
+	row := r.db.QueryRow(`SELECT `+customDomainCols+` FROM custom_domains WHERE id = $1`, id)
+	cd, err := scanCustomDomain(row)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	return cd, err
+}
+
+// ListCustomDomainsByUser returns all domains owned by a user.
+func (r *Router) ListCustomDomainsByUser(userID string) ([]*CustomDomain, error) {
+	rows, err := r.db.Query(`SELECT `+customDomainCols+` FROM custom_domains WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*CustomDomain
+	for rows.Next() {
+		cd, err := scanCustomDomain(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, cd)
+	}
+	return out, rows.Err()
+}
+
+// ListPendingDomains returns domains awaiting DNS verification.
+func (r *Router) ListPendingDomains() ([]*CustomDomain, error) {
+	rows, err := r.db.Query(`SELECT ` + customDomainCols + ` FROM custom_domains WHERE status = 'pending'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*CustomDomain
+	for rows.Next() {
+		cd, err := scanCustomDomain(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, cd)
+	}
+	return out, rows.Err()
+}
+
+// SetCustomDomainStatus updates a domain's status, optionally stamping verified_at.
+func (r *Router) SetCustomDomainStatus(id, status string, setVerifiedAt bool) error {
+	var err error
+	if setVerifiedAt {
+		_, err = r.db.Exec(`UPDATE custom_domains SET status = $1, verified_at = now() WHERE id = $2`, status, id)
+	} else {
+		_, err = r.db.Exec(`UPDATE custom_domains SET status = $1 WHERE id = $2`, status, id)
+	}
+	if err != nil {
+		return fmt.Errorf("update custom domain status: %w", err)
+	}
+	return r.reload()
+}
+
+// DeleteCustomDomain removes a domain, scoped to its owner.
+func (r *Router) DeleteCustomDomain(id, userID string) error {
+	res, err := r.db.Exec(`DELETE FROM custom_domains WHERE id = $1 AND user_id = $2`, id, userID)
+	if err != nil {
+		return fmt.Errorf("delete custom domain: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return r.reload()
+}
+
+// ContainerOwner returns the user_id that owns a container, for ownership checks.
+func (r *Router) ContainerOwner(containerID string) (string, error) {
+	var userID string
+	err := r.db.QueryRow(`SELECT user_id FROM containers WHERE id = $1`, containerID).Scan(&userID)
+	if err == sql.ErrNoRows {
+		return "", ErrNotFound
+	}
+	return userID, err
+}
+
+// ResolveCustomDomain maps a verified custom hostname to its container + target port.
+func (r *Router) ResolveCustomDomain(host string) (*Container, int, error) {
+	host = strings.ToLower(host)
+	r.mu.RLock()
+	cd, ok := r.customDomains[host]
+	r.mu.RUnlock()
+	if !ok {
+		return nil, 0, ErrNoRoute
+	}
+	c, err := r.Resolve(cd.ContainerID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return c, cd.TargetPort, nil
+}
+
+// CustomDomainAllowed reports whether a hostname is a verified/active custom
+// domain. Used as the on-demand TLS issuance allowlist (abuse gate).
+func (r *Router) CustomDomainAllowed(host string) bool {
+	host = strings.ToLower(host)
+	r.mu.RLock()
+	_, ok := r.customDomains[host]
+	r.mu.RUnlock()
+	return ok
 }
