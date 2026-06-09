@@ -31,12 +31,41 @@ func New(r *router.Router, v *auth.SessionValidator, newID idGen, preIssue func(
 	return &Server{router: r, validator: v, newID: newID, preIssue: preIssue}
 }
 
-// Handler returns the HTTP mux for the API.
+// Handler returns the HTTP mux for the API, wrapped in CORS so the dashboard
+// at cloud.eddisonso.com can call it cross-origin.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/domains", s.auth(s.handleDomains))
 	mux.HandleFunc("/api/domains/", s.auth(s.handleDomainByID))
-	return mux
+	return corsMiddleware(mux)
+}
+
+// isAllowedOrigin / corsMiddleware mirror the CORS policy used by the other
+// edd-cloud services. The OPTIONS preflight is answered here, before the auth
+// middleware — otherwise the browser's tokenless preflight gets a 401 with no
+// CORS headers and the real request is blocked as a network error.
+func isAllowedOrigin(origin string) bool {
+	return origin == "https://cloud.eddisonso.com" ||
+		(len(origin) > len("https://.cloud.eddisonso.com") &&
+			strings.HasSuffix(origin, ".cloud.eddisonso.com") &&
+			strings.HasPrefix(origin, "https://"))
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && isAllowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		}
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // auth wraps a handler, validating the JWT and passing the user id through.
