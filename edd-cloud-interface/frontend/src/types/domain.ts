@@ -259,10 +259,16 @@ export interface CustomDomain {
   status: "pending" | "verified" | "active" | "failed";
   verify_name: string;
   verify_token: string;
+  dns_automated?: boolean;
 }
 
 export interface CreateCustomDomainData {
   container_id: string;
   domain: string;
   target_port: number;
+}
+
+export interface CloudflareStatus {
+  configured: boolean;
+  zones?: string[];
 }

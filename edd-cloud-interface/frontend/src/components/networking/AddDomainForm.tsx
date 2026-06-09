@@ -3,18 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
-import type { CreateCustomDomainData } from "@/types";
+import type { CreateCustomDomainData, CustomDomain } from "@/types";
 
 interface AddDomainFormProps {
-  onAdd: (data: CreateCustomDomainData) => Promise<unknown>;
+  onCreate: (data: CreateCustomDomainData) => Promise<CustomDomain>;
 }
 
-export function AddDomainForm({ onAdd }: AddDomainFormProps) {
+export function AddDomainForm({ onCreate }: AddDomainFormProps) {
   const [containerId, setContainerId] = useState("");
   const [domain, setDomain] = useState("");
   const [targetPort, setTargetPort] = useState(8000);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,11 +23,17 @@ export function AddDomainForm({ onAdd }: AddDomainFormProps) {
 
     setSubmitting(true);
     setError("");
+    setNotice("");
     try {
-      await onAdd({ container_id: containerId.trim(), domain: domain.trim(), target_port: targetPort });
+      const created = await onCreate({ container_id: containerId.trim(), domain: domain.trim(), target_port: targetPort });
       setContainerId("");
       setDomain("");
       setTargetPort(8000);
+      setNotice(
+        created?.dns_automated
+          ? "DNS configured automatically — your domain is going live."
+          : "Domain added — follow the DNS setup instructions below to verify it."
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -74,6 +81,7 @@ export function AddDomainForm({ onAdd }: AddDomainFormProps) {
       {error && (
         <p className="text-sm text-destructive">{error}</p>
       )}
+      {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
 
       <Button type="submit" disabled={submitting || !containerId.trim() || !domain.trim()}>
         <Plus className="w-4 h-4 mr-2" />
