@@ -248,3 +248,21 @@ export interface NotificationMute {
   category: string;
   scope: string;
 }
+
+// ── Networking / Custom Domains ───────────────────────────
+
+export interface CustomDomain {
+  id: string;
+  domain: string;
+  container_id: string;
+  target_port: number;
+  status: "pending" | "verified" | "active" | "failed";
+  verify_name: string;
+  verify_token: string;
+}
+
+export interface CreateCustomDomainData {
+  container_id: string;
+  domain: string;
+  target_port: number;
+}

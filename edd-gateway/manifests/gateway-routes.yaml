@@ -162,3 +162,9 @@ data:
         path: /
         target: edd-registry:80
         strip_prefix: false
+
+      # Custom-domains management API (gateway loopback API server)
+      - host: net.cloud.eddisonso.com
+        path: /
+        target: 127.0.0.1:9092
+        strip_prefix: false

@@ -9,6 +9,7 @@ import {
   Key,
   KeyRound,
   Package,
+  Globe,
 } from "lucide-react";
 import type { NavItem } from "@/types";
 
@@ -45,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "sa-tokens", label: "Account Tokens", icon: Key, path: "/service-accounts/tokens" },
     ],
   },
+  { id: "networking", label: "Networking", icon: Globe, path: "/networking" },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
 ];
 

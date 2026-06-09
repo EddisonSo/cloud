@@ -26,12 +26,19 @@ export function resolveApiHost(): string {
   return host;
 }
 
+// Service subdomain aliases — maps logical service names to their actual subdomain prefix.
+// Most services use their name directly (compute → compute.cloud.*) but some differ.
+const SERVICE_SUBDOMAIN_MAP: Record<string, string> = {
+  networking: "net",
+};
+
 // Service-specific hosts for better connection pooling
 export function resolveServiceHost(service: string): string {
   const host = window.location.host;
   if (host.startsWith("cloud.")) {
     // Use service.cloud.domain format (e.g., "storage.cloud.eddisonso.com")
-    return `${service}.${host}`;
+    const subdomain = SERVICE_SUBDOMAIN_MAP[service] ?? service;
+    return `${subdomain}.${host}`;
   }
   return host;
 }
@@ -62,6 +69,10 @@ export function buildHealthBase(): string {
 
 export function buildRegistryBase(): string {
   return buildServiceBase("registry");
+}
+
+export function buildNetworkingBase(): string {
+  return buildServiceBase("networking");
 }
 
 export function buildNotificationsBase(): string {

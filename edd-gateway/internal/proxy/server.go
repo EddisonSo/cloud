@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ type Server struct {
 	mu           sync.Mutex
 	closed       bool
 	tlsConfig    *tls.Config // TLS config for termination
+	wildcardCert *tls.Certificate
+	onDemand     func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 }
 
 // NewServer creates a new proxy server.
@@ -30,21 +33,45 @@ func NewServer(r *router.Router, fallbackAddr string) *Server {
 	}
 }
 
-// LoadTLSCert loads a TLS certificate for TLS termination.
+// LoadTLSCert loads the wildcard TLS certificate used for platform domains and
+// installs a GetCertificate callback (custom domains are served on-demand).
 func (s *Server) LoadTLSCert(certFile, keyFile string) error {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return fmt.Errorf("load TLS cert: %w", err)
 	}
-
+	s.wildcardCert = &cert
 	s.tlsConfig = &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-		NextProtos:   []string{"http/1.1"}, // Force HTTP/1.1, don't advertise HTTP/2
+		MinVersion: tls.VersionTLS12,
+		// acme-tls/1 first so TLS-ALPN-01 challenges are negotiated; http/1.1 for normal traffic.
+		NextProtos:     []string{"acme-tls/1", "http/1.1"},
+		GetCertificate: s.getCertificate,
 	}
-
 	slog.Info("loaded TLS certificate", "cert", certFile)
 	return nil
+}
+
+// EnableOnDemandTLS installs certmagic's on-demand certificate callback for
+// non-platform (custom) domains.
+func (s *Server) EnableOnDemandTLS(onDemand func(*tls.ClientHelloInfo) (*tls.Certificate, error)) {
+	s.onDemand = onDemand
+}
+
+// getCertificate serves the wildcard cert for platform domains and delegates
+// custom domains to certmagic (which also answers acme-tls/1 challenges).
+func (s *Server) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	name := strings.ToLower(hello.ServerName)
+	// Serve the wildcard cert for platform domains and as the fallback for an
+	// empty SNI; only delegate real custom domains to on-demand issuance.
+	if name != "" && s.onDemand != nil && !isPlatformDomain(name) {
+		return s.onDemand(hello)
+	}
+	return s.wildcardCert, nil
+}
+
+// isPlatformDomain reports whether a name is covered by the wildcard cert.
+func isPlatformDomain(name string) bool {
+	return name == "eddisonso.com" || strings.HasSuffix(name, ".eddisonso.com")
 }
 
 // ListenSSH starts the SSH proxy listener.

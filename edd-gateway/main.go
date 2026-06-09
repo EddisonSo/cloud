@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -10,9 +13,12 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"eddisonso.com/edd-gateway/internal/api"
+	"eddisonso.com/edd-gateway/internal/auth"
 	"eddisonso.com/edd-gateway/internal/k8s"
 	"eddisonso.com/edd-gateway/internal/proxy"
 	"eddisonso.com/edd-gateway/internal/router"
+	"eddisonso.com/edd-gateway/internal/tlsmgr"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"gopkg.in/yaml.v3"
 )
@@ -90,9 +96,15 @@ func main() {
 		slog.Debug("no routes.yaml found, skipping static routes", "path", routesFile)
 	}
 
+	// Route the management API host to the loopback API server.
+	if err := r.RegisterRoute("net.cloud.eddisonso.com", "/", "127.0.0.1:9092", false); err != nil {
+		slog.Error("failed to register management API route", "error", err)
+	}
+
 	// Create proxy server
 	srv := proxy.NewServer(r, *fallbackAddr)
 
+	var tlsMgr *tlsmgr.Manager
 	// Load TLS certificate for termination if provided
 	if *tlsCert != "" && *tlsKey != "" {
 		if err := srv.LoadTLSCert(*tlsCert, *tlsKey); err != nil {
@@ -100,6 +112,14 @@ func main() {
 			os.Exit(1)
 		}
 		slog.Info("TLS termination enabled")
+
+		tlsMgr, err = tlsmgr.New(dbConnStr, r)
+		if err != nil {
+			slog.Error("failed to init TLS manager", "error", err)
+			os.Exit(1)
+		}
+		srv.EnableOnDemandTLS(tlsMgr.GetCertificate)
+		slog.Info("on-demand TLS enabled")
 	}
 
 	// Start SSH listener
@@ -135,6 +155,29 @@ func main() {
 	// Start health check server
 	go startHealthServer(9091)
 
+	// Management API on loopback; exposed via the net.cloud.eddisonso.com static route.
+	validator := auth.NewSessionValidator()
+	var preIssue func(string)
+	if tlsMgr != nil {
+		preIssue = tlsMgr.PreIssue
+	}
+	apiSrv := api.New(r, validator, newDomainID, preIssue)
+	go func() {
+		slog.Info("management API listening", "addr", "127.0.0.1:9092")
+		if err := http.ListenAndServe("127.0.0.1:9092", apiSrv.Handler()); err != nil {
+			// A bind failure means net.cloud.eddisonso.com would 502 while the pod
+			// still reports ready — fail fast so the deployment surfaces it.
+			slog.Error("management API failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// DNS-TXT verification worker.
+	worker := api.NewVerifyWorker(r, preIssue, 0)
+	workerCtx, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+	go worker.Run(workerCtx)
+
 	// Mark as ready
 	ready.Store(true)
 
@@ -147,6 +190,13 @@ func main() {
 
 	slog.Info("gateway shutting down")
 	srv.Close()
+}
+
+// newDomainID returns a unique id for a custom_domains row.
+func newDomainID() string {
+	b := make([]byte, 12)
+	_, _ = rand.Read(b)
+	return "cd_" + hex.EncodeToString(b)
 }
 
 // startHealthServer starts a simple HTTP server for health checks

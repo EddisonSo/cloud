@@ -91,6 +91,12 @@ func (s *Server) handleTLS(conn net.Conn) {
 			s.handleTLSTermination(conn, header, payload, sni, clientAddr)
 			return
 		}
+
+		// Custom (bring-your-own) domains: terminate TLS (on-demand cert) and route to container.
+		if s.router.CustomDomainAllowed(sni) {
+			s.handleCustomDomainTLSTermination(conn, header, payload, sni, clientAddr)
+			return
+		}
 	}
 
 	// TLS passthrough to fallback only (no TLS termination configured or no route)
@@ -174,6 +180,43 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	}
 
 	// Proxy the decrypted connection to the backend
+	proxy(tlsConn, backend, nil)
+}
+
+// handleCustomDomainTLSTermination terminates TLS for a verified custom domain
+// (cert from certmagic) and proxies to the mapped container/port. acme-tls/1
+// challenge handshakes are answered by certmagic and then closed.
+func (s *Server) handleCustomDomainTLSTermination(rawConn net.Conn, header, payload []byte, sni, clientAddr string) {
+	replayConn := &replayConn{Conn: rawConn, replay: append(header, payload...)}
+	tlsConn := tls.Server(replayConn, s.tlsConfig)
+	if err := tlsConn.Handshake(); err != nil {
+		slog.Warn("TLS handshake failed for custom domain", "sni", sni, "error", err, "client", clientAddr)
+		rawConn.Close()
+		return
+	}
+	// If this was an ACME TLS-ALPN-01 challenge, certmagic already answered it.
+	if tlsConn.ConnectionState().NegotiatedProtocol == "acme-tls/1" {
+		slog.Debug("answered acme-tls/1 challenge", "sni", sni)
+		tlsConn.Close()
+		return
+	}
+
+	container, targetPort, err := s.router.ResolveCustomDomain(sni)
+	if err != nil {
+		slog.Warn("custom domain not resolvable after handshake", "sni", sni, "error", err)
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo route for domain\r\n"))
+		tlsConn.Close()
+		return
+	}
+	backendAddr := fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
+	slog.Info("custom domain TLS terminated, routing to backend", "sni", sni, "target", backendAddr)
+	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
+	if err != nil {
+		slog.Error("failed to connect to custom domain backend", "sni", sni, "addr", backendAddr, "error", err)
+		tlsConn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+		tlsConn.Close()
+		return
+	}
 	proxy(tlsConn, backend, nil)
 }
 

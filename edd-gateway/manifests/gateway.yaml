@@ -72,6 +72,15 @@ spec:
                 secretKeyRef:
                   name: postgres-credentials
                   key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: edd-cloud-auth
+                  key: JWT_SECRET
+            - name: ACME_EMAIL
+              value: "admin@eddisonso.com"
+            - name: ACME_STAGING
+              value: "true"
           ports:
             - name: ssh
               containerPort: 2222
