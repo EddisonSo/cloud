@@ -104,30 +104,43 @@ func TestCustomDomainAllowed(t *testing.T) {
 	_ = r.DeleteCustomDomain("cd_orph", "u1")
 }
 
-func TestCloudflareTokenStore(t *testing.T) {
+func TestCloudflareConnections(t *testing.T) {
 	r := testRouter(t)
-	if _, err := r.GetCloudflareToken("u_tok"); err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
+	_, _ = r.db.Exec(`DELETE FROM cloudflare_connections WHERE user_id = 'u_conn'`)
+	id1, err := r.AddCloudflareConnection("u_conn", []byte{1}, []string{"eddisonso.com"})
+	if err != nil || id1 == "" {
+		t.Fatalf("Add1: %v %q", err, id1)
 	}
-	if err := r.SetCloudflareToken("u_tok", []byte{1, 2, 3}); err != nil {
-		t.Fatalf("Set: %v", err)
+	id2, err := r.AddCloudflareConnection("u_conn", []byte{2}, []string{"eddisonso2.com", "other.io"})
+	if err != nil {
+		t.Fatalf("Add2: %v", err)
 	}
-	ct, err := r.GetCloudflareToken("u_tok")
-	if err != nil || len(ct) != 3 {
-		t.Fatalf("Get: %v %v", err, ct)
+	conns, err := r.ListCloudflareConnections("u_conn")
+	if err != nil || len(conns) != 2 {
+		t.Fatalf("List: %v len=%d", err, len(conns))
 	}
-	// upsert overwrites
-	if err := r.SetCloudflareToken("u_tok", []byte{9}); err != nil {
-		t.Fatalf("Set2: %v", err)
+	var c2 *CloudflareConnection
+	for i := range conns {
+		if conns[i].ID == id2 {
+			c2 = &conns[i]
+		}
 	}
-	ct, _ = r.GetCloudflareToken("u_tok")
-	if len(ct) != 1 || ct[0] != 9 {
-		t.Fatalf("upsert failed: %v", ct)
+	if c2 == nil || len(c2.Zones) != 2 || c2.Ciphertext[0] != 2 {
+		t.Fatalf("conn2 wrong: %+v", c2)
 	}
-	if err := r.DeleteCloudflareToken("u_tok"); err != nil {
+	if err := r.UpdateCloudflareConnectionZones(id2, "u_conn", []string{"eddisonso2.com"}); err != nil {
+		t.Fatalf("UpdateZones: %v", err)
+	}
+	// ownership: wrong user cannot delete
+	if err := r.DeleteCloudflareConnection(id1, "someone_else"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for wrong user, got %v", err)
+	}
+	if err := r.DeleteCloudflareConnection(id1, "u_conn"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if _, err := r.GetCloudflareToken("u_tok"); err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	conns, _ = r.ListCloudflareConnections("u_conn")
+	if len(conns) != 1 {
+		t.Fatalf("expected 1 after delete, got %d", len(conns))
 	}
+	_ = r.DeleteCloudflareConnection(id2, "u_conn")
 }
