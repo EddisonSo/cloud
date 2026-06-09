@@ -52,7 +52,7 @@ spec:
         core-services: "true"
       containers:
         - name: gateway
-          image: docker.io/eddisonso/ecloud-gateway:20260219-062029
+          image: docker.io/eddisonso/ecloud-gateway:20260609-041213
           args:
             - -ssh-port
             - "2222"
