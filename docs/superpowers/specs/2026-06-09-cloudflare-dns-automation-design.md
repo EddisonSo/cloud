@@ -1,145 +1,167 @@
-# Cloudflare DNS Automation for Custom Domains
+# Cloudflare DNS Automation for Custom Domains (Per-User Tokens)
 
 **Date:** 2026-06-09
-**Status:** Approved
-**Service:** edd-gateway (+ small frontend touch)
+**Status:** Approved (rev 2 — per-user tokens; rev 1's platform-wide token was dropped)
+**Service:** edd-gateway (+ Networking tab touch)
 
 ## Problem
 
-Adding a custom domain currently requires the user to manually create two DNS
-records (the `_edd-verify` TXT and the traffic CNAME). Two failure modes showed
-up in practice on day one:
+Adding a custom domain requires the user to manually create DNS records. Two
+failure modes showed up on day one:
 
-1. The user creates the CNAME **proxied** (Cloudflare orange-cloud), which
-   breaks the feature twice over: ACME TLS-ALPN-01 challenges hit Cloudflare's
-   edge instead of the gateway (no cert ever issues), and Cloudflare's
-   plaintext origin leg meets the gateway's HTTP→HTTPS redirect in an infinite
-   301 loop.
-2. The manual two-record dance is slow and error-prone even when done right.
+1. The user creates the traffic record **proxied** (Cloudflare orange-cloud),
+   which breaks the feature twice: ACME TLS-ALPN-01 challenges terminate at
+   Cloudflare's edge (no cert ever issues), and Cloudflare's plaintext origin
+   leg meets the gateway's HTTP→HTTPS redirect in an infinite 301 loop.
+2. The manual record dance is slow and error-prone even when done right.
 
-Since the operator's zones live on Cloudflare, the platform can create the
-records itself via the Cloudflare API — correctly (`proxied: false`), instantly,
-and with verification implied.
+Since the domain owner controls their DNS zone, they can hand the platform a
+scoped Cloudflare API token and the platform creates the records itself —
+correctly (`proxied: false` forced), instantly, with verification implied.
 
-## Decisions (settled during brainstorming)
+## Decisions
 
-- **Cloudflare only.** No multi-provider abstraction. Domains on other DNS
-  providers keep the existing manual TXT flow.
-- **Single platform-wide API token** (operator's Cloudflare account), scoped to
-  `Zone:Read` + `Zone.DNS:Edit`, stored as a Kubernetes Secret — never in the
-  DB, ConfigMaps, or logs.
-- **Auto-verify.** Holding a DNS-edit token for the zone *is* proof of control.
-  When automation succeeds, the domain is marked `verified` immediately and
-  cert pre-issuance fires — no TXT record, no poll wait. Add → live in seconds.
-- **Graceful fallback.** Token unset, zone not found on the token, or any CF
-  API error → the flow degrades to today's manual `pending` + TXT-instructions
-  path. Cloudflare failures must never block adding a domain.
+- **Per-user tokens.** The end user bringing the domain provides their own
+  Cloudflare API token (scoped `Zone:Read` + `Zone.DNS:Edit`, ideally to just
+  their zone). The platform never holds a global DNS credential. Users who
+  don't want to share a token keep the manual TXT flow.
+- **Cloudflare only.** No multi-provider abstraction. Non-Cloudflare domains
+  use the manual flow.
+- **Auto-verify.** A working DNS-edit token for the zone *is* proof of
+  control: when the platform successfully creates the CNAME, the domain is
+  marked `verified` immediately and cert pre-issuance fires. Add → live in
+  seconds.
+- **Graceful fallback everywhere.** No token stored, zone not on the token,
+  CF API error, encryption key unset → degrade to the manual `pending` + TXT
+  path. Cloudflare problems must never block adding a domain.
+- **Platform DNS needs nothing.** `ingress.cloud.eddisonso.com` (the CNAME
+  target) is already maintained by the DDNS `*.cloud.eddisonso.com` wildcard.
 
 ## Design
 
-### 1. Token & config
+### 1. Token storage — encrypted at rest in the gateway's Postgres
 
-- K8s Secret `cloudflare-api` in namespace `core`, key `CLOUDFLARE_API_TOKEN`,
-  created with `kubectl create secret` (never committed).
-- Gateway Deployment gets the env var via `secretKeyRef` (same pattern as
-  `JWT_SECRET`). Env var absent → automation disabled, everything behaves as
-  today.
+```sql
+CREATE TABLE IF NOT EXISTS user_cloudflare_tokens (
+    user_id          TEXT PRIMARY KEY,
+    token_ciphertext BYTEA NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+- Tokens are sealed with **AES-256-GCM** using a 32-byte platform key from K8s
+  Secret `gateway-token-key` (env `TOKEN_ENCRYPTION_KEY`, hex-encoded,
+  generated with `openssl rand -hex 32`, created via `kubectl create secret` —
+  never committed).
+- Plaintext tokens exist only in request bodies and process memory. Never
+  logged, never persisted unencrypted, never returned by any endpoint.
+- Env key unset → the whole integration is disabled (token endpoints return
+  503 "not configured"; createDomain skips automation).
+- New small package `internal/secretbox`: `New(keyHex string) (*Box, error)`,
+  `Seal(plaintext []byte) []byte`, `Open(ciphertext []byte) ([]byte, error)`
+  (random nonce prepended to ciphertext).
 
 ### 2. Cloudflare client — `edd-gateway/internal/cloudflare/`
 
-Plain `net/http` against the Cloudflare v4 API (three endpoints — no SDK
-dependency). All calls send `Authorization: Bearer <token>`.
+Plain `net/http` against the CF v4 API; per-request client built from the
+user's decrypted token (`cloudflare.New(token)`). Methods:
 
-- `FindZone(domain string) (zoneID string, err error)` — `GET /zones`, match
-  the **longest zone-name suffix** of the domain
-  (`resume.eddisonso2.com` → zone `eddisonso2.com`). No match → sentinel
-  `ErrZoneNotFound` (caller falls back to manual flow).
-- `UpsertCNAME(zoneID, name, target string) error` — look up an existing
-  record for `name` (`GET /zones/{id}/dns_records?name=`); `POST` to create or
-  `PUT` to update, always `type=CNAME`, `content=target`, **`proxied: false`**.
-  Upsert semantics deliberately *repair* a pre-existing orange-cloud record.
-- `DeleteRecord(zoneID, name string) error` — find record by name, `DELETE` it.
-  Used best-effort on domain deletion.
+- `ListZones() ([]Zone, error)` — `GET /zones?per_page=50`; `Zone{ID, Name}`
+  exported (used for save-time validation feedback and zone matching).
+- `FindZone(domain) (zoneID, error)` — longest dot-suffix match over
+  `ListZones`; sentinel `ErrZoneNotFound`.
+- `UpsertCNAME(zoneID, name, target) error` — find-by-name then POST (create)
+  or PUT (update); always `type=CNAME`, `proxied: false`, `ttl: 1`. Upsert
+  deliberately **repairs** a pre-existing orange-cloud record.
+- `DeleteRecord(zoneID, name, expectedContent) error` — deletes only if the
+  record's content equals `expectedContent` (the ingress target), so a record
+  the user repurposed is never destroyed.
 
-The target is the existing stable ingress host `ingress.cloud.eddisonso.com`
-(covered by the DDNS-maintained wildcard).
+All calls send `Authorization: Bearer <token>`; CF's `{success, errors,
+result}` envelope is decoded and `success:false` surfaces as an error.
 
-### 3. createDomain flow (edd-gateway/internal/api/server.go)
+### 3. Token management API (existing authenticated mux, JWT + CORS)
 
-After the existing validation (domain syntax, port, container ownership):
+- `PUT /api/cloudflare-token` body `{token}` — **validate on save** by calling
+  `ListZones` with it; failure → 400 "token invalid or lacks zone access";
+  success → seal + upsert row, respond `{configured: true, zones: [names]}`.
+- `GET /api/cloudflare-token` → `{configured: bool, zones?: [names]}` (zones
+  fetched live when configured; the token itself is never returned).
+- `DELETE /api/cloudflare-token` → remove the row, 204.
+- All three return 503 if `TOKEN_ENCRYPTION_KEY` is unset.
+
+### 4. createDomain flow
+
+After existing validation (syntax, port, container ownership):
 
 ```
-if cfClient != nil {
-    zoneID, err := cfClient.FindZone(domain)
-    if err == nil {
-        if err := cfClient.UpsertCNAME(zoneID, domain, ingressHost); err == nil {
-            insert row with status='verified', verified_at=now()
-            preIssue(domain)
-            respond 201 with dns_automated: true
-            return
-        }
-    }
-    // ErrZoneNotFound or any CF error: log and fall through
-}
-// manual path, unchanged: insert status='pending', respond with TXT instructions
+token := load+decrypt requesting user's CF token (if box configured)
+if token exists:
+    cf := cloudflare.New(token)
+    zoneID, err := cf.FindZone(domain)
+    if err == nil && cf.UpsertCNAME(zoneID, domain, "ingress.cloud.eddisonso.com") == nil:
+        insert status='verified' (verified_at stamped in the INSERT)
+        preIssue(domain)
+        respond 201 {.., dns_automated: true}
+        return
+    // ErrZoneNotFound or any error: log warning, fall through
+insert status='pending'; respond with TXT instructions  // manual path, unchanged
 ```
 
-- `dns_automated` is **response-only** — no schema change to `custom_domains`.
-- CF errors are logged (`slog.Warn`) with the domain but never the token.
+`DELETE /domains/{id}`: after the DB delete, best-effort guarded
+`DeleteRecord` using that user's token; failures log a warning only.
 
-`DELETE /domains/{id}`: after the DB delete succeeds, best-effort
-`FindZone` + `DeleteRecord` for the domain's CNAME. Failure logs a warning and
-does not affect the API response. (Conservative: only deletes a record whose
-content is exactly `ingress.cloud.eddisonso.com`, so an unrelated record the
-user repurposed is never destroyed.)
-
-### 4. Unchanged
-
-Verify worker (still serves manual-path domains), on-demand TLS/certmagic,
-router resolution, `custom_domains` schema, CORS middleware.
+`dns_automated` is response-only — no change to the `custom_domains` schema.
 
 ### 5. Frontend (Networking tab)
 
-- `CustomDomain`/create response type gains optional `dns_automated?: boolean`.
-- When `dns_automated` is true, the domain card shows
-  "DNS configured automatically — going live" instead of the TXT/CNAME setup
-  instructions, and the status badge proceeds Verified → Live as usual.
-- Manual-path rendering unchanged.
+- New "Cloudflare integration" card: paste token → save → shows
+  "Connected — zones: …" on success; disconnect button. Helper text tells the
+  user to create a token scoped to `Zone:Read` + `DNS:Edit` on just their zone.
+- Add-domain flow unchanged; on a `dns_automated: true` response the form
+  shows "DNS configured automatically — your domain is going live" and the
+  TXT instructions card never appears (status is already `verified`).
+
+### 6. Unchanged
+
+Verify worker (still serves manual-path domains), on-demand TLS/certmagic,
+router resolution, CORS middleware, `custom_domains` schema.
 
 ## Error handling
 
 | Failure | Behavior |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` unset | Automation disabled; manual flow for everyone |
-| Domain's zone not on the token | `ErrZoneNotFound` → manual flow for that domain |
-| CF API down / 5xx / rate limit | Log warning → manual flow for that create |
+| `TOKEN_ENCRYPTION_KEY` unset | Token endpoints 503; createDomain skips automation |
+| User has no stored token | Manual flow (today's behavior) |
+| Token invalid at save time | 400, not stored |
+| Token revoked later / CF 5xx during create | Log warning → manual flow for that create |
+| Domain's zone not on the user's token | `ErrZoneNotFound` → manual flow |
 | Existing record at same name | Upsert overwrites to grey-cloud CNAME → ingress (repairs misconfig) |
-| Delete: CF cleanup fails | Log warning; domain delete still succeeds |
-| Delete: record content ≠ ingress host | Leave the record alone |
+| Delete: CF cleanup fails / content ≠ ingress target | Log / leave record; domain delete still succeeds |
+| Decryption failure (key rotated) | Treat as no token; log warning |
 
 ## Security
 
-- Token only ever lives in the K8s Secret and gateway process env. Never
-  logged, never in responses, never persisted to the DB.
-- Token scoped to `Zone:Read` + `Zone.DNS:Edit` on specific zones (operator's
-  choice which zones to include).
-- Auto-verify does not weaken the abuse gate: automation only triggers for
-  zones the *platform operator's* token controls — an arbitrary user domain on
-  someone else's Cloudflare account gets `ErrZoneNotFound` and the normal
-  TXT-proof path.
+- Custodianship of user DNS-edit credentials is the main new risk. Mitigations:
+  AES-256-GCM at rest, key only in a K8s Secret, plaintext never logged or
+  returned, save-time scoping guidance in the UI, one-click disconnect.
+- Auto-verify does not weaken the abuse gate: automation only succeeds for
+  zones the *requesting user's own token* controls — claiming someone else's
+  domain still requires the TXT proof.
 
 ## Testing
 
-- **Unit:** zone longest-suffix matching; CF client against `httptest.Server`
-  stubs (create vs update branch, proxied:false in payload, delete-only-if-
-  content-matches guard); createDomain fallback when client nil / zone not
-  found / CF 500.
-- **End-to-end (manual):** add `resume.eddisonso2.com` in the Networking tab →
-  record appears grey-cloud in Cloudflare, domain verified immediately, prod
-  cert issues, HTTPS 200. This simultaneously repairs the currently-broken
-  orange-cloud record via the upsert.
+- **Unit:** secretbox round-trip + tamper detection; zone suffix matching; CF
+  client against `httptest` stubs (create vs update, `proxied:false` payload,
+  delete guard, error envelope); token-endpoint validation paths.
+- **DB-gated:** token store CRUD (`DATABASE_URL_TEST`).
+- **End-to-end (manual):** connect token in the tab → re-add
+  `resume.eddisonso2.com` → record appears grey-cloud in CF (repairing the
+  currently-proxied one), domain verified instantly, prod cert issues,
+  HTTPS 200.
 
 ## Effort
 
-Small: one new ~150-line package + a guarded branch in createDomain + manifest
-env + a frontend conditional. The risky surface (TLS, routing) is untouched.
+Small-to-medium: one crypto helper (~60 lines), one CF client (~150 lines),
+one DB table + CRUD, three token endpoints + a guarded branch in createDomain,
+manifest env, a frontend card. TLS/routing untouched.
