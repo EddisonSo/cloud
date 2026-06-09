@@ -13,6 +13,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+  # The deploy workflow runs `kubectl apply -f manifests/nats/nats.yaml`, which
+  # bundles a PVC, ConfigMap, and Service. apply needs read + create/update on
+  # each of these resource types in this namespace.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims", "configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
