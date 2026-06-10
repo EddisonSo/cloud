@@ -58,13 +58,13 @@ export function ServiceAccountList({ showCreate = false, onCloseCreate }: Servic
 
   if (loading) {
     return (
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Service Accounts</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Service Accounts</h2>
         </div>
-        <div className="p-5 space-y-2">
+        <div className="px-5 py-4 space-y-2">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
+            <div key={i} className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-16 mx-auto" />
               <Skeleton className="h-4 w-20 mx-auto" />
@@ -85,49 +85,47 @@ export function ServiceAccountList({ showCreate = false, onCloseCreate }: Servic
         />
       )}
 
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Service Accounts</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Service Accounts</h2>
         </div>
-        <div className="p-5">
-          {accounts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No service accounts yet</p>
-              <p className="text-xs mt-1">
-                Create a service account to manage scoped API access.
-              </p>
+        {accounts.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No service accounts yet</p>
+            <p className="text-xs mt-1">
+              Create a service account to manage scoped API access.
+            </p>
+          </div>
+        ) : (
+          <div>
+            {/* Header */}
+            <div className="grid grid-cols-[1fr_100px_120px] gap-4 px-5 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Name</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Tokens</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Created</div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Name</div>
-                <div className="text-center">Tokens</div>
-                <div className="text-center">Created</div>
-              </div>
-              {/* Rows */}
-              {accounts.map((sa) => (
-                <button
-                  key={sa.id}
-                  onClick={() => navigate(`/service-accounts/${sa.id}`)}
-                  className="w-full grid grid-cols-[1fr_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md items-center cursor-pointer transition-all hover:bg-secondary/80"
-                >
-                  <div className="flex items-center gap-2 min-w-0 text-left">
-                    <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate">{sa.name}</span>
-                  </div>
-                  <div className="text-center text-sm text-muted-foreground">
-                    {sa.token_count} {sa.token_count === 1 ? "token" : "tokens"}
-                  </div>
-                  <div className="text-center text-sm text-muted-foreground">
-                    {formatDate(sa.created_at as unknown as number)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            {/* Rows */}
+            {accounts.map((sa) => (
+              <button
+                key={sa.id}
+                onClick={() => navigate(`/service-accounts/${sa.id}`)}
+                className="w-full grid grid-cols-[1fr_100px_120px] gap-4 px-5 py-3 border-b border-border last:border-0 items-center cursor-pointer transition-colors hover:bg-popover text-left"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <KeyRound className="w-4 h-4 text-faint shrink-0" />
+                  <span className="text-sm font-medium truncate">{sa.name}</span>
+                </div>
+                <div className="text-center font-mono text-[12.5px] text-muted-foreground">
+                  {sa.token_count} {sa.token_count === 1 ? "token" : "tokens"}
+                </div>
+                <div className="text-center font-mono text-[12.5px] text-muted-foreground">
+                  {formatDate(sa.created_at as unknown as number)}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -188,7 +186,7 @@ function CreateServiceAccountForm({ userId, onCreated, onCancel }: CreateService
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Create service account</CardTitle>
+        <CardTitle>Create service account</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">

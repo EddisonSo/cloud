@@ -102,7 +102,7 @@ export function ApiTokenList(): React.ReactElement {
           </CardHeader>
           <CardContent className="space-y-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md">
+              <div key={i} className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 bg-secondary">
                 <Skeleton className="h-5 w-32" />
                 <Skeleton className="h-4 w-20 mx-auto" />
                 <Skeleton className="h-4 w-16 mx-auto" />
@@ -119,7 +119,7 @@ export function ApiTokenList(): React.ReactElement {
     <div className="space-y-4">
       {/* Created token display */}
       {createdToken && (
-        <Card className="border-primary/50">
+        <Card className="border-primary">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
@@ -128,7 +128,7 @@ export function ApiTokenList(): React.ReactElement {
                   Your new API token. Copy it now — it won't be shown again.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-secondary px-3 py-2 rounded font-mono break-all select-all">
+                  <code className="flex-1 font-mono text-[12.5px] text-muted-foreground bg-background border border-border px-3 py-2 break-all select-all">
                     {createdToken}
                   </code>
                   <Button
@@ -171,25 +171,25 @@ export function ApiTokenList(): React.ReactElement {
       {/* Token list */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Active Tokens</CardTitle>
+          <CardTitle>Active Tokens</CardTitle>
         </CardHeader>
         <CardContent>
           {tokens.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No API tokens yet</p>
+              <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No API tokens yet</p>
               <p className="text-xs mt-1">
                 Create a token bound to a service account for programmatic API access.
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div>
               {/* Header */}
-              <div className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div>Name</div>
-                <div className="text-center">Account</div>
-                <div className="text-center">Expires</div>
-                <div className="text-center">Created</div>
+              <div className="grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 border-b border-border">
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Name</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Account</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Expires</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Created</div>
               </div>
               {/* Rows */}
               {tokens.map((token) => {
@@ -197,13 +197,13 @@ export function ApiTokenList(): React.ReactElement {
                 return (
                   <div
                     key={token.id}
-                    className={`grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 bg-secondary rounded-md items-center${expired ? " opacity-60" : ""}`}
+                    className={`grid grid-cols-[1fr_120px_100px_120px] gap-4 px-4 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors items-center${expired ? " opacity-60" : ""}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <span className="font-medium truncate">{token.name}</span>
+                      <KeyRound className="w-4 h-4 text-faint shrink-0" />
+                      <span className="text-sm font-medium truncate">{token.name}</span>
                     </div>
-                    <div className="text-center text-sm truncate">
+                    <div className="text-center font-mono text-[12.5px] truncate">
                       {token.service_account_id && saMap[token.service_account_id] ? (
                         <button
                           onClick={() => navigate(`/service-accounts/${token.service_account_id}`)}
@@ -215,7 +215,7 @@ export function ApiTokenList(): React.ReactElement {
                         <span className="text-muted-foreground">standalone</span>
                       )}
                     </div>
-                    <div className="text-center text-sm">
+                    <div className="text-center font-mono text-[12.5px]">
                       {expired ? (
                         <span className="text-destructive">Expired</span>
                       ) : token.expires_at > 0 ? (
@@ -224,7 +224,7 @@ export function ApiTokenList(): React.ReactElement {
                         <span className="text-muted-foreground">Never</span>
                       )}
                     </div>
-                    <div className="text-center text-sm text-muted-foreground">
+                    <div className="text-center font-mono text-[12.5px] text-muted-foreground">
                       {formatDate(token.created_at)}
                     </div>
                   </div>
@@ -295,7 +295,7 @@ function CreateTokenForm({ serviceAccounts, onCreated, onCancel }: CreateTokenFo
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Create API token</CardTitle>
+        <CardTitle>Create API token</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -316,7 +316,7 @@ function CreateTokenForm({ serviceAccounts, onCreated, onCancel }: CreateTokenFo
                 id="token-sa"
                 value={saId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSaId(e.target.value)}
-                className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm"
+                className="w-full h-9 border border-border bg-background px-3 font-mono text-[12.5px] text-muted-foreground"
               >
                 {serviceAccounts.map((sa) => (
                   <option key={sa.id} value={sa.id}>
@@ -331,7 +331,7 @@ function CreateTokenForm({ serviceAccounts, onCreated, onCancel }: CreateTokenFo
                 id="token-expiry"
                 value={expiresIn}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExpiresIn(e.target.value)}
-                className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm"
+                className="w-full h-9 border border-border bg-background px-3 font-mono text-[12.5px] text-muted-foreground"
               >
                 {EXPIRY_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>

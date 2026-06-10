@@ -116,7 +116,7 @@ export function CreateContainerForm({
   return (
     <Card className="mb-4">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-sm font-semibold">Create Container</CardTitle>
+        <CardTitle>Create Container</CardTitle>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel}>
           <X className="w-4 h-4" />
         </Button>
@@ -202,17 +202,17 @@ export function CreateContainerForm({
 
           <div className="space-y-2">
             <Label>SSH Keys</Label>
-            <div className="max-h-48 overflow-y-auto p-3 bg-background border border-border rounded-md space-y-2">
+            <div className="max-h-48 overflow-y-auto p-3 bg-background border border-border space-y-2">
               {sshKeys.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No SSH keys. Add one first.</p>
               ) : (
                 sshKeys.map((key) => (
                   <label
                     key={key.id}
-                    className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                    className={`flex items-center gap-3 p-2 border cursor-pointer transition-colors ${
                       selectedKeyIds.includes(key.id)
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-primary"
+                        ? "border-primary"
+                        : "border-border hover:border-muted-foreground"
                     }`}
                   >
                     <input
@@ -222,7 +222,7 @@ export function CreateContainerForm({
                       className="w-4 h-4 accent-primary"
                     />
                     <span className="text-sm font-medium">{key.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono ml-auto truncate max-w-[200px]">
+                    <span className="font-mono text-[12.5px] text-muted-foreground ml-auto truncate max-w-[200px]">
                       {key.fingerprint}
                     </span>
                   </label>
@@ -261,9 +261,9 @@ export function CreateContainerForm({
                 mountPaths.map((path) => (
                   <div
                     key={path}
-                    className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                    className="flex items-center justify-between p-3 border border-border"
                   >
-                    <span className="font-mono text-sm">{path}</span>
+                    <span className="font-mono text-[12.5px] text-muted-foreground">{path}</span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -281,10 +281,10 @@ export function CreateContainerForm({
 
           {/* Access Control */}
           <div className="space-y-4 pt-2 border-t border-border">
-            <h4 className="text-sm font-semibold">Access Control</h4>
+            <h4 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Access Control</h4>
 
             {/* SSH Toggle */}
-            <div className="flex items-center justify-between p-3 bg-secondary rounded-md">
+            <div className="flex items-center justify-between p-3 border border-border">
               <div>
                 <span className="font-medium text-sm">SSH Access</span>
                 <p className="text-xs text-muted-foreground">Enable SSH on port 22</p>
@@ -334,12 +334,12 @@ export function CreateContainerForm({
                   ingressRules.map((rule) => (
                     <div
                       key={rule.port}
-                      className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                      className="flex items-center justify-between p-3 border border-border"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">:{rule.port}</span>
-                        <span className="text-xs text-muted-foreground">→</span>
-                        <span className="text-muted-foreground">:{rule.target_port || rule.port}</span>
+                        <span className="font-mono text-[12.5px] text-muted-foreground">:{rule.port}</span>
+                        <span className="text-faint text-xs">→</span>
+                        <span className="font-mono text-[12.5px] text-muted-foreground">:{rule.target_port || rule.port}</span>
                       </div>
                       <Button
                         type="button"

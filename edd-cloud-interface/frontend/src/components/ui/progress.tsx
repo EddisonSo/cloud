@@ -7,14 +7,16 @@ interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
   ({ className, value, ...props }, ref) => (
+    // Flat track — h-1.5, no radius, no border, bg-muted
     <div
       ref={ref}
-      className={cn("relative h-2 w-full overflow-hidden rounded-full bg-background border border-border", className)}
+      className={cn("relative h-1.5 w-full overflow-hidden bg-muted", className)}
       {...props}
     >
+      {/* Fill — ice primary, square ends, 150ms ease */}
       <div
-        className="h-full bg-primary transition-all"
-        style={{ width: `${value || 0}%` }}
+        className="h-full bg-primary transition-all duration-150 ease-out"
+        style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
       />
     </div>
   )

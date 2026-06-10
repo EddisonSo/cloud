@@ -91,38 +91,30 @@ export function RegistryPage() {
       />
 
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
+        <div className="border border-destructive/30 px-4 py-3 mb-4">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-border">
+      {/* Bare view switcher */}
+      <div className="flex gap-5 mb-6 font-mono text-[11.5px] uppercase tracking-[0.16em]">
         <button
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === "mine"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
           onClick={() => setActiveTab("mine")}
+          className={activeTab === "mine" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
         >
-          My Repositories
+          {activeTab === "mine" && <span className="text-primary">› </span>}My Repos <span className="text-faint">{myRepos.length}</span>
         </button>
         <button
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            activeTab === "public"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
           onClick={() => setActiveTab("public")}
+          className={activeTab === "public" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
         >
-          Public
+          {activeTab === "public" && <span className="text-primary">› </span>}Public <span className="text-faint">{publicRepos.length}</span>
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             {activeTab === "mine" ? "My Repositories" : "Public Repositories"}
           </h2>
         </div>

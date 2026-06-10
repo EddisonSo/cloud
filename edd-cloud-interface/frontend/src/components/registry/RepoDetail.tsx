@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Trash2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CopyableText } from "@/components/common";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatBytes, formatTimestamp } from "@/lib/formatters";
@@ -18,18 +19,9 @@ interface RepoDetailProps {
 }
 
 function VisibilityBadge({ visibility }: { visibility: number }) {
-  const isPublic = visibility > 0;
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-        isPublic
-          ? "bg-green-500/10 text-green-600 dark:text-green-400"
-          : "bg-muted text-muted-foreground"
-      }`}
-    >
-      {isPublic ? "Public" : "Private"}
-    </span>
-  );
+  return visibility > 0
+    ? <Badge variant="success">Public</Badge>
+    : <Badge variant="secondary">Private</Badge>;
 }
 
 export function RepoDetail({
@@ -94,9 +86,9 @@ export function RepoDetail({
 
       {/* Actions (owner only) */}
       {isOwner && (
-        <div className="bg-card border border-border rounded-lg mb-4">
+        <div className="bg-card border border-border mb-4">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold">Repository Settings</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Repository Settings</h2>
           </div>
           <div className="p-5">
             <div className="flex items-center justify-between">
@@ -126,9 +118,9 @@ export function RepoDetail({
       )}
 
       {/* Tags */}
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Tags</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Tags</h2>
         </div>
 
         {loading ? (
@@ -145,20 +137,20 @@ export function RepoDetail({
           <div className="w-full">
             {/* Header */}
             <div className="hidden md:grid grid-cols-[1.5fr_2fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b border-border">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tag</div>
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Digest</div>
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</div>
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pushed</div>
+              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Tag</div>
+              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Digest</div>
+              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Size</div>
+              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Pushed</div>
               {isOwner && <div className="w-8" />}
             </div>
-            <div className="divide-y divide-border/50">
+            <div className="divide-y divide-border">
               {tags.map((tag) => (
                 <div
                   key={tag.name}
-                  className="flex flex-col gap-2 px-4 md:px-5 py-3 md:grid md:grid-cols-[1.5fr_2fr_1fr_1fr_auto] md:gap-4 md:items-center"
+                  className="flex flex-col gap-2 px-4 md:px-5 py-3 hover:bg-popover transition-colors duration-150 md:grid md:grid-cols-[1.5fr_2fr_1fr_1fr_auto] md:gap-4 md:items-center"
                 >
                   <div className="flex items-center justify-between md:block">
-                    <span className="text-sm font-medium font-mono">{tag.name}</span>
+                    <span className="font-mono text-[12.5px] text-muted-foreground">{tag.name}</span>
                   </div>
                   <div className="flex items-center gap-2 md:block" onClick={(e) => e.stopPropagation()}>
                     <span className="md:hidden text-xs text-muted-foreground">Digest:</span>
@@ -170,12 +162,12 @@ export function RepoDetail({
                   </div>
                   <div className="flex items-center gap-2 md:block">
                     <span className="md:hidden text-xs text-muted-foreground">Size:</span>
-                    <span className="text-sm">{formatBytes(tag.size)}</span>
+                    <span className="font-mono text-[12.5px] text-muted-foreground">{formatBytes(tag.size)}</span>
                   </div>
                   <div className="flex items-center gap-2 md:block">
                     <span className="md:hidden text-xs text-muted-foreground">Pushed:</span>
-                    <span className="text-sm text-muted-foreground">
-                      {tag.pushed_at ? formatTimestamp(Math.floor(new Date(tag.pushed_at).getTime() / 1000)) : "-"}
+                    <span className="font-mono text-[12.5px] text-muted-foreground">
+                      {tag.pushed_at ? formatTimestamp(Math.floor(new Date(tag.pushed_at).getTime() / 1000)) : "—"}
                     </span>
                   </div>
                   {isOwner && (

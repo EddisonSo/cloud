@@ -51,31 +51,37 @@ export function Modal({
     <div
       ref={overlayRef}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      onClick={(e) => {
+        if (e.target === overlayRef.current) onClose();
+      }}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      {/* Flat overlay — no blur, no gradient */}
+      <div className="absolute inset-0 bg-black/60" />
 
-      {/* Dialog */}
+      {/* Dialog panel — flat card, 1px border, no radius, no shadow */}
       <div
         className={cn(
-          "relative w-full bg-popover border border-border rounded-lg shadow-2xl",
+          "relative w-full bg-card border border-border",
           sizeClasses[size],
           className,
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-6 pb-0">
+        <div className="flex items-start justify-between px-6 pt-5 pb-0">
           <div>
-            <h2 className="text-lg font-semibold">{title}</h2>
+            <h2 className="text-[14px] font-semibold leading-snug tracking-[-0.01em]">
+              {title}
+            </h2>
             {description && (
-              <p className="text-sm text-muted-foreground mt-1">{description}</p>
+              <p className="text-[13px] text-muted-foreground mt-1">
+                {description}
+              </p>
             )}
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 -mr-2 -mt-1 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 -mr-2 -mt-1 text-muted-foreground hover:text-foreground shrink-0"
             onClick={onClose}
           >
             <X className="w-4 h-4" />
@@ -89,7 +95,7 @@ export function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-2 px-6 pb-6 pt-2">
+          <div className="flex items-center justify-end gap-2 px-6 pb-5 pt-2 border-t border-border">
             {footer}
           </div>
         )}

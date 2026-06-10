@@ -50,13 +50,13 @@ export function ContainerList({
     <div className="w-full">
       {/* Header - hidden on mobile */}
       <div className="hidden md:grid grid-cols-[2fr_1fr_2fr_1.5fr] gap-4 px-4 md:px-5 py-3 border-b border-border">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</div>
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</div>
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Hostname</div>
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider text-right">Actions</div>
+        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Name</div>
+        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Status</div>
+        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Hostname</div>
+        <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-right">Actions</div>
       </div>
       {/* Rows */}
-      <div className="divide-y divide-border/50">
+      <div className="divide-y divide-border">
         {containers.map((container) => {
           const action = actions[container.id];
           const isRunning = container.status === "running";
@@ -65,7 +65,7 @@ export function ContainerList({
           return (
             <div
               key={container.id}
-              className="flex flex-col gap-2 px-4 md:px-5 py-3 cursor-pointer hover:bg-accent/50 transition-colors md:grid md:grid-cols-[2fr_1fr_2fr_1.5fr] md:gap-4 md:items-center"
+              className="flex flex-col gap-2 px-4 md:px-5 py-3 cursor-pointer hover:bg-popover transition-colors duration-150 md:grid md:grid-cols-[2fr_1fr_2fr_1.5fr] md:gap-4 md:items-center"
               onClick={() => onSelect?.(container)}
             >
               <div className="flex items-center justify-between md:block min-w-0">

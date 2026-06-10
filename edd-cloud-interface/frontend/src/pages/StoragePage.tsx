@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/common";
 import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildStorageBase, buildNotificationsBase, getAuthHeaders } from "@/lib/api";
-import { Plus, Settings, Eye, EyeOff, Link, Trash2, Server, BellOff, Bell } from "lucide-react";
+import { Plus, Settings, Eye, EyeOff, Link, Trash2, BellOff, Bell } from "lucide-react";
 import type { NamespaceVisibility, FileEntry, NotificationMute } from "@/types";
 
 export function StoragePage() {
@@ -223,9 +224,9 @@ export function StoragePage() {
 
       {/* Namespace List View */}
       {!showNamespaceView && (
-        <div className="bg-card border border-border rounded-lg">
+        <div className="bg-card border border-border">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold">Namespaces</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Namespaces</h2>
           </div>
           <div className="p-5">
 
@@ -233,7 +234,7 @@ export function StoragePage() {
             {namespacesLoading ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3 bg-secondary rounded-md sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4">
+                  <div key={i} className="flex items-center justify-between px-4 py-3 border border-border sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4">
                     <Skeleton className="h-5 w-32" />
                     <Skeleton className="hidden sm:block h-4 w-16 mx-auto" />
                     <Skeleton className="h-4 w-14 mx-auto" />
@@ -243,30 +244,32 @@ export function StoragePage() {
             ) : namespaces.length === 0 ? (
               <p className="text-muted-foreground py-4">No namespaces yet. Create one to start uploading files.</p>
             ) : (
-              <div className="space-y-2">
+              <div>
                 {/* Header - hidden on mobile */}
-                <div className="hidden sm:grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <div>Name</div>
-                  <div className="text-center">Files</div>
-                  <div className="text-center">Visibility</div>
+                <div className="hidden sm:grid grid-cols-[1fr_100px_100px] gap-4 px-4 py-2 border-b border-border">
+                  <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint">Name</div>
+                  <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-center">Files</div>
+                  <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-center">Visibility</div>
                 </div>
                 {/* Rows */}
-                {namespaces.map((ns) => (
-                  <NamespaceCard
-                    key={ns.name}
-                    namespace={ns}
-                    isActive={activeNamespace === ns.name}
-                    onSelect={handleOpenNamespace}
-                  />
-                ))}
+                <div className="divide-y divide-border">
+                  {namespaces.map((ns) => (
+                    <NamespaceCard
+                      key={ns.name}
+                      namespace={ns}
+                      isActive={activeNamespace === ns.name}
+                      onSelect={handleOpenNamespace}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Chunkserver count */}
+            {/* Status strip */}
             {storageStatus && (
-              <div className="mt-6 pt-4 border-t border-border flex items-center gap-2 text-sm text-muted-foreground">
-                <Server className="w-4 h-4" />
-                <span>{storageStatus.chunkserver_count} chunkserver{storageStatus.chunkserver_count !== 1 ? "s" : ""} online</span>
+              <div className="flex gap-6 font-mono text-[10.5px] uppercase tracking-[0.12em] text-faint border-t border-border mt-4 pt-3">
+                <span>Chunkservers <span className="text-muted-foreground">{storageStatus.chunkserver_count}</span></span>
+                <span>Online</span>
               </div>
             )}
 
@@ -279,31 +282,27 @@ export function StoragePage() {
         <div>
           {/* Namespace Not Found */}
           {namespaceNotFound ? (
-            <div className="bg-card border border-border rounded-lg py-12 text-center">
+            <div className="bg-card border border-border py-12 text-center">
               <p className="text-muted-foreground">
-                Namespace <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{namespaceParam}</code> does not exist.
+                Namespace <code className="px-1.5 py-0.5 bg-secondary font-mono text-sm">{namespaceParam}</code> does not exist.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Files */}
-              <div className="bg-card border border-border rounded-lg lg:col-span-2">
+              <div className="bg-card border border-border lg:col-span-2">
                 <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-semibold">{activeNamespace}</h2>
+                      <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">{activeNamespace}</h2>
                       {currentNamespace?.visibility === 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          Private
-                        </span>
+                        <Badge variant="secondary">Private</Badge>
                       )}
                       {currentNamespace?.visibility === 1 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-500">
-                          Unlisted
-                        </span>
+                        <Badge variant="warning">Unlisted</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="font-mono text-[10.5px] text-faint mt-1">
                       {files.length} {files.length === 1 ? "file" : "files"}
                     </p>
                   </div>
@@ -327,9 +326,9 @@ export function StoragePage() {
 
               {/* Upload */}
               {user && (
-                <div className="bg-card border border-border rounded-lg">
+                <div className="bg-card border border-border">
                   <div className="px-5 py-4 border-b border-border">
-                    <h2 className="text-sm font-semibold">Upload File</h2>
+                    <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Upload File</h2>
                   </div>
                   <div className="p-5">
                     <FileUploader
@@ -376,8 +375,8 @@ export function StoragePage() {
             <Label>Visibility</Label>
             <div className="space-y-2">
               <label
-                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
-                  namespaceVisibility === 0 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border ${
+                  namespaceVisibility === 0 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-secondary/80"
                 }`}
               >
                 <input
@@ -394,8 +393,8 @@ export function StoragePage() {
                 </div>
               </label>
               <label
-                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
-                  namespaceVisibility === 1 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border ${
+                  namespaceVisibility === 1 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-secondary/80"
                 }`}
               >
                 <input
@@ -405,15 +404,15 @@ export function StoragePage() {
                   onChange={() => setNamespaceVisibility(1)}
                   className="w-4 h-4 accent-primary"
                 />
-                <Link className="w-4 h-4 text-yellow-400" />
+                <Link className="w-4 h-4 text-warning" />
                 <div>
                   <span className="text-sm font-medium">Unlisted</span>
                   <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
                 </div>
               </label>
               <label
-                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
-                  namespaceVisibility === 2 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border ${
+                  namespaceVisibility === 2 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-secondary/80"
                 }`}
               >
                 <input
@@ -423,7 +422,7 @@ export function StoragePage() {
                   onChange={() => setNamespaceVisibility(2)}
                   className="w-4 h-4 accent-primary"
                 />
-                <Eye className="w-4 h-4 text-green-400" />
+                <Eye className="w-4 h-4 text-success" />
                 <div>
                   <span className="text-sm font-medium">Public</span>
                   <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
@@ -446,19 +445,19 @@ export function StoragePage() {
         open={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         title="Namespace Settings"
-        description={<>Settings for <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code></>}
+        description={<>Settings for <code className="px-1.5 py-0.5 bg-secondary font-mono text-sm">{activeNamespace}</code></>}
       >
         <div className="space-y-4">
           <button
             onClick={() => setShowVisibilityModal(true)}
-            className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary hover:bg-secondary/80 transition-colors text-left"
+            className="w-full flex items-center gap-3 p-3 border border-border bg-secondary hover:bg-popover transition-colors text-left"
           >
             {currentNamespace?.visibility === 0 ? (
               <EyeOff className="w-4 h-4 text-muted-foreground" />
             ) : currentNamespace?.visibility === 1 ? (
-              <Link className="w-4 h-4 text-yellow-400" />
+              <Link className="w-4 h-4 text-warning" />
             ) : (
-              <Eye className="w-4 h-4 text-green-400" />
+              <Eye className="w-4 h-4 text-success" />
             )}
             <div>
               <span className="text-sm font-medium">Change Visibility</span>
@@ -468,7 +467,7 @@ export function StoragePage() {
             </div>
           </button>
           <div
-            className="w-full flex items-center gap-3 p-3 rounded-md bg-secondary transition-colors"
+            className="w-full flex items-center gap-3 p-3 border border-border bg-secondary transition-colors"
           >
             {nsMuted ? <BellOff className="w-4 h-4 text-muted-foreground" /> : <Bell className="w-4 h-4 text-muted-foreground" />}
             <div className="flex-1">
@@ -485,7 +484,7 @@ export function StoragePage() {
           </div>
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="w-full flex items-center gap-3 p-3 rounded-md bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive"
+            className="w-full flex items-center gap-3 p-3 border border-destructive/30 hover:bg-destructive/10 transition-colors text-left text-destructive"
           >
             <Trash2 className="w-4 h-4" />
             <div>
@@ -503,15 +502,15 @@ export function StoragePage() {
         open={showVisibilityModal}
         onClose={() => setShowVisibilityModal(false)}
         title="Change Visibility"
-        description={<>Set visibility for <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code></>}
+        description={<>Set visibility for <code className="px-1.5 py-0.5 bg-secondary font-mono text-sm">{activeNamespace}</code></>}
       >
         <div className="space-y-4">
           <div className="space-y-2">
             <button
               onClick={() => handleUpdateVisibility(0)}
               disabled={updatingVisibility}
-              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
-                currentNamespace?.visibility === 0 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              className={`w-full flex items-center gap-3 p-3 transition-colors text-left border ${
+                currentNamespace?.visibility === 0 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-popover"
               }`}
             >
               <EyeOff className="w-4 h-4 text-muted-foreground" />
@@ -524,11 +523,11 @@ export function StoragePage() {
             <button
               onClick={() => handleUpdateVisibility(1)}
               disabled={updatingVisibility}
-              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
-                currentNamespace?.visibility === 1 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              className={`w-full flex items-center gap-3 p-3 transition-colors text-left border ${
+                currentNamespace?.visibility === 1 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-popover"
               }`}
             >
-              <Link className="w-4 h-4 text-yellow-400" />
+              <Link className="w-4 h-4 text-warning" />
               <div className="flex-1">
                 <span className="text-sm font-medium">Unlisted</span>
                 <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
@@ -538,11 +537,11 @@ export function StoragePage() {
             <button
               onClick={() => handleUpdateVisibility(2)}
               disabled={updatingVisibility}
-              className={`w-full flex items-center gap-3 p-3 rounded-md transition-colors text-left ${
-                currentNamespace?.visibility === 2 ? "bg-primary/10 border border-primary" : "bg-secondary hover:bg-secondary/80"
+              className={`w-full flex items-center gap-3 p-3 transition-colors text-left border ${
+                currentNamespace?.visibility === 2 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-popover"
               }`}
             >
-              <Eye className="w-4 h-4 text-green-400" />
+              <Eye className="w-4 h-4 text-success" />
               <div className="flex-1">
                 <span className="text-sm font-medium">Public</span>
                 <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
@@ -559,7 +558,7 @@ export function StoragePage() {
         open={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         title="Delete Namespace"
-        description={<>Are you sure you want to delete <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{activeNamespace}</code>?</>}
+        description={<>Are you sure you want to delete <code className="px-1.5 py-0.5 bg-secondary font-mono text-sm">{activeNamespace}</code>?</>}
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -581,7 +580,7 @@ export function StoragePage() {
         open={showOverwriteConfirm}
         onClose={() => setShowOverwriteConfirm(false)}
         title="File Already Exists"
-        description={<>A file named <code className="px-1.5 py-0.5 rounded bg-secondary font-mono text-sm">{overwriteFileName}</code> already exists.</>}
+        description={<>A file named <code className="px-1.5 py-0.5 bg-secondary font-mono text-sm">{overwriteFileName}</code> already exists.</>}
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">

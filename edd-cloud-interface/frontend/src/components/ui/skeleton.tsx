@@ -3,11 +3,12 @@ import { cn } from "@/lib/utils";
 
 interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
 
+/* Steady faint block — no shimmer (anti-pattern per design spec). */
 function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
       className={cn(
-        "animate-pulse rounded-md bg-muted/50",
+        "bg-muted",
         className
       )}
       {...props}
@@ -27,7 +28,7 @@ function TextSkeleton({
   return (
     <span
       className={cn(
-        "inline-block select-none blur-[6px] opacity-60 animate-pulse",
+        "inline-block select-none blur-[6px] opacity-50",
         className
       )}
       aria-hidden="true"

@@ -53,48 +53,84 @@ export function AppLayout() {
     setTwoFAError("");
   };
 
-  // Login / 2FA screen
+  // Login / 2FA gate — brand moment
   if (!authLoading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        {/* Theme toggle — top-right */}
         <div className="absolute top-4 right-4">
           <ThemeToggle />
         </div>
-        <div className="w-full max-w-sm bg-card border border-border rounded-lg p-8">
-          <h1 className="text-xl font-semibold text-center mb-6">Sign in to Edd Cloud</h1>
+
+        {/*
+         * Centered flat panel: bg-card, 1px border, NO radius, NO shadow.
+         * Brand mark up top: EDD/CLOUD mono, slash in ice primary.
+         */}
+        <div className="w-full max-w-sm bg-card border border-border p-8">
+          {/* Brand mark */}
+          <div className="text-center mb-8">
+            <div className="font-mono text-[22px] font-semibold tracking-[0.2em] select-none leading-none">
+              EDD<span className="text-primary">/</span>CLOUD
+            </div>
+            <p className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-faint mt-2">
+              Dashboard
+            </p>
+          </div>
 
           {challengeToken ? (
-            <div className="flex flex-col items-center gap-3 py-4">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-primary" />
+            /* 2FA flow */
+            <div className="flex flex-col items-center gap-3 py-2">
+              {/* Square icon container — flat, no pill */}
+              <div className="w-10 h-10 border border-border flex items-center justify-center text-primary">
+                <Shield className="w-5 h-5" />
               </div>
+
               {twoFAState === "waiting" ? (
                 <>
-                  <p className="text-sm font-medium">Touch your security key</p>
-                  <p className="text-xs text-muted-foreground">Waiting for verification...</p>
+                  <p className="text-[13.5px] font-medium text-center">
+                    Touch your security key
+                  </p>
+                  <p className="font-mono text-[11px] text-muted-foreground text-center">
+                    Waiting for verification...
+                  </p>
                 </>
               ) : twoFAState === "error" ? (
                 <>
-                  <p className="text-sm font-medium text-destructive">Verification failed</p>
-                  <p className="text-xs text-muted-foreground">{twoFAError}</p>
+                  <p className="text-[13.5px] font-medium text-destructive text-center">
+                    Verification failed
+                  </p>
+                  <p className="font-mono text-[11px] text-muted-foreground text-center">
+                    {twoFAError}
+                  </p>
                   <Button size="sm" onClick={handleVerify2FA} className="mt-2">
                     Retry
                   </Button>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-medium">Security key required</p>
-                  <p className="text-xs text-muted-foreground">Click below to verify with your key</p>
+                  <p className="text-[13.5px] font-medium text-center">
+                    Security key required
+                  </p>
+                  <p className="font-mono text-[11px] text-muted-foreground text-center">
+                    Click below to verify with your key
+                  </p>
                   <Button onClick={handleVerify2FA} className="mt-2">
                     Verify with security key
                   </Button>
                 </>
               )}
-              <Button variant="ghost" size="sm" onClick={handleCancel2FA} className="mt-2">
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancel2FA}
+                className="mt-1"
+              >
                 Cancel
               </Button>
             </div>
           ) : (
+            /* Credentials form */
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="login-username">Username</Label>
@@ -102,7 +138,9 @@ export function AppLayout() {
                   id="login-username"
                   type="text"
                   value={loginForm.username}
-                  onChange={(e) => setLoginForm((p) => ({ ...p, username: e.target.value }))}
+                  onChange={(e) =>
+                    setLoginForm((p) => ({ ...p, username: e.target.value }))
+                  }
                   autoComplete="username"
                   autoFocus
                 />
@@ -113,15 +151,23 @@ export function AppLayout() {
                   id="login-password"
                   type="password"
                   value={loginForm.password}
-                  onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
+                  onChange={(e) =>
+                    setLoginForm((p) => ({ ...p, password: e.target.value }))
+                  }
                   autoComplete="current-password"
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loggingIn}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loggingIn}
+              >
                 {loggingIn ? "Signing in..." : "Sign in"}
               </Button>
               {loginError && (
-                <p className="text-sm text-destructive text-center">{loginError}</p>
+                <p className="font-mono text-[11px] text-destructive text-center">
+                  {loginError}
+                </p>
               )}
             </form>
           )}
@@ -131,11 +177,15 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <TopBar onToggleSidebar={() => setSidebarCollapsed((c) => !c)} />
-      <Sidebar healthOk={health.cluster_ok} collapsed={sidebarCollapsed} onClose={() => setSidebarCollapsed(true)} />
+      <Sidebar
+        healthOk={health.cluster_ok}
+        collapsed={sidebarCollapsed}
+        onClose={() => setSidebarCollapsed(true)}
+      />
       <main
-        className={`pt-14 min-h-screen transition-[margin] ${
+        className={`pt-14 min-h-screen bg-background transition-[margin] duration-150 ${
           sidebarCollapsed ? "ml-0" : "md:ml-[240px]"
         }`}
       >

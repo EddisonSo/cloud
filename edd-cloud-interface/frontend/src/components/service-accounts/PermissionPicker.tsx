@@ -57,7 +57,7 @@ export function ActionPill({ action, selected, onClick }: ActionPillProps): Reac
     <button
       type="button"
       onClick={onClick}
-      className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+      className={`px-2 py-0.5 font-mono text-[11px] border transition-colors ${
         selected
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-secondary border-border text-muted-foreground hover:text-foreground"
@@ -116,11 +116,11 @@ export function ResourceRow({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">{label}</p>
         <button
           type="button"
           onClick={() => onToggleAll(scopeKey, actions)}
-          className="text-[10px] text-muted-foreground hover:text-foreground"
+          className="font-mono text-[10px] text-faint hover:text-foreground"
         >
           {selected.length === actions.length ? "none" : "all"}
         </button>
@@ -252,7 +252,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
       <Label>Permissions</Label>
       <div className="grid grid-cols-2 gap-4">
         {/* Compute section */}
-        <div className="border border-border rounded-md p-3 space-y-3">
+        <div className="border border-border p-3 space-y-3">
           <SectionHeader
             label="Compute"
             expanded={computeExpanded}
@@ -272,13 +272,13 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
               onToggle={() => setSpecificContainersExpanded(!specificContainersExpanded)}
             >
               {loadingContainers && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground py-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Loading containers...
                 </div>
               )}
               {containers !== null && containers.length === 0 && !loadingContainers && (
-                <p className="text-xs text-muted-foreground">No containers found</p>
+                <p className="font-mono text-[11px] text-muted-foreground">No containers found</p>
               )}
               {containers?.map((c) => (
                 <ResourceRow
@@ -304,7 +304,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
         </div>
 
         {/* Storage section */}
-        <div className="border border-border rounded-md p-3 space-y-3">
+        <div className="border border-border p-3 space-y-3">
           <SectionHeader
             label="Storage"
             expanded={storageExpanded}
@@ -332,13 +332,13 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
               onToggle={() => setSpecificNamespacesExpanded(!specificNamespacesExpanded)}
             >
               {loadingNamespaces && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground py-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Loading namespaces...
                 </div>
               )}
               {namespaces !== null && namespaces.length === 0 && !loadingNamespaces && (
-                <p className="text-xs text-muted-foreground">No namespaces found</p>
+                <p className="font-mono text-[11px] text-muted-foreground">No namespaces found</p>
               )}
               {namespaces?.map((ns) => (
                 <div key={ns.name} className="space-y-1.5">

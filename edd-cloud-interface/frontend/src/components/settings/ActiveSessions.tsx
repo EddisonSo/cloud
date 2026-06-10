@@ -33,7 +33,7 @@ export function ActiveSessions() {
         </CardHeader>
         <CardContent className="space-y-2">
           {[...Array(2)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-4 py-3 bg-secondary rounded-md">
+            <div key={i} className="flex items-center gap-4 px-4 py-3 bg-secondary">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-4 w-24 ml-auto" />
             </div>
@@ -46,7 +46,7 @@ export function ActiveSessions() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Active Sessions</CardTitle>
+        <CardTitle>Active Sessions</CardTitle>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={load}>
           <RefreshCw className="w-4 h-4" />
         </Button>
@@ -56,32 +56,32 @@ export function ActiveSessions() {
 
         {sessions.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <Monitor className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No active sessions</p>
+            <Monitor className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No active sessions</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
             {/* Header */}
-            <div className="grid grid-cols-[1fr_140px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <div>IP Address</div>
-              <div className="text-center">Created</div>
+            <div className="grid grid-cols-[1fr_140px] gap-4 px-4 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">IP Address</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Created</div>
             </div>
             {/* Rows */}
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="grid grid-cols-[1fr_140px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                className="grid grid-cols-[1fr_140px] gap-4 px-4 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors items-center"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Monitor className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="font-mono text-sm truncate">{session.ip_address || "Unknown"}</span>
+                  <Monitor className="w-4 h-4 text-faint shrink-0" />
+                  <span className="font-mono text-[12.5px] text-muted-foreground truncate">{session.ip_address || "Unknown"}</span>
                   {session.is_current && (
                     <Badge variant="success" className="ml-1 text-[10px] px-1.5 py-0">
                       Current
                     </Badge>
                   )}
                 </div>
-                <div className="text-center text-sm text-muted-foreground">
+                <div className="text-center font-mono text-[12.5px] text-muted-foreground">
                   {formatTimestamp(session.created_at)}
                 </div>
               </div>

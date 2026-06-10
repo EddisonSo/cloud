@@ -24,8 +24,8 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
       >
         <Menu className="w-5 h-5" />
       </Button>
-      <span className="text-[15px] font-semibold tracking-tight select-none">
-        Edd Cloud
+      <span className="font-mono text-[13px] font-semibold tracking-[0.18em] select-none">
+        EDD<span className="text-primary">/</span>CLOUD
       </span>
 
       {/* Spacer */}
@@ -41,10 +41,10 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigate("/settings")}
-                className="flex items-center gap-2 rounded-md px-2 py-1 -mx-2 -my-1 hover:bg-accent/50 transition-colors"
+                className="flex items-center gap-2 px-2 py-1 -mx-2 -my-1 hover:bg-popover transition-colors duration-150"
                 title="Settings"
               >
-                <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-semibold">
+                <div className="w-7 h-7 border border-primary/40 text-primary flex items-center justify-center font-mono text-[11px] font-semibold uppercase">
                   {(displayName || user).charAt(0).toUpperCase()}
                 </div>
                 <span className="text-sm font-medium hidden sm:block">

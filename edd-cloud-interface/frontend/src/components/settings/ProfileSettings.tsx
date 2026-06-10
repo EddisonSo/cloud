@@ -72,12 +72,12 @@ export function ProfileSettings() {
       {/* Display Name */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Display Name</CardTitle>
+          <CardTitle>Display Name</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleNameSave} className="space-y-4">
             <div className="space-y-1.5 max-w-sm">
-              <Label htmlFor="display-name" className="text-muted-foreground text-xs uppercase tracking-wide">Name</Label>
+              <Label htmlFor="display-name">Name</Label>
               <Input
                 id="display-name"
                 value={name}
@@ -97,13 +97,13 @@ export function ProfileSettings() {
       {/* Change Password */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Change Password</CardTitle>
+          <CardTitle>Change Password</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handlePasswordSave} className="space-y-4">
             <div className="grid gap-4 max-w-sm">
               <div className="space-y-1.5">
-                <Label htmlFor="current-password" className="text-muted-foreground text-xs uppercase tracking-wide">Current password</Label>
+                <Label htmlFor="current-password">Current password</Label>
                 <Input
                   id="current-password"
                   type="password"
@@ -113,7 +113,7 @@ export function ProfileSettings() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="new-password" className="text-muted-foreground text-xs uppercase tracking-wide">New password</Label>
+                <Label htmlFor="new-password">New password</Label>
                 <Input
                   id="new-password"
                   type="password"
@@ -123,7 +123,7 @@ export function ProfileSettings() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="confirm-password" className="text-muted-foreground text-xs uppercase tracking-wide">Confirm password</Label>
+                <Label htmlFor="confirm-password">Confirm password</Label>
                 <Input
                   id="confirm-password"
                   type="password"

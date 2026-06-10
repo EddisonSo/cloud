@@ -164,7 +164,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex items-center gap-2 py-1">
                 <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-5 w-14" />
               </div>
             ))}
           </CardContent>
@@ -178,7 +178,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
           </CardHeader>
           <CardContent className="space-y-3">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="p-3 rounded-md border border-border">
+              <div key={i} className="p-3 border border-border">
                 <Skeleton className="h-4 w-28 mb-2" />
                 <Skeleton className="h-3 w-48" />
               </div>
@@ -228,7 +228,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">{account.name}</CardTitle>
+            <h2 className="text-[14px] font-semibold text-foreground">{account.name}</h2>
             <div className="flex gap-2">
               {isEditing ? (
                 <>
@@ -298,7 +298,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
 
       {/* Created token display */}
       {createdToken && (
-        <Card className="border-primary/50">
+        <Card className="border-primary">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
@@ -307,7 +307,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
                   Your new API token. Copy it now — it won't be shown again.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-secondary px-3 py-2 rounded font-mono break-all select-all">
+                  <code className="flex-1 font-mono text-[12.5px] text-muted-foreground bg-background border border-border px-3 py-2 break-all select-all">
                     {createdToken}
                   </code>
                   <Button
@@ -335,7 +335,7 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Tokens</CardTitle>
+            <CardTitle>Tokens</CardTitle>
             {!showCreateToken && (
               <Button size="sm" onClick={() => setShowCreateToken(true)}>
                 <Plus className="w-4 h-4 mr-1" />
@@ -355,26 +355,26 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
 
           {tokens.length === 0 && !showCreateToken ? (
             <div className="text-center py-6 text-muted-foreground">
-              <KeyRound className="w-6 h-6 mx-auto mb-2 opacity-50" />
+              <KeyRound className="w-6 h-6 mx-auto mb-2 opacity-40" />
               <p className="text-sm">No tokens yet</p>
               <p className="text-xs mt-1">
                 Tokens inherit this service account's permissions.
               </p>
             </div>
           ) : (
-            <div className="space-y-3 mt-3">
+            <div className="mt-3">
               {tokens.map((token) => (
                 <div
                   key={token.id}
-                  className="p-3 rounded-md border border-border bg-secondary/30"
+                  className="px-4 py-3 border-b border-border last:border-0"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">{token.name}</span>
+                    <span className="text-sm font-medium">{token.name}</span>
                     {token.expires_at > 0 && token.expires_at < Date.now() / 1000 && (
                       <Badge variant="destructive" className="text-xs">Expired</Badge>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="font-mono text-[12px] text-muted-foreground">
                     Created {formatDate(token.created_at)}
                     {token.expires_at > 0 && ` · Expires in ${formatRelative(token.expires_at)}`}
                     {token.last_used_at !== undefined && token.last_used_at > 0 && ` · Last used ${formatDate(token.last_used_at)}`}
@@ -464,7 +464,7 @@ function CreateTokenForm({ saId, onCreated, onCancel }: CreateTokenFormProps): R
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 p-3 border border-border rounded-md mb-3">
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 border border-border mb-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="token-name" className="text-xs">Name</Label>
@@ -482,7 +482,7 @@ function CreateTokenForm({ saId, onCreated, onCancel }: CreateTokenFormProps): R
             id="token-expiry"
             value={expiresIn}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setExpiresIn(e.target.value)}
-            className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm"
+            className="w-full h-9 border border-border bg-background px-3 font-mono text-[12.5px] text-muted-foreground"
           >
             {EXPIRY_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>

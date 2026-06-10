@@ -38,7 +38,7 @@ function ConnectionRow({ connection, onRefresh, onRemove }: ConnectionRowProps) 
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2 py-2 border-b border-border last:border-0">
-      <span className="text-sm flex-1 text-muted-foreground font-mono">{zonesLabel}</span>
+      <span className="font-mono text-[12.5px] flex-1 text-muted-foreground">{zonesLabel}</span>
       <div className="flex gap-2 shrink-0">
         <Button
           size="sm"
@@ -92,8 +92,8 @@ export function CloudflareCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg p-5 mb-6">
-      <h2 className="text-sm font-semibold mb-1">Cloudflare integration</h2>
+    <div className="bg-card border border-border p-5 mb-6">
+      <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint mb-1">Cloudflare integration</h2>
       <p className="text-xs text-muted-foreground mb-4">
         Connect a Cloudflare API token and DNS records are created automatically when
         you add a domain. One token per zone works great — scope each to Zone:Read +

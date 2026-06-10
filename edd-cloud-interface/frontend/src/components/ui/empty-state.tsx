@@ -10,18 +10,37 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+}: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center py-16 text-center", className)}>
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center py-16 text-center",
+        className,
+      )}
+    >
+      {/* Icon — bare, no pill container */}
       {Icon && (
-        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-          <Icon className="w-6 h-6 text-muted-foreground" />
-        </div>
+        <Icon className="w-6 h-6 text-faint mb-4" />
       )}
-      <h3 className="text-sm font-medium mb-1">{title}</h3>
+
+      {/* Microlabel title */}
+      <p className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground mb-2">
+        {title}
+      </p>
+
+      {/* Dim description body */}
       {description && (
-        <p className="text-sm text-muted-foreground max-w-sm mb-4">{description}</p>
+        <p className="text-[13px] text-muted-foreground/70 max-w-sm mb-4">
+          {description}
+        </p>
       )}
+
       {action}
     </div>
   );
