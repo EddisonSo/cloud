@@ -41,16 +41,16 @@ export function NetworkingPage() {
       />
 
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
+        <div className="border border-destructive px-4 py-3 mb-4">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
       {/* Add domain */}
-      <div className="bg-card border border-border rounded-lg mb-6">
+      <div className="bg-card border border-border mb-6">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Add custom domain</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Add custom domain</h2>
+          <p className="text-xs text-muted-foreground mt-1">
             Map a hostname you own to one of your containers.
           </p>
         </div>
@@ -68,9 +68,9 @@ export function NetworkingPage() {
       />
 
       {/* Domain list */}
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Custom domains</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Custom domains</h2>
         </div>
         <DomainList
           domains={domains}

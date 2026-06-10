@@ -5,7 +5,6 @@ import { Switch } from "@/components/ui/switch";
 import { StatusChip } from "@/components/ui/status-chip";
 import { CopyableText } from "@/components/common";
 import { ArrowLeft, Plus, Trash2, Terminal, Play, Square } from "lucide-react";
-import { formatBytes } from "@/lib/formatters";
 import type { Container, ContainerAction, IngressRule } from "@/types";
 import { ContainerLogs } from "./ContainerLogs";
 
@@ -92,58 +91,58 @@ export function ContainerDetail({
         <StatusChip status={container.status} />
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-2 mb-4">
+      {/* Bare view switcher */}
+      <div className="flex gap-5 mb-6 font-mono text-[11.5px] uppercase tracking-[0.16em]">
         <button
           onClick={() => setActiveTab("info")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "info" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+          className={activeTab === "info" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
         >
-          Info
+          {activeTab === "info" && <span className="text-primary">› </span>}Info
         </button>
         <button
           onClick={() => setActiveTab("logs")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "logs" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+          className={activeTab === "logs" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
         >
-          Logs
+          {activeTab === "logs" && <span className="text-primary">› </span>}Logs
         </button>
       </div>
 
       {activeTab === "info" && (
       <div className="max-w-3xl">
       {/* Info Section */}
-      <div className="bg-card border border-border rounded-lg mb-4">
+      <div className="bg-card border border-border mb-4">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Container Info</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Container Info</h2>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-4">
             <div>
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint block mb-1">
                 ID
               </span>
               <CopyableText text={container.id.slice(0, 8)} mono />
             </div>
             <div>
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint block mb-1">
                 Memory
               </span>
-              <span className="text-sm">{container.memory_mb} MB</span>
+              <span className="font-mono text-[12.5px] text-muted-foreground">{container.memory_mb} MB</span>
             </div>
             <div>
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint block mb-1">
                 Storage
               </span>
-              <span className="text-sm">{container.storage_gb} GB</span>
+              <span className="font-mono text-[12.5px] text-muted-foreground">{container.storage_gb} GB</span>
             </div>
           </div>
           <div>
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground block mb-1">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint block mb-1">
               Hostname
             </span>
             {container.hostname ? (
               <CopyableText text={container.hostname} mono className="text-sm" />
             ) : (
-              <span className="font-mono text-sm">—</span>
+              <span className="font-mono text-sm text-muted-foreground">—</span>
             )}
           </div>
 
@@ -188,17 +187,17 @@ export function ContainerDetail({
       </div>
 
       {/* Access Section */}
-      <div className="bg-card border border-border rounded-lg mb-4">
+      <div className="bg-card border border-border mb-4">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Access Control</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Access Control</h2>
         </div>
         <div className="p-5 space-y-6">
           {/* SSH Toggle */}
-          <div className="p-4 bg-secondary rounded-md">
+          <div className="p-4 border border-border">
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium">SSH Access</span>
-                <p className="text-sm text-muted-foreground font-mono">Port 22</p>
+                <p className="font-mono text-[12.5px] text-muted-foreground">Port 22</p>
               </div>
               <Switch
                 checked={access.sshEnabled}
@@ -219,7 +218,7 @@ export function ContainerDetail({
 
           {/* HTTP Ingress Rules */}
           <div>
-            <h4 className="text-sm font-semibold mb-3">HTTP Ingress Rules</h4>
+            <h4 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground mb-3">HTTP Ingress Rules</h4>
             <p className="text-xs text-muted-foreground mb-3">
               Expose ports to the internet via the hostname.
             </p>
@@ -259,12 +258,12 @@ export function ContainerDetail({
                 access.ingressRules.map((rule) => (
                   <div
                     key={rule.port}
-                    className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                    className="flex items-center justify-between p-3 border border-border"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="font-medium">:{rule.port}</span>
-                      <span className="text-xs text-muted-foreground">→</span>
-                      <span className="text-muted-foreground">:{rule.target_port || rule.port}</span>
+                      <span className="font-mono text-[12.5px] text-muted-foreground">:{rule.port}</span>
+                      <span className="text-xs text-faint">→</span>
+                      <span className="font-mono text-[12.5px] text-muted-foreground">:{rule.target_port || rule.port}</span>
                     </div>
                     <Button
                       variant="ghost"
@@ -283,9 +282,9 @@ export function ContainerDetail({
       </div>
 
       {/* Persistent Storage Section */}
-      <div className="bg-card border border-border rounded-lg mb-4">
+      <div className="bg-card border border-border mb-4">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Persistent Storage</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Persistent Storage</h2>
         </div>
         <div className="p-5">
           <p className="text-xs text-muted-foreground mb-3">
@@ -315,9 +314,9 @@ export function ContainerDetail({
               access.mountPaths.map((path) => (
                 <div
                   key={path}
-                  className="flex items-center justify-between p-3 bg-secondary rounded-md"
+                  className="flex items-center justify-between p-3 border border-border"
                 >
-                  <span className="font-mono text-sm">{path}</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground">{path}</span>
                   <Button
                     variant="ghost"
                     size="icon"

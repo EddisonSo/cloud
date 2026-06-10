@@ -32,12 +32,12 @@ export function Modal({ open, onClose, title, description, children, className }
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
       onClick={(e) => e.target === overlayRef.current && onClose?.()}
     >
       <div
         className={cn(
-          "w-full max-w-md bg-card border border-border rounded-xl shadow-xl animate-in fade-in-0 zoom-in-95",
+          "rise-in w-full max-w-md bg-card border border-border",
           className
         )}
       >

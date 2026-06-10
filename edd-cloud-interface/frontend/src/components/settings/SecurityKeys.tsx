@@ -91,7 +91,7 @@ export function SecurityKeys() {
         </CardHeader>
         <CardContent className="space-y-2">
           {[...Array(2)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-4 py-3 bg-secondary rounded-md">
+            <div key={i} className="flex items-center gap-4 px-4 py-3 bg-secondary">
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-4 w-24 ml-auto" />
             </div>
@@ -104,7 +104,7 @@ export function SecurityKeys() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Security Keys</CardTitle>
+        <CardTitle>Security Keys</CardTitle>
         <Button
           size="sm"
           onClick={handleAdd}
@@ -122,7 +122,7 @@ export function SecurityKeys() {
       </CardHeader>
       <CardContent>
         {!supported && (
-          <div className="flex items-center gap-2 mb-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+          <div className="flex items-center gap-2 mb-4 px-4 py-3 border border-destructive text-destructive text-sm">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             WebAuthn is not supported in this browser.
           </div>
@@ -134,28 +134,28 @@ export function SecurityKeys() {
 
         {keys.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <Shield className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No security keys registered</p>
+            <Shield className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No security keys registered</p>
             <p className="text-xs mt-1">
               Add a security key to enable two-factor authentication on login.
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
             {/* Header */}
-            <div className="grid grid-cols-[1fr_140px_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <div>Name</div>
-              <div className="text-center">Added</div>
+            <div className="grid grid-cols-[1fr_140px_80px] gap-4 px-4 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Name</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Added</div>
               <div />
             </div>
             {/* Rows */}
             {keys.map((key) => (
               <div
                 key={key.id}
-                className="grid grid-cols-[1fr_140px_80px] gap-4 px-4 py-3 bg-secondary rounded-md items-center"
+                className="grid grid-cols-[1fr_140px_80px] gap-4 px-4 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors items-center"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <Shield className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <Shield className="w-4 h-4 text-faint shrink-0" />
                   {editingId === key.id ? (
                     <div className="flex items-center gap-1 flex-1 min-w-0">
                       <Input
@@ -187,7 +187,7 @@ export function SecurityKeys() {
                     </div>
                   ) : (
                     <span
-                      className="font-medium truncate cursor-pointer hover:text-primary transition-colors"
+                      className="text-sm font-medium truncate cursor-pointer hover:text-primary transition-colors"
                       onClick={() => {
                         setEditingId(key.id);
                         setEditName(key.name || "Security Key");
@@ -197,7 +197,7 @@ export function SecurityKeys() {
                     </span>
                   )}
                 </div>
-                <div className="text-center text-sm text-muted-foreground">
+                <div className="text-center font-mono text-[12.5px] text-muted-foreground">
                   {formatTimestamp(key.created_at)}
                 </div>
                 <div className="flex justify-end gap-1">

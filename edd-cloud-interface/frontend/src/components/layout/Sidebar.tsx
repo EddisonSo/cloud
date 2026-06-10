@@ -62,22 +62,22 @@ export function Sidebar({ healthOk = true, collapsed = false, onClose }: Sidebar
                 <button
                   onClick={() => toggleSection(item.id)}
                   className={cn(
-                    "flex items-center gap-3 w-full px-5 py-2 text-[13px] font-medium transition-colors text-left",
-                    "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                    "flex items-center gap-3 w-full px-5 py-2 text-[13.5px] transition-colors duration-150 text-left border-l-2 border-transparent",
+                    "text-muted-foreground hover:text-foreground hover:bg-popover",
                     isActive && "text-foreground",
                   )}
                 >
-                  <Icon className="w-[18px] h-[18px] shrink-0 opacity-70" />
+                  <Icon className="w-[17px] h-[17px] shrink-0 opacity-60" />
                   <span className="flex-1">{item.label}</span>
                   <ChevronDown
                     className={cn(
-                      "w-3.5 h-3.5 transition-transform opacity-50",
+                      "w-3.5 h-3.5 transition-transform duration-150 opacity-40",
                       isExpanded && "rotate-180",
                     )}
                   />
                 </button>
 
-                {/* Sub-items */}
+                {/* Sub-items hang on a hairline rail; active segment becomes an ice tick */}
                 {isExpanded && (
                   <div className="mt-0.5 mb-1">
                     {item.subItems!.map((subItem) => {
@@ -88,14 +88,17 @@ export function Sidebar({ healthOk = true, collapsed = false, onClose }: Sidebar
                           to={subItem.path}
                           onClick={() => { if (window.innerWidth < 768) onClose?.(); }}
                           className={cn(
-                            "flex items-center gap-3 pl-12 pr-5 py-1.5 text-[13px] transition-colors relative",
-                            "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-                            isSubActive && "text-primary bg-primary/5 font-medium",
+                            "flex items-center pl-[46px] pr-5 py-1.5 text-[12.5px] transition-colors duration-150 relative",
+                            "text-faint hover:text-foreground",
+                            isSubActive && "text-foreground",
                           )}
                         >
-                          {isSubActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r" />
-                          )}
+                          <span
+                            className={cn(
+                              "absolute left-[26px] top-0 bottom-0 w-px bg-border",
+                              isSubActive && "w-[2px] bg-primary left-[25.5px]",
+                            )}
+                          />
                           {subItem.label}
                         </NavLink>
                       );
@@ -112,15 +115,12 @@ export function Sidebar({ healthOk = true, collapsed = false, onClose }: Sidebar
               to={item.path}
               onClick={() => { if (window.innerWidth < 768) onClose?.(); }}
               className={cn(
-                "flex items-center gap-3 px-5 py-2 text-[13px] font-medium transition-colors relative",
-                "text-muted-foreground hover:text-foreground hover:bg-accent/50",
-                isActive && "text-primary bg-primary/5",
+                "flex items-center gap-3 px-5 py-2 text-[13.5px] transition-colors duration-150 border-l-2 border-transparent",
+                "text-muted-foreground hover:text-foreground hover:bg-popover",
+                isActive && "text-foreground border-primary bg-popover",
               )}
             >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-r" />
-              )}
-              <Icon className="w-[18px] h-[18px] shrink-0 opacity-70" />
+              <Icon className="w-[17px] h-[17px] shrink-0 opacity-60" />
               {item.label}
               {item.id === "health" && (
                 <StatusDot status={healthOk ? "ok" : "down"} className="ml-auto" />

@@ -27,19 +27,20 @@ export function SettingsPage() {
       <Breadcrumb items={[{ label: "Settings" }]} />
       <PageHeader title="Settings" description="Manage security keys, profile, and active sessions." />
 
-      {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 border-b border-border">
+      {/* Bare-views switcher */}
+      <div className="flex gap-5 mb-6">
         {TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={cn(
-              "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
+              "font-mono text-[11.5px] uppercase tracking-[0.16em] transition-colors duration-150",
               tab === key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "text-foreground"
+                : "text-faint hover:text-foreground"
             )}
           >
+            {tab === key && <span className="text-primary">› </span>}
             {label}
           </button>
         ))}

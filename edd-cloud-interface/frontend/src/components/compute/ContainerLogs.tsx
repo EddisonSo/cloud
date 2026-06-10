@@ -57,12 +57,12 @@ export function ContainerLogs({ containerId, active }: ContainerLogsProps) {
   }, [logs, containerId]);
 
   return (
-    <div className="bg-card border border-border rounded-lg">
+    <div className="bg-card border border-border">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span
-            className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-muted-foreground"}`}
+            className={`inline-block w-[7px] h-[7px] rounded-full ${connected ? "bg-success shadow-[0_0_6px_rgba(62,207,110,0.55)]" : "bg-faint"}`}
           />
           <span className="text-xs text-muted-foreground">
             {connected ? "Connected" : "Disconnected"}
@@ -90,7 +90,7 @@ export function ContainerLogs({ containerId, active }: ContainerLogsProps) {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="relative overflow-y-auto font-mono text-xs bg-[#0d0d14] rounded-b-lg"
+        className="relative overflow-y-auto font-mono text-xs bg-[#0d0d14]"
         style={{ height: "calc(100vh - 280px)", minHeight: "300px" }}
       >
         {logs.length === 0 ? (
@@ -120,7 +120,7 @@ export function ContainerLogs({ containerId, active }: ContainerLogsProps) {
         {!autoScroll && logs.length > 0 && (
           <button
             onClick={jumpToBottom}
-            className="absolute bottom-4 right-4 flex items-center gap-1 bg-secondary text-foreground border border-border px-3 py-1.5 rounded-md text-xs shadow-lg hover:bg-muted transition-colors"
+            className="absolute bottom-4 right-4 flex items-center gap-1 bg-secondary text-foreground border border-border px-3 py-1.5 text-xs hover:bg-muted transition-colors duration-150"
           >
             <ArrowDown className="w-3 h-3" />
             Jump to bottom

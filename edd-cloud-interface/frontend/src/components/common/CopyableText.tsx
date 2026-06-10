@@ -12,8 +12,8 @@ export function CopyableText({ text, className, mono = false }: CopyableTextProp
     <span
       onClick={() => copyToClipboard(text)}
       className={cn(
-        "cursor-pointer rounded px-1 -mx-1 transition-colors hover:bg-accent",
-        mono && "font-mono text-xs text-muted-foreground",
+        "cursor-pointer px-1 -mx-1 transition-colors hover:bg-accent",
+        mono && "font-mono text-[12.5px] text-muted-foreground",
         className
       )}
       title="Click to copy"

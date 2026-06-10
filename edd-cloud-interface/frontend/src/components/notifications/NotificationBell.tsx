@@ -44,33 +44,33 @@ export function NotificationBell(): React.ReactElement {
   };
 
   const categoryColors: Record<string, string> = {
-    compute: "text-blue-400",
-    storage: "text-green-400",
-    auth: "text-yellow-400",
+    compute: "text-primary",
+    storage: "text-success",
+    auth: "text-warning",
   };
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+        className="relative p-2 hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+          <span className="absolute -top-0.5 -right-0.5 bg-primary text-primary-foreground text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <span className="text-sm font-semibold text-foreground">Notifications</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Notifications</span>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint hover:text-foreground transition-colors"
               >
                 Mark all read
               </button>
@@ -87,25 +87,25 @@ export function NotificationBell(): React.ReactElement {
                 <button
                   key={n.id}
                   onClick={() => handleNotificationClick(n)}
-                  className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/50 transition-colors ${
-                    !n.read ? "bg-secondary/30" : ""
+                  className={`w-full text-left px-4 py-3 border-b border-border hover:bg-popover transition-colors ${
+                    !n.read ? "bg-muted" : ""
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     {!n.read && (
-                      <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                      <span className="mt-1.5 h-[7px] w-[7px] rounded-full bg-primary shrink-0" />
                     )}
-                    <div className={!n.read ? "" : "ml-4"}>
+                    <div className={!n.read ? "" : "ml-[15px]"}>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{n.title}</span>
                         {n.category && (
-                          <span className={`text-[10px] uppercase tracking-wider ${categoryColors[n.category] || "text-muted-foreground"}`}>
+                          <span className={`font-mono text-[10px] uppercase tracking-[0.12em] ${categoryColors[n.category] || "text-faint"}`}>
                             {n.category}
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                      <span className="text-[10px] text-muted-foreground/60 mt-1 block">
+                      <span className="font-mono text-[10px] text-faint mt-1 block">
                         {timeAgo(n.created_at!)}
                       </span>
                     </div>

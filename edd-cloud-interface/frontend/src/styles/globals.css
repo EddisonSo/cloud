@@ -1,58 +1,67 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
+/*
+ * Instrument · Ice — design tokens.
+ * Flat graphite surfaces, hairline borders, mono micro-labels, one pale
+ * ice accent. Sharp corners, no shadows, no gradients. Spec:
+ * docs/superpowers/specs/2026-06-09-instrument-design-system.md
+ */
 @theme {
-  /* GCS Dark — deep navy with blue accent */
-  --color-background: #0f1219;
-  --color-foreground: #e3e7ef;
-  --color-card: #161b26;
-  --color-card-foreground: #e3e7ef;
-  --color-popover: #1c2333;
-  --color-popover-foreground: #e3e7ef;
-  --color-primary: #8ab4f8;
-  --color-primary-foreground: #0f1219;
-  --color-secondary: #1c2333;
-  --color-secondary-foreground: #e3e7ef;
-  --color-muted: #1c2333;
-  --color-muted-foreground: #7d8799;
-  --color-accent: #232d42;
-  --color-accent-foreground: #e3e7ef;
-  --color-destructive: #f28b82;
-  --color-destructive-foreground: #0f1219;
-  --color-border: #252d3d;
-  --color-input: #252d3d;
-  --color-ring: #8ab4f8;
-  --color-success: #81c995;
-  --color-warning: #fdd663;
-  --radius: 0.5rem;
+  --color-background: #111315;
+  --color-foreground: #e8e6e1;
+  --color-card: #16191c;
+  --color-card-foreground: #e8e6e1;
+  --color-popover: #1a1d20;
+  --color-popover-foreground: #e8e6e1;
+  --color-primary: #b7d9f2;
+  --color-primary-foreground: #0e1820;
+  --color-secondary: #1d2023;
+  --color-secondary-foreground: #e8e6e1;
+  --color-muted: #1a1d20;
+  --color-muted-foreground: #8b8f94;
+  --color-faint: #5b5f64;
+  --color-accent: #1a1d20;
+  --color-accent-foreground: #e8e6e1;
+  --color-destructive: #e5544b;
+  --color-destructive-foreground: #16181a;
+  --color-border: #26292d;
+  --color-line: #1d2023;
+  --color-input: #26292d;
+  --color-ring: #b7d9f2;
+  --color-success: #3ecf6e;
+  --color-warning: #e8b43a;
+  --radius: 0px;
 
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", monospace;
 }
 
-/* Light theme */
+/* Light — same structure on paper grey; ice darkened for contrast */
 .light {
-  --color-background: #f8f9fb;
-  --color-foreground: #1a1f2e;
-  --color-card: #ffffff;
-  --color-card-foreground: #1a1f2e;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #1a1f2e;
-  --color-primary: #1a73e8;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #f1f3f5;
-  --color-secondary-foreground: #1a1f2e;
-  --color-muted: #f1f3f5;
-  --color-muted-foreground: #5f6b7a;
-  --color-accent: #e8edf2;
-  --color-accent-foreground: #1a1f2e;
-  --color-destructive: #d93025;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #dde1e6;
-  --color-input: #dde1e6;
-  --color-ring: #1a73e8;
-  --color-success: #1e8e3e;
-  --color-warning: #f9ab00;
+  --color-background: #f4f3f0;
+  --color-foreground: #1d2024;
+  --color-card: #fbfaf8;
+  --color-card-foreground: #1d2024;
+  --color-popover: #efeeea;
+  --color-popover-foreground: #1d2024;
+  --color-primary: #2e6f9e;
+  --color-primary-foreground: #f4f8fb;
+  --color-secondary: #eceae6;
+  --color-secondary-foreground: #1d2024;
+  --color-muted: #efeeea;
+  --color-muted-foreground: #6b7077;
+  --color-faint: #9a9ea3;
+  --color-accent: #efeeea;
+  --color-accent-foreground: #1d2024;
+  --color-destructive: #c2362e;
+  --color-destructive-foreground: #fdf6f5;
+  --color-border: #e0ded8;
+  --color-line: #e9e7e2;
+  --color-input: #d8d6d0;
+  --color-ring: #2e6f9e;
+  --color-success: #20804a;
+  --color-warning: #9c6f0a;
 }
 
 body {
@@ -63,16 +72,39 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Terminal styles */
+/* Machined micro-label: table headers, nav sections, card titles, crumbs */
+.microlabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  font-weight: 500;
+}
+
+/* Machine-generated data: IDs, images, ports, durations, sizes, versions */
+.data {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tabular numerals wherever metrics render */
+table, .tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Terminal panel (xterm mounts here; keeps JetBrains Mono via xterm config) */
 .terminal-container {
-  background: #0f1219;
-  border-radius: 0.5rem;
+  background: #111315;
+  border: 1px solid var(--color-border);
   padding: 0.75rem;
   min-height: 400px;
   overflow: hidden;
 }
 
-/* Scrollbar — thin, unobtrusive */
+/* Scrollbar — hairline */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -84,7 +116,6 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -99,6 +130,16 @@ body {
 
 .animate-pulse-slow {
   animation: pulse-slow 1.5s ease-in-out infinite;
+}
+
+/* One quiet page-mount reveal */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.rise-in {
+  animation: rise-in 180ms ease-out both;
 }
 
 /* Hide number input spinners */

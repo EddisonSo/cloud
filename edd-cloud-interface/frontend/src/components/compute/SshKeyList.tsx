@@ -54,7 +54,7 @@ export function SshKeyList({
       {showAdd ? (
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-sm font-semibold">Add SSH Key</CardTitle>
+            <CardTitle>Add SSH Key</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -103,18 +103,18 @@ export function SshKeyList({
       ) : sshKeys.length === 0 ? (
         <p className="text-muted-foreground py-4">No SSH keys yet. Add one to access your containers.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-border">
           {/* Header - hidden on mobile */}
-          <div className="hidden sm:grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <div className="text-center">Name</div>
-            <div className="text-center">Public Key</div>
-            <div className="text-center">Actions</div>
+          <div className="hidden sm:grid grid-cols-[1fr_3fr_80px] gap-4 px-4 py-2 border-b border-border">
+            <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-center">Name</div>
+            <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-center">Public Key</div>
+            <div className="font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-faint text-center">Actions</div>
           </div>
           {/* Rows */}
           {sshKeys.map((key) => (
             <div
               key={key.id}
-              className="flex flex-col gap-2 px-4 py-3 bg-secondary rounded-md sm:grid sm:grid-cols-[1fr_3fr_80px] sm:gap-4 sm:items-center"
+              className="flex flex-col gap-2 px-4 py-3 hover:bg-popover transition-colors duration-150 sm:grid sm:grid-cols-[1fr_3fr_80px] sm:gap-4 sm:items-center"
             >
               <div className="sm:text-center">
                 <span className="text-xs text-muted-foreground sm:hidden">Name: </span>

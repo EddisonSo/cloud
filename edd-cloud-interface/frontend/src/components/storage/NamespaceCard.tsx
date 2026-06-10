@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { FolderOpen } from "lucide-react";
 import type { Namespace, NamespaceVisibility } from "@/types";
 
@@ -20,8 +21,8 @@ export function NamespaceCard({
     <div
       onClick={() => onSelect?.(namespace.name)}
       className={cn(
-        "flex items-center justify-between px-4 py-3 bg-secondary rounded-md cursor-pointer transition-all hover:bg-secondary/80 sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4",
-        isActive && "border border-primary bg-primary/10",
+        "flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-150 hover:bg-popover sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4",
+        isActive && "border-l-2 border-primary bg-popover",
         visibility < 2 && "opacity-80"
       )}
     >
@@ -29,24 +30,18 @@ export function NamespaceCard({
         <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
         <span className="font-medium truncate">{namespace.name}</span>
       </div>
-      <div className="hidden sm:block text-center text-sm text-muted-foreground">
+      <div className="hidden sm:block text-center font-mono text-[12.5px] text-muted-foreground">
         {namespace.count} {namespace.count === 1 ? "file" : "files"}
       </div>
-      <div className="text-center">
+      <div className="flex sm:justify-center">
         {visibility === 0 && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-            Private
-          </span>
+          <Badge variant="secondary">Private</Badge>
         )}
         {visibility === 1 && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-500">
-            Unlisted
-          </span>
+          <Badge variant="warning">Unlisted</Badge>
         )}
         {visibility === 2 && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-500">
-            Public
-          </span>
+          <Badge variant="success">Public</Badge>
         )}
       </div>
     </div>

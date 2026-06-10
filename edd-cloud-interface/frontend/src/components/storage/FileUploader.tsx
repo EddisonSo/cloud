@@ -27,7 +27,7 @@ export function FileUploader({
   return (
     <div className="space-y-4">
       <form onSubmit={onUpload} className="flex flex-col gap-4">
-        <div className="flex items-center gap-3 p-3 bg-secondary border border-dashed border-border rounded-md">
+        <div className="flex items-center gap-3 p-3 border border-dashed border-border">
           <input
             ref={fileInputRef}
             type="file"
@@ -40,7 +40,7 @@ export function FileUploader({
           />
           <label
             htmlFor="file-upload"
-            className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-accent border border-border cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+            className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium bg-accent border border-border cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors duration-150"
           >
             Choose file
           </label>

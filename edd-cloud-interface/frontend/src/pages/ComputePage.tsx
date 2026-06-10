@@ -274,9 +274,9 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
           }
         />
 
-        <div className="bg-card border border-border rounded-lg">
+        <div className="bg-card border border-border">
           <div className="px-5 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold">SSH Keys</h2>
+            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">SSH Keys</h2>
           </div>
           <div className="p-5">
             <SshKeyList
@@ -314,15 +314,15 @@ export function ComputePage({ view: routeView = "containers" }: ComputePageProps
       />
 
       {containersError && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
+        <div className="border border-destructive/30 px-4 py-3 mb-4">
           <p className="text-sm text-destructive">{containersError}</p>
         </div>
       )}
 
       {/* Container table */}
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Containers</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Containers</h2>
         </div>
         <ContainerList
           containers={containers}

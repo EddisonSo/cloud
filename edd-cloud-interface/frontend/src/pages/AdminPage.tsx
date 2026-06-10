@@ -8,7 +8,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { CopyableText, Modal } from "@/components/common";
 import { buildAuthBase, buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2, UserPlus, Eye, EyeOff, Link, Clock } from "lucide-react";
+import { Trash2, UserPlus, Eye, EyeOff, Link } from "lucide-react";
 import type { AdminUser, AdminSession, AdminNamespace, Container } from "@/types";
 
 export function AdminPage() {
@@ -144,230 +144,220 @@ export function AdminPage() {
       />
 
       {/* Users Section */}
-      <div className="bg-card border border-border rounded-lg mb-6">
+      <div className="bg-card border border-border mb-6">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">Users</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Users</h2>
         </div>
-        <div className="p-5">
-          {error && <p className="text-destructive text-sm mb-4">{error}</p>}
+        {error && <p className="text-destructive text-sm px-5 pt-4">{error}</p>}
 
-          {/* Users List */}
-          {loading ? (
-            <p className="text-muted-foreground py-4">Loading users...</p>
-          ) : users.length === 0 ? (
-            <p className="text-muted-foreground py-4">No users found</p>
-          ) : (
-            <div className="space-y-2">
-              {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">Username</div>
-                <div className="text-center">Display Name</div>
-                <div className="text-center">ID</div>
-                <div className="text-center">Actions</div>
-              </div>
-              {users.map((u) => (
-                <div
-                  key={u.user_id}
-                  className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
-                >
-                  <div className="flex justify-between sm:block sm:text-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">Username:</span>
-                    <span className="text-muted-foreground truncate">{u.username}</span>
-                  </div>
-                  <div className="flex justify-between sm:block sm:text-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
-                    <span className="font-medium truncate">{u.display_name || u.username}</span>
-                  </div>
-                  <div className="flex justify-between sm:justify-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">ID:</span>
-                    <CopyableText text={u.user_id} mono />
-                  </div>
-                  <div className="flex justify-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteUser(u.user_id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+        {loading ? (
+          <p className="text-muted-foreground py-4 px-5">Loading users...</p>
+        ) : users.length === 0 ? (
+          <p className="text-muted-foreground py-4 px-5">No users found</p>
+        ) : (
+          <div>
+            {/* Header - hidden on mobile */}
+            <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-4 px-5 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Username</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Display Name</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">ID</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint text-center">Actions</div>
             </div>
-          )}
-        </div>
+            {users.map((u) => (
+              <div
+                key={u.user_id}
+                className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_80px] gap-2 sm:gap-4 px-5 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors sm:items-center"
+              >
+                <div className="flex justify-between sm:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Username:</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground truncate">{u.username}</span>
+                </div>
+                <div className="flex justify-between sm:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Name:</span>
+                  <span className="text-sm font-medium truncate">{u.display_name || u.username}</span>
+                </div>
+                <div className="flex justify-between sm:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">ID:</span>
+                  <CopyableText text={u.user_id} mono />
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteUser(u.user_id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Active Sessions Section */}
-      <div className="bg-card border border-border rounded-lg mb-6">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-          <Clock className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Active Sessions</h2>
+      <div className="bg-card border border-border mb-6">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Active Sessions</h2>
         </div>
-        <div className="p-5">
-          {loading ? (
-            <p className="text-muted-foreground py-4">Loading sessions...</p>
-          ) : sessions.length === 0 ? (
-            <p className="text-muted-foreground py-4">No active sessions</p>
-          ) : (
-            <div className="space-y-2">
-              {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">User</div>
-                <div className="text-center">IP</div>
-                <div className="text-center">JWT Issued</div>
-              </div>
-              {sessions.map((s, idx) => {
-                const formatTime = (unix: number | undefined) => {
-                  if (!unix) return "—";
-                  const date = new Date(unix * 1000);
-                  return date.toLocaleString();
-                };
-
-                return (
-                  <div
-                    key={`${s.user_id}-${s.created_at}-${idx}`}
-                    className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
-                  >
-                    <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">User:</span>
-                      <span className="font-medium truncate">{s.display_name || s.username}</span>
-                    </div>
-                    <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">IP:</span>
-                      <span className="text-sm text-muted-foreground font-mono">{s.ip_address || "—"}</span>
-                    </div>
-                    <div className="flex justify-between sm:block sm:text-center">
-                      <span className="text-xs text-muted-foreground sm:hidden">JWT Issued:</span>
-                      <span className="text-sm text-muted-foreground">{formatTime(s.created_at)}</span>
-                    </div>
-                  </div>
-                );
-              })}
+        {loading ? (
+          <p className="text-muted-foreground py-4 px-5">Loading sessions...</p>
+        ) : sessions.length === 0 ? (
+          <p className="text-muted-foreground py-4 px-5">No active sessions</p>
+        ) : (
+          <div>
+            {/* Header - hidden on mobile */}
+            <div className="hidden sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-4 px-5 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">User</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">IP</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">JWT Issued</div>
             </div>
-          )}
-        </div>
+            {sessions.map((s, idx) => {
+              const formatTime = (unix: number | undefined) => {
+                if (!unix) return "—";
+                const date = new Date(unix * 1000);
+                return date.toLocaleString();
+              };
+
+              return (
+                <div
+                  key={`${s.user_id}-${s.created_at}-${idx}`}
+                  className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_2fr] gap-2 sm:gap-4 px-5 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors sm:items-center"
+                >
+                  <div className="flex justify-between sm:block">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">User:</span>
+                    <span className="text-sm font-medium truncate">{s.display_name || s.username}</span>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">IP:</span>
+                    <span className="font-mono text-[12.5px] text-muted-foreground">{s.ip_address || "—"}</span>
+                  </div>
+                  <div className="flex justify-between sm:block">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">JWT Issued:</span>
+                    <span className="font-mono text-[12.5px] text-muted-foreground">{formatTime(s.created_at)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Containers Section */}
-      <div className="bg-card border border-border rounded-lg mb-6">
+      <div className="bg-card border border-border mb-6">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">All Containers</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">All Containers</h2>
         </div>
-        <div className="p-5">
-          {loading ? (
-            <p className="text-muted-foreground py-4">Loading...</p>
-          ) : containers.length === 0 ? (
-            <p className="text-muted-foreground py-4">No containers</p>
-          ) : (
-            <div className="space-y-2">
-              {/* Header - hidden on mobile */}
-              <div className="hidden lg:grid lg:grid-cols-[1fr_2fr_2fr_1.5fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">ID</div>
-                <div className="text-center">Name</div>
-                <div className="text-center">Hostname</div>
-                <div className="text-center">Owner</div>
-                <div className="text-center">Status</div>
-              </div>
-              {containers.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex flex-col lg:grid lg:grid-cols-[1fr_2fr_2fr_1.5fr_1fr] gap-2 lg:gap-4 px-4 py-3 bg-secondary rounded-md lg:items-center"
-                >
-                  <div className="flex justify-between lg:justify-center">
-                    <span className="text-xs text-muted-foreground lg:hidden">ID:</span>
-                    <CopyableText text={c.id.slice(0, 8)} mono />
-                  </div>
-                  <div className="flex justify-between lg:block lg:text-center min-w-0">
-                    <span className="text-xs text-muted-foreground lg:hidden">Name:</span>
-                    <span className="font-medium truncate">{c.name}</span>
-                  </div>
-                  <div className="flex justify-between lg:block lg:text-center min-w-0">
-                    <span className="text-xs text-muted-foreground lg:hidden">Hostname:</span>
-                    <span className="text-sm text-muted-foreground font-mono truncate">
-                      {c.hostname || "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between lg:block lg:text-center min-w-0">
-                    <span className="text-xs text-muted-foreground lg:hidden">Owner:</span>
-                    <span className="text-sm text-muted-foreground truncate">{c.owner || "—"}</span>
-                  </div>
-                  <div className="flex justify-between lg:justify-center items-center">
-                    <span className="text-xs text-muted-foreground lg:hidden">Status:</span>
-                    <StatusChip status={c.status} />
-                  </div>
-                </div>
-              ))}
+        {loading ? (
+          <p className="text-muted-foreground py-4 px-5">Loading...</p>
+        ) : containers.length === 0 ? (
+          <p className="text-muted-foreground py-4 px-5">No containers</p>
+        ) : (
+          <div>
+            {/* Header - hidden on mobile */}
+            <div className="hidden lg:grid lg:grid-cols-[1fr_2fr_2fr_1.5fr_1fr] gap-4 px-5 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">ID</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Name</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Hostname</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Owner</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Status</div>
             </div>
-          )}
-        </div>
+            {containers.map((c) => (
+              <div
+                key={c.id}
+                className="flex flex-col lg:grid lg:grid-cols-[1fr_2fr_2fr_1.5fr_1fr] gap-2 lg:gap-4 px-5 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors lg:items-center"
+              >
+                <div className="flex justify-between lg:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint lg:hidden">ID:</span>
+                  <CopyableText text={c.id.slice(0, 8)} mono />
+                </div>
+                <div className="flex justify-between lg:block min-w-0">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint lg:hidden">Name:</span>
+                  <span className="text-sm font-medium truncate">{c.name}</span>
+                </div>
+                <div className="flex justify-between lg:block min-w-0">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint lg:hidden">Hostname:</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground truncate">
+                    {c.hostname || "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between lg:block min-w-0">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint lg:hidden">Owner:</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground truncate">{c.owner || "—"}</span>
+                </div>
+                <div className="flex justify-between lg:block items-center">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint lg:hidden">Status:</span>
+                  <StatusChip status={c.status} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Namespaces Section */}
-      <div className="bg-card border border-border rounded-lg">
+      <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold">All Namespaces</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">All Namespaces</h2>
         </div>
-        <div className="p-5">
-          {loading ? (
-            <p className="text-muted-foreground py-4">Loading...</p>
-          ) : namespaces.length === 0 ? (
-            <p className="text-muted-foreground py-4">No namespaces</p>
-          ) : (
-            <div className="space-y-2">
-              {/* Header - hidden on mobile */}
-              <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <div className="text-center">Name</div>
-                <div className="text-center">Files</div>
-                <div className="text-center">Visibility</div>
-                <div className="text-center">Owner ID</div>
-              </div>
-              {namespaces.map((ns) => (
-                <div
-                  key={ns.name}
-                  className="flex flex-col sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-2 sm:gap-4 px-4 py-3 bg-secondary rounded-md sm:items-center"
-                >
-                  <div className="flex justify-between sm:block sm:text-center min-w-0">
-                    <span className="text-xs text-muted-foreground sm:hidden">Name:</span>
-                    <span className="font-medium truncate">{ns.name}</span>
-                  </div>
-                  <div className="flex justify-between sm:block sm:text-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">Files:</span>
-                    <span className="text-muted-foreground">{ns.count}</span>
-                  </div>
-                  <div className="flex justify-between sm:justify-center items-center">
-                    <span className="text-xs text-muted-foreground sm:hidden">Visibility:</span>
-                    <span className="flex items-center gap-1 text-sm">
-                      {ns.visibility === 0 ? (
-                        <>
-                          <EyeOff className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">Private</span>
-                        </>
-                      ) : ns.visibility === 1 ? (
-                        <>
-                          <Link className="w-4 h-4 text-yellow-400" />
-                          <span className="text-yellow-400">Unlisted</span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-4 h-4 text-green-400" />
-                          <span className="text-green-400">Public</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between sm:block sm:text-center min-w-0">
-                    <span className="text-xs text-muted-foreground sm:hidden">Owner:</span>
-                    <span className="text-sm text-muted-foreground">
-                      {ns.owner_id != null ? ns.owner_id : "System"}
-                    </span>
-                  </div>
-                </div>
-              ))}
+        {loading ? (
+          <p className="text-muted-foreground py-4 px-5">Loading...</p>
+        ) : namespaces.length === 0 ? (
+          <p className="text-muted-foreground py-4 px-5">No namespaces</p>
+        ) : (
+          <div>
+            {/* Header - hidden on mobile */}
+            <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-4 px-5 py-3 border-b border-border">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Name</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Files</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Visibility</div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">Owner ID</div>
             </div>
-          )}
-        </div>
+            {namespaces.map((ns) => (
+              <div
+                key={ns.name}
+                className="flex flex-col sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr] gap-2 sm:gap-4 px-5 py-3 border-b border-border last:border-0 hover:bg-popover transition-colors sm:items-center"
+              >
+                <div className="flex justify-between sm:block min-w-0">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Name:</span>
+                  <span className="text-sm font-medium truncate">{ns.name}</span>
+                </div>
+                <div className="flex justify-between sm:block">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Files:</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground">{ns.count}</span>
+                </div>
+                <div className="flex justify-between sm:block items-center">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Visibility:</span>
+                  <span className="flex items-center gap-1 text-sm">
+                    {ns.visibility === 0 ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">Private</span>
+                      </>
+                    ) : ns.visibility === 1 ? (
+                      <>
+                        <Link className="w-3.5 h-3.5 text-warning" />
+                        <span className="text-warning">Unlisted</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-success" />
+                        <span className="text-success">Public</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between sm:block min-w-0">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint sm:hidden">Owner:</span>
+                  <span className="font-mono text-[12.5px] text-muted-foreground">
+                    {ns.owner_id != null ? ns.owner_id : "System"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Create User Modal */}
