@@ -48,6 +48,7 @@ type containerResponse struct {
 	CreatedAt     string   `json:"created_at"`
 	SSHEnabled    bool     `json:"ssh_enabled"`
 	HTTPSEnabled  bool     `json:"https_enabled"`
+	PullPolicy    string   `json:"pull_policy"`
 }
 
 // InstanceTypeSpec defines the resources for an instance type
@@ -598,6 +599,7 @@ func containerToResponse(c *db.Container) containerResponse {
 		CreatedAt:    c.CreatedAt.Format(time.RFC3339),
 		SSHEnabled:   c.SSHEnabled,
 		HTTPSEnabled: c.HTTPSEnabled,
+		PullPolicy:   c.PullPolicy,
 	}
 
 	if c.SSHEnabled {

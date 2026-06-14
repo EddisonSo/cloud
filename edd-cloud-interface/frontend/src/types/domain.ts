@@ -10,6 +10,7 @@ export interface Container {
   external_ip?: string;
   ssh_enabled?: boolean;
   https_enabled?: boolean;
+  pull_policy?: string;
   owner?: string;
   memory_mb?: number;
   storage_gb?: number;

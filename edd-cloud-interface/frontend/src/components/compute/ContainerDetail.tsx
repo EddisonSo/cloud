@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { StatusChip } from "@/components/ui/status-chip";
 import { CopyableText } from "@/components/common";
+import { DropdownSelect } from "@/components/ui/dropdown-select";
 import { ArrowLeft, Plus, Trash2, Terminal, Play, Square } from "lucide-react";
 import type { Container, ContainerAction, IngressRule } from "@/types";
 import { ContainerLogs } from "./ContainerLogs";
@@ -13,6 +14,8 @@ interface ContainerAccessState {
   loading: boolean;
   sshEnabled: boolean;
   savingSSH: boolean;
+  pullPolicy: string;
+  savingPullPolicy: boolean;
   ingressRules: IngressRule[];
   addingRule: boolean;
   mountPaths: string[];
@@ -20,6 +23,7 @@ interface ContainerAccessState {
   openAccess: (containerData: Container) => Promise<void>;
   closeAccess: () => void;
   toggleSSH: (updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>) => Promise<void>;
+  updatePullPolicy: (value: string, updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>) => Promise<void>;
   addIngressRule: (port: number, targetPort: number, updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>) => Promise<IngressRule | undefined>;
   removeIngressRule: (port: number, updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>) => Promise<void>;
   updateMountPaths: (newPaths: string[]) => Promise<void>;
@@ -214,6 +218,27 @@ export function ContainerDetail({
                 />
               </div>
             )}
+          </div>
+
+          {/* Image Pull Policy */}
+          <div className="p-4 border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium">Image Pull Policy</span>
+                <p className="font-mono text-[12.5px] text-muted-foreground">Whether the image is re-pulled when the container restarts.</p>
+              </div>
+              <div className="w-52">
+                <DropdownSelect
+                  value={access.pullPolicy}
+                  onChange={(value) => access.updatePullPolicy(value)}
+                  disabled={access.savingPullPolicy}
+                  options={[
+                    { value: "IfNotPresent", label: "If Not Present (default)" },
+                    { value: "Always", label: "Always (re-pull on restart)" },
+                  ]}
+                />
+              </div>
+            </div>
           </div>
 
           {/* HTTP Ingress Rules */}

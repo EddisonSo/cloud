@@ -7,6 +7,8 @@ export function useContainerAccess() {
   const [loading, setLoading] = useState<boolean>(false);
   const [sshEnabled, setSshEnabled] = useState<boolean>(false);
   const [savingSSH, setSavingSSH] = useState<boolean>(false);
+  const [pullPolicy, setPullPolicyState] = useState<string>("IfNotPresent");
+  const [savingPullPolicy, setSavingPullPolicy] = useState<boolean>(false);
   const [ingressRules, setIngressRules] = useState<IngressRule[]>([]);
   const [addingRule, setAddingRule] = useState<boolean>(false);
   const [mountPaths, setMountPaths] = useState<string[]>([]);
@@ -26,6 +28,7 @@ export function useContainerAccess() {
     setContainer(containerData);
     setLoading(true);
     setSshEnabled(containerData.ssh_enabled || false);
+    setPullPolicyState(containerData.pull_policy || "IfNotPresent");
     setIngressRules([]);
     setMountPaths([]);
 
@@ -104,6 +107,33 @@ export function useContainerAccess() {
     }
   }, [container, sshEnabled, savingSSH]);
 
+  const updatePullPolicy = useCallback(async (value: string, updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>) => {
+    if (!container || savingPullPolicy) return;
+    const prevValue = pullPolicy;
+    setPullPolicyState(value);
+    setSavingPullPolicy(true);
+    try {
+      const response = await fetch(
+        `${buildComputeBase()}/compute/containers/${container.id}/pull-policy`,
+        {
+          method: "PUT",
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ pull_policy: value }),
+        }
+      );
+      if (!response.ok) {
+        setPullPolicyState(prevValue);
+        const msg = await response.text();
+        throw new Error(msg || "Failed to update pull policy");
+      }
+      updateContainers?.((prev) =>
+        prev.map((c) => c.id === container.id ? { ...c, pull_policy: value } : c)
+      );
+    } finally {
+      setSavingPullPolicy(false);
+    }
+  }, [container, pullPolicy, savingPullPolicy]);
+
   const addIngressRule = useCallback(async (port: number, targetPort: number, updateContainers?: React.Dispatch<React.SetStateAction<Container[]>>): Promise<IngressRule | undefined> => {
     if (!container || addingRule) return;
     setAddingRule(true);
@@ -175,6 +205,8 @@ export function useContainerAccess() {
     loading,
     sshEnabled,
     savingSSH,
+    pullPolicy,
+    savingPullPolicy,
     ingressRules,
     addingRule,
     mountPaths,
@@ -182,6 +214,7 @@ export function useContainerAccess() {
     openAccess,
     closeAccess,
     toggleSSH,
+    updatePullPolicy,
     addIngressRule,
     removeIngressRule,
     updateMountPaths,
