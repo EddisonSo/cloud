@@ -79,6 +79,10 @@ func cmdLogout(c *eddsdk.Client, cfgPath string, args []string) error {
 	if err := doLogout(cfgPath); err != nil {
 		return err
 	}
+	if os.Getenv("EC_TOKEN") != "" {
+		fmt.Println("Cleared the stored token, but EC_TOKEN is still set in your environment and will keep authenticating you. Run `unset EC_TOKEN` to fully log out.")
+		return nil
+	}
 	fmt.Println("Logged out")
 	return nil
 }
