@@ -65,15 +65,19 @@ func Run(argv []string) int {
 func usage() {
 	fmt.Fprintln(os.Stderr, `ec — edd-cloud CLI
 
-Usage: ec [--json] [--token T] [--base D] <command> [args]
+Usage: ec [--json] [--token T] [--base D] <category> <resource> <action> [args]
 
-Commands:
-  login | logout | whoami
-  compute   manage containers (ls|get|create|start|stop|rm|logs|ssh|ingress|mounts|pull-policy)
-  storage   manage file storage (ns ls|create|rm  /  ls <ns>  /  rm <ns> <path>)
-  registry  manage container images (repos|tags <repo>|rm <repo> <tag>)
-  sa        manage service accounts (ls|create|rm)
-  token     manage API tokens (ls|create|rm)
-  domains   manage custom domains (ls|add|rm)
-  net       manage networking (connections ls|add|rm)`)
+compute containers   ls | get | create | start | stop | rm | logs | pull-policy | ssh | ingress | mounts
+compute keys         ls | add | rm
+
+storage namespaces   ls | create | rm
+storage files        ls | rm
+storage registry     ls | tags <repo> | rm <repo> <tag>
+
+auth login | logout | whoami | set-token
+auth service-accounts ls | create | rm
+auth tokens          ls | create | rm
+
+networking domains      ls | add | rm
+networking connections  ls | add | rm`)
 }

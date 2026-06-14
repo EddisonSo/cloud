@@ -11,10 +11,7 @@ import (
 	"eddisonso.com/edd-cli/pkg/eddsdk"
 )
 
-func init() {
-	register(command{name: "domains", run: cmdDomains})
-	register(command{name: "net", run: cmdNet})
-}
+func init() { register(command{name: "networking", run: cmdNetworking}) }
 
 func domainTable(w io.Writer, domains []eddsdk.Domain) {
 	rows := make([][]string, len(domains))
@@ -32,10 +29,25 @@ func connTable(w io.Writer, conns []eddsdk.CloudflareConnection) {
 	printTable(w, []string{"ID", "ZONES", "CREATED_AT"}, rows)
 }
 
-// cmdDomains handles: edd domains ls|add|rm
-func cmdDomains(c *eddsdk.Client, _ string, args []string) error {
+// cmdNetworking routes to resources: domains | connections
+func cmdNetworking(c *eddsdk.Client, _ string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: edd domains <ls|add|rm> [args]")
+		return fmt.Errorf("usage: ec networking <domains|connections> <action> [args]")
+	}
+	switch args[0] {
+	case "domains":
+		return cmdDomains(c, args[1:])
+	case "connections":
+		return cmdNetConnections(context.Background(), c, args[1:])
+	default:
+		return fmt.Errorf("unknown networking resource: %s", args[0])
+	}
+}
+
+// cmdDomains handles: ec networking domains ls|add|rm
+func cmdDomains(c *eddsdk.Client, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: ec networking domains <ls|add|rm> [args]")
 	}
 	ctx := context.Background()
 	sub, rest := args[0], args[1:]
@@ -51,9 +63,9 @@ func cmdDomains(c *eddsdk.Client, _ string, args []string) error {
 		domainTable(os.Stdout, domains)
 		return nil
 	case "add":
-		// edd domains add <container-id> <domain> <port>
+		// ec networking domains add <container-id> <domain> <port>
 		if len(rest) != 3 {
-			return fmt.Errorf("usage: edd domains add <container-id> <domain> <port>")
+			return fmt.Errorf("usage: ec networking domains add <container-id> <domain> <port>")
 		}
 		port, err := strconv.Atoi(rest[2])
 		if err != nil {
@@ -75,29 +87,17 @@ func cmdDomains(c *eddsdk.Client, _ string, args []string) error {
 		return nil
 	case "rm":
 		if len(rest) < 1 {
-			return fmt.Errorf("usage: edd domains rm <id>")
+			return fmt.Errorf("usage: ec networking domains rm <id>")
 		}
 		return c.DeleteDomain(ctx, rest[0])
 	default:
-		return fmt.Errorf("unknown domains subcommand: %s", sub)
+		return fmt.Errorf("unknown domains action: %s", sub)
 	}
-}
-
-// cmdNet handles: edd net connections ls|add|rm
-func cmdNet(c *eddsdk.Client, _ string, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: edd net connections <ls|add|rm> [args]")
-	}
-	sub, rest := args[0], args[1:]
-	if sub != "connections" {
-		return fmt.Errorf("unknown net subcommand: %s (try: connections)", sub)
-	}
-	return cmdNetConnections(context.Background(), c, rest)
 }
 
 func cmdNetConnections(ctx context.Context, c *eddsdk.Client, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: edd net connections <ls|add|rm> [args]")
+		return fmt.Errorf("usage: ec networking connections <ls|add|rm> [args]")
 	}
 	switch args[0] {
 	case "ls":
@@ -111,9 +111,9 @@ func cmdNetConnections(ctx context.Context, c *eddsdk.Client, args []string) err
 		connTable(os.Stdout, conns)
 		return nil
 	case "add":
-		// edd net connections add <cloudflare-api-token>
+		// ec networking connections add <cloudflare-api-token>
 		if len(args) != 2 {
-			return fmt.Errorf("usage: edd net connections add <cloudflare-api-token>")
+			return fmt.Errorf("usage: ec networking connections add <cloudflare-api-token>")
 		}
 		conn, err := c.AddConnection(ctx, args[1])
 		if err != nil {
@@ -126,10 +126,10 @@ func cmdNetConnections(ctx context.Context, c *eddsdk.Client, args []string) err
 		return nil
 	case "rm":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: edd net connections rm <id>")
+			return fmt.Errorf("usage: ec networking connections rm <id>")
 		}
 		return c.DeleteConnection(ctx, args[1])
 	default:
-		return fmt.Errorf("unknown net connections subcommand: %s", args[0])
+		return fmt.Errorf("unknown connections action: %s", args[0])
 	}
 }
