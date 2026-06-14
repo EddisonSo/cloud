@@ -281,6 +281,16 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		method := req.Method
 		wantClose := req.Close || strings.EqualFold(req.Header.Get("Connection"), "close")
 
+		// Credentialed requests must never touch the path-keyed shared cache:
+		// per-user responses (e.g. /api/session) keyed only by sni+path would
+		// otherwise be served to other (or unauthenticated) users -> auth bypass.
+		hasCreds := req.Header.Get("Authorization") != ""
+		if !hasCreds {
+			if _, cerr := req.Cookie("token"); cerr == nil {
+				hasCreds = true
+			}
+		}
+
 		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr)
@@ -327,7 +337,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		}
 
 		// Cache check for GET requests (not SSE/WS — already handled above)
-		if method == "GET" {
+		if method == "GET" && !hasCreds {
 			cacheKey := sni + ":" + path
 			if cached := respCache.Get(cacheKey); cached != nil {
 				slog.Debug("cache hit", "host", sni, "path", path)
@@ -362,7 +372,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		// For small cacheable GET 200 responses, buffer and cache.
 		// Large responses stream directly to avoid unbounded memory usage.
-		cacheable := method == "GET" && resp.StatusCode == 200 &&
+		cacheable := method == "GET" && !hasCreds && resp.StatusCode == 200 &&
 			resp.ContentLength >= 0 && resp.ContentLength <= maxEntrySize &&
 			resp.Header.Get("Set-Cookie") == "" &&
 			resp.Header.Get("Cache-Control") != "no-store"
