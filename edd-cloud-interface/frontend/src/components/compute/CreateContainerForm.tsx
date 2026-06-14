@@ -39,6 +39,7 @@ export function CreateContainerForm({
   const [ingressRules, setIngressRules] = useState<{ port: number; target_port: number }[]>([]);
   const [newPort, setNewPort] = useState<string>("");
   const [newTargetPort, setNewTargetPort] = useState<string>("");
+  const [pullPolicy, setPullPolicy] = useState<string>("IfNotPresent");
   const [mountPaths, setMountPaths] = useState<string[]>(["/root"]);
   const [newMountPath, setNewMountPath] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -64,6 +65,7 @@ export function CreateContainerForm({
       ingress_rules: ingressRules,
       mount_paths: mountPaths,
       image: selectedImage || undefined,
+      pull_policy: pullPolicy,
     });
   };
 
@@ -196,6 +198,18 @@ export function CreateContainerForm({
                   value: img.image,
                   label: img.name,
                 })),
+              ]}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="c-pull">Image pull strategy</Label>
+            <DropdownSelect
+              value={pullPolicy}
+              onChange={(val) => setPullPolicy(val)}
+              options={[
+                { value: "IfNotPresent", label: "If Not Present (default)" },
+                { value: "Always", label: "Always (re-pull on restart)" },
               ]}
             />
           </div>

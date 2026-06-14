@@ -23,10 +23,11 @@ export const EXPIRY_OPTIONS: ExpiryOption[] = [
   { value: "never", label: "No expiry" },
 ];
 
-export const CONTAINER_ACTIONS: string[] = ["create", "read", "update", "delete"];
+export const CONTAINER_ACTIONS: string[] = ["create", "read", "update", "delete", "start", "stop"];
 export const KEY_ACTIONS: string[] = ["create", "read", "delete"];
 export const NAMESPACE_ACTIONS: string[] = ["create", "read", "update", "delete"];
 export const FILE_ACTIONS: string[] = ["create", "read", "delete"];
+export const REGISTRY_ACTIONS: string[] = ["push", "pull", "delete"];
 
 export function scopeSummary(scopes: Record<string, string[]>): string {
   if (!scopes || Object.keys(scopes).length === 0) return "No permissions";
@@ -243,6 +244,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
   const broadKeysKey = `compute.${userId}.keys`;
   const broadNamespacesKey = `storage.${userId}.namespaces`;
   const broadFilesKey = `storage.${userId}.files`;
+  const broadRegistryKey = `storage.${userId}.registry`;
   const containerKey = (id: string): string => `compute.${userId}.containers.${id}`;
   const nsNamespacesKey = (nsName: string): string => `storage.${userId}.namespaces.${nsName}`;
   const nsFilesKey = (nsName: string): string => `storage.${userId}.files.${nsName}`;
@@ -322,6 +324,14 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
               label="All Files"
               scopeKey={broadFilesKey}
               actions={FILE_ACTIONS}
+              selectedScopes={selectedScopes}
+              onToggle={toggleAction}
+              onToggleAll={setAllActions}
+            />
+            <ResourceRow
+              label="Registry"
+              scopeKey={broadRegistryKey}
+              actions={REGISTRY_ACTIONS}
               selectedScopes={selectedScopes}
               onToggle={toggleAction}
               onToggleAll={setAllActions}

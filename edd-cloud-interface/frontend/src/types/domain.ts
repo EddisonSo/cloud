@@ -45,6 +45,7 @@ export interface CreateContainerData {
   ingress_rules: IngressRule[];
   mount_paths: string[];
   image?: string;
+  pull_policy?: string;
 }
 
 // ── Storage ──────────────────────────────────────────────
