@@ -290,6 +290,12 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 				hasCreds = true
 			}
 		}
+		// SFS share links authenticate via ?token=JWT; the cache key excludes the
+		// query string, so a credentialed download could otherwise be cached and
+		// served to anonymous callers.
+		if !hasCreds && req.URL.Query().Get("token") != "" {
+			hasCreds = true
+		}
 
 		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 		if err != nil {

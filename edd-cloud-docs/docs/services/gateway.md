@@ -118,6 +118,7 @@ The gateway caches small GET 200 responses in memory to reduce backend load for 
   - Have body ≤ 1 MB
   - Do not have `Set-Cookie` header
   - Do not have `Cache-Control: no-store`
+  - Are **not credentialed** — the request carries no `Authorization` header, no `token` cookie, and no `?token=` query parameter (per-user responses must never enter the path-keyed shared cache)
 - **Invalidation**: Cache entries are automatically invalidated when mutating requests (PUT/POST/DELETE/PATCH) are made to the same path
 - **Background Cleanup**: Expired entries removed every 5 minutes
 
