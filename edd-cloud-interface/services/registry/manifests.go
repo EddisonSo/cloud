@@ -300,8 +300,8 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "push") {
-		s.requireAuth(w, repoName, "push")
+	if !hasAccess(auth, repoName, "delete") {
+		s.requireAuth(w, repoName, "delete")
 		return
 	}
 
