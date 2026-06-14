@@ -91,6 +91,7 @@ Create a new container.
 | ssh_enabled | bool | body | No | Enable SSH access (default false) |
 | mount_paths | string[] | body | No | Absolute paths to persist (default `["/root"]`) |
 | image | string | body | No | Container image (default: Debian base). Must be `registry.cloud.eddisonso.com/<repo>:<tag>` or omitted. Use `GET /compute/images` to list available images. |
+| pull_policy | string | body | No | `"Always"` or `"IfNotPresent"` (default `"IfNotPresent"`). When `"Always"`, the image is re-pulled on each (re)start. |
 
 **Example request:**
 ```bash
@@ -192,7 +193,7 @@ curl -X DELETE https://compute.cloud.eddisonso.com/compute/containers/abc12345 \
 Start a stopped container.
 
 **Auth:** Session / API token
-**Token Scope:** `compute.<uid>.containers.<id>` with `update`
+**Token Scope:** `compute.<uid>.containers.<id>` with `start`
 
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
@@ -227,7 +228,7 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sta
 Stop a running container.
 
 **Auth:** Session / API token
-**Token Scope:** `compute.<uid>.containers.<id>` with `update`
+**Token Scope:** `compute.<uid>.containers.<id>` with `stop`
 
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|

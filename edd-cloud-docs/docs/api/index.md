@@ -43,6 +43,8 @@ API tokens support resource-specific scopes with up to 4 segments:
 - `storage.<uid>.namespaces.<name>` — manage a specific namespace
 - `storage.<uid>.files` — access files in all namespaces
 - `storage.<uid>.files.<name>` — access files in a specific namespace
+- `storage.<uid>.registry` — push/pull/delete images in all repositories (`push`, `pull`, `delete`)
+- `storage.<uid>.registry.<repo>` — push/pull/delete images in a specific repository
 
 Broad scopes cascade: a token with `compute.<uid>.containers` grants access to all individual containers. A token with `compute.<uid>.containers.<id>` only grants access to that one container.
 

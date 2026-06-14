@@ -399,7 +399,7 @@ Create a new API token.
 | scopes | object | body | Yes | Scope-to-actions map (see [Token Scopes](/api#token-scopes)) |
 | expires_in | string | body | No | `"30d"`, `"90d"`, `"365d"`, or `"never"` (default `"never"`) |
 
-Each scope key follows the format `<service>.<user_id>[.<resource>[.<id>]]` and maps to an array of actions: `"create"`, `"read"`, `"update"`, `"delete"`.
+Each scope key follows the format `<service>.<user_id>[.<resource>[.<id>]]` and maps to an array of actions. Standard actions are `"create"`, `"read"`, `"update"`, `"delete"`. Container scopes additionally accept `"start"` and `"stop"`; registry scopes use `"push"`, `"pull"`, and `"delete"`.
 
 **Example request:**
 ```bash
@@ -573,7 +573,7 @@ The returned `token` is a JWT valid for 5 minutes. The `access` claim contains t
 | Authenticated user | Yes | Own repos | Own repos |
 | Service account | Yes | Scoped repos | Scoped repos |
 
-For service account tokens, scopes are mapped from the `storage.<userID>.registry.<repo>` scope format to OCI `pull`/`push` actions. A wildcard `storage.<userID>.registry` scope grants access to all of that user's repositories.
+For service account tokens, scopes are mapped from the `storage.<userID>.registry[.<repo>]` scope format to OCI actions. Supported actions: `push`, `pull`, `delete`. A wildcard `storage.<userID>.registry` scope grants access to all of that user's repositories.
 
 ---
 
