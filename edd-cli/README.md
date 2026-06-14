@@ -1,6 +1,6 @@
 # edd-cli
 
-Go SDK and CLI for [edd-cloud](https://cloud.eddisonso.com) — manage compute containers, storage, registry images, service accounts, API tokens, custom domains, and Cloudflare network connections.
+Go SDK and CLI for [edd-cloud](https://cloud.eddisonso.com) — manage compute containers, SSH keys, storage, registry images, service accounts, API tokens, custom domains, and Cloudflare network connections.
 
 ## Install
 
@@ -18,20 +18,30 @@ Requires Go 1.22+. `~/bin` must be on your `$PATH`.
 
 ## Auth
 
-Two ways to authenticate:
+Three ways to authenticate:
 
 **Interactive login** — prompts for username and password, stores a session token in `~/.config/ec/config.json`:
 
 ```sh
-ec login
+ec auth login
 ```
 
-> Accounts with 2FA/WebAuthn enabled cannot use interactive login. Create a service-account token in the dashboard and set `EC_TOKEN` instead.
+> Accounts with 2FA/WebAuthn enabled cannot use interactive login. Use `ec auth set-token` with a service-account token instead.
 
-**Service-account token** — set `EC_TOKEN` to an `ecloud_` token minted in the dashboard. Suitable for scripting and CI:
+**Set a service-account token** — store an `ecloud_` token to the config file for persistent use:
+
+```sh
+ec auth set-token --token ecloud_...
+# or pipe it in:
+echo "ecloud_..." | ec auth set-token
+```
+
+**Per-invocation token** — set `EC_TOKEN` or use `--token` for scripting and CI without touching the config:
 
 ```sh
 export EC_TOKEN=ecloud_...
+# or
+ec --token ecloud_... compute containers ls
 ```
 
 **Token precedence:** `--token` flag > `EC_TOKEN` env > `~/.config/ec/config.json`
@@ -44,29 +54,57 @@ export EC_TOKEN=ecloud_...
 | `--token T` | Use token `T` for this invocation |
 | `--base D` | Override base domain (default: `cloud.eddisonso.com`) |
 
-Global flags must appear before the command name:
+Global flags must appear before the category:
 
 ```sh
-ec --json --token ecloud_... compute ls
+ec --json --token ecloud_... compute containers ls
 ```
 
 ## Commands
 
+The CLI is organized as `ec <category> <resource> <action>`.
+
 ### Auth
 
 ```sh
-ec login             # prompt for credentials, save session token
-ec logout            # clear saved session token
-ec whoami            # print current user (id, name, admin flag)
+ec auth login             # prompt for credentials, save session token
+ec auth logout            # clear saved session token
+ec auth whoami            # print current user (id, name, admin flag)
+ec auth set-token         # store an ecloud_ token interactively (stdin)
+ec auth set-token --token ecloud_...   # store an ecloud_ token via flag
 ```
+
+#### Service Accounts
+
+```sh
+ec auth service-accounts ls
+ec auth service-accounts create --name ci-bot \
+  --scope compute.u.containers=read,write
+ec auth service-accounts rm <id>
+```
+
+`service-accounts create` flags: `--name` (required), `--scope root.uid.resource=action1,action2` (repeatable), `--scopes-json '{"key":["action"]}'`.
+
+#### Tokens
+
+```sh
+ec auth tokens ls
+ec auth tokens create --name deploy --expires-in 90d \
+  --scope compute.u.containers=read
+ec auth tokens rm <id>   # note: DELETE /api/tokens/{id} not yet registered in the auth service
+```
+
+`tokens create` flags: `--name` (required), `--expires-in` `30d|90d|365d|never` (default `never`), `--scope`, `--scopes-json`.
 
 ### Compute
 
-```sh
-ec compute ls
-ec --json compute get <id>
+#### Containers
 
-ec compute create \
+```sh
+ec compute containers ls
+ec --json compute containers get <id>
+
+ec compute containers create \
   --name web \
   --image registry.cloud.eddisonso.com/eddison/foo:v1.0 \
   --type nano \
@@ -74,81 +112,75 @@ ec compute create \
   --storage 5 \
   --pull-policy IfNotPresent
 
-ec compute start <id>
-ec compute stop <id>
-ec compute rm <id>
+ec compute containers start <id>
+ec compute containers stop <id>
+ec compute containers rm <id>
 
-ec compute pull-policy <id> Always      # Always | IfNotPresent
-ec compute ssh <id> on                  # on | off
-ec compute logs <id>
+ec compute containers pull-policy <id> Always      # Always | IfNotPresent
+ec compute containers ssh <id> on                  # on | off
+ec compute containers logs <id>
 
 # Ingress rules
-ec compute ingress ls <id>
-ec compute ingress add <id> <port> <target-port>
-ec compute ingress rm <id> <port>
+ec compute containers ingress ls <id>
+ec compute containers ingress add <id> <port> <target-port>
+ec compute containers ingress rm <id> <port>
 
 # Storage mounts
-ec compute mounts ls <id>
-ec compute mounts set <id> [path ...]   # replaces current mount list
+ec compute containers mounts ls <id>
+ec compute containers mounts set <id> [path ...]   # replaces current mount list
 ```
 
-`compute create` flags: `--name` (required), `--image`, `--type` (default `nano`), `--memory` MB (default `256`), `--storage` GB (default `5`), `--pull-policy` (default `IfNotPresent`).
+`containers create` flags: `--name` (required), `--image`, `--type` (default `nano`), `--memory` MB (default `256`), `--storage` GB (default `5`), `--pull-policy` (default `IfNotPresent`).
+
+#### SSH Keys
+
+```sh
+ec compute keys ls
+ec compute keys add --name laptop --key "ssh-ed25519 AAAA..."
+ec compute keys rm <id>
+```
 
 ### Storage
 
-```sh
-ec storage ns ls
-ec storage ns create <name>
-ec storage ns rm <name>
+#### Namespaces
 
-ec storage ls <namespace>
-ec storage rm <namespace> <path>
+```sh
+ec storage namespaces ls
+ec storage namespaces create <name>
+ec storage namespaces rm <name>
 ```
 
-### Registry
+#### Files
 
 ```sh
-ec registry repos
-ec registry tags <repo>
-ec registry rm <repo> <tag>
+ec storage files ls <namespace>
+ec storage files rm <namespace> <path>
 ```
 
-### Service Accounts
+#### Registry
 
 ```sh
-ec sa ls
-ec sa create --name ci-bot \
-  --scope compute.u.containers=read,write
-ec sa rm <id>
-```
-
-`sa create` flags: `--name` (required), `--scope root.uid.resource=action1,action2` (repeatable), `--scopes-json '{"key":["action"]}'`.
-
-### Tokens
-
-```sh
-ec token ls
-ec token create --name deploy --expires-in 90d \
-  --scope compute.u.containers=read
-ec token rm <id>   # note: DELETE /api/tokens/{id} not yet registered in the auth service
-```
-
-`token create` flags: `--name` (required), `--expires-in` `30d|90d|365d|never` (default `never`), `--scope`, `--scopes-json`.
-
-### Domains
-
-```sh
-ec domains ls
-ec domains add <container-id> <domain> <target-port>
-ec domains rm <id>
+ec storage registry ls
+ec storage registry tags <repo>
+ec storage registry rm <repo> <tag>
 ```
 
 ### Networking
 
+#### Domains
+
 ```sh
-ec net connections ls
-ec net connections add <cloudflare-api-token>
-ec net connections rm <id>
+ec networking domains ls
+ec networking domains add <container-id> <domain> <target-port>
+ec networking domains rm <id>
+```
+
+#### Connections
+
+```sh
+ec networking connections ls
+ec networking connections add <cloudflare-api-token>
+ec networking connections rm <id>
 ```
 
 ## SDK Usage
