@@ -118,6 +118,16 @@ type CreateTokenRequest struct {
 	ExpiresIn string              `json:"expires_in"`
 }
 
+// --- SSH Keys ---
+
+// SSHKey mirrors the compute service's ssh key JSON.
+type SSHKey struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	PublicKey string `json:"public_key"`
+	CreatedAt string `json:"created_at"`
+}
+
 // --- Networking (gateway) types ---
 
 // Domain mirrors the gateway's domainResponse JSON.

@@ -96,6 +96,35 @@ func (c *Client) SetMounts(ctx context.Context, id string, paths []string) error
 		map[string][]string{"mount_paths": paths}, nil)
 }
 
+// ListSSHKeys returns all SSH keys for the authenticated user.
+// The API responds with {"ssh_keys": [{id, name, public_key, created_at}]}.
+func (c *Client) ListSSHKeys(ctx context.Context) ([]SSHKey, error) {
+	var out struct {
+		SSHKeys []SSHKey `json:"ssh_keys"`
+	}
+	if err := c.doJSON(ctx, "GET", c.serviceURL(computeSvc), "/compute/ssh-keys", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.SSHKeys, nil
+}
+
+// AddSSHKey creates a new SSH key for the authenticated user.
+// POST /compute/ssh-keys with body {"name": name, "public_key": publicKey}.
+func (c *Client) AddSSHKey(ctx context.Context, name, publicKey string) (*SSHKey, error) {
+	var out SSHKey
+	body := map[string]string{"name": name, "public_key": publicKey}
+	if err := c.doJSON(ctx, "POST", c.serviceURL(computeSvc), "/compute/ssh-keys", body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteSSHKey deletes an SSH key by its string ID (decimal integer).
+// DELETE /compute/ssh-keys/{id}
+func (c *Client) DeleteSSHKey(ctx context.Context, id string) error {
+	return c.doJSON(ctx, "DELETE", c.serviceURL(computeSvc), "/compute/ssh-keys/"+id, nil, nil)
+}
+
 // ContainerLogs fetches raw log text from the container logs endpoint.
 func (c *Client) ContainerLogs(ctx context.Context, id string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",

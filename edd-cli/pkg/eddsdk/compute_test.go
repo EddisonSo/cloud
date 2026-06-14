@@ -59,6 +59,25 @@ func TestStartStopPullPolicy(t *testing.T) {
 	}
 }
 
+func TestListSSHKeys(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/compute/ssh-keys" {
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{"ssh_keys": []map[string]any{
+			{"id": 1, "name": "my-key", "public_key": "ssh-ed25519 AAAA...", "created_at": "2026-01-01T00:00:00Z"},
+		}})
+	}))
+	defer srv.Close()
+	keys, err := newTestClient(srv).ListSSHKeys(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 1 || keys[0].Name != "my-key" || keys[0].ID != 1 {
+		t.Fatalf("got %+v", keys)
+	}
+}
+
 func TestContainerLogs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" || r.URL.Path != "/compute/containers/abc/logs" {
