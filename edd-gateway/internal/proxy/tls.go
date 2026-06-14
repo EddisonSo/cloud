@@ -296,6 +296,11 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		if !hasCreds && req.URL.Query().Get("token") != "" {
 			hasCreds = true
 		}
+		// X-Service-Key is the service-to-service auth header (consumed by
+		// edd-cloud-auth); a request carrying it is credentialed.
+		if !hasCreds && req.Header.Get("X-Service-Key") != "" {
+			hasCreds = true
+		}
 
 		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 		if err != nil {
@@ -342,8 +347,11 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			respCache.Delete(sni + ":" + path)
 		}
 
-		// Cache check for GET requests (not SSE/WS — already handled above)
-		if method == "GET" && !hasCreds {
+		// Cache check for GET requests (not SSE/WS — already handled above).
+		// The query string isn't part of the cache key (keyed on sni+path only),
+		// so query-bearing requests must bypass the cache to avoid serving one
+		// query's response for a different query.
+		if method == "GET" && !hasCreds && req.URL.RawQuery == "" {
 			cacheKey := sni + ":" + path
 			if cached := respCache.Get(cacheKey); cached != nil {
 				slog.Debug("cache hit", "host", sni, "path", path)
@@ -378,7 +386,11 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		// For small cacheable GET 200 responses, buffer and cache.
 		// Large responses stream directly to avoid unbounded memory usage.
-		cacheable := method == "GET" && !hasCreds && resp.StatusCode == 200 &&
+		// req.URL.RawQuery == "": the query string isn't part of the cache key,
+		// so query-bearing responses must not be stored (or they'd be served for
+		// a different query).
+		cacheable := method == "GET" && !hasCreds && req.URL.RawQuery == "" &&
+			resp.StatusCode == 200 &&
 			resp.ContentLength >= 0 && resp.ContentLength <= maxEntrySize &&
 			resp.Header.Get("Set-Cookie") == "" &&
 			resp.Header.Get("Cache-Control") != "no-store"
