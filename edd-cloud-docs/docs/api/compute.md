@@ -598,6 +598,37 @@ curl -X PUT https://compute.cloud.eddisonso.com/compute/containers/abc12345/moun
 
 ---
 
+## Image Pull Policy
+
+### PUT /compute/containers/:id/pull-policy
+
+Update the image pull policy for a container. Takes effect on the next (re)start.
+
+**Auth:** Session / API token
+**Token Scope:** `compute.<uid>.containers.<id>` with `update`
+
+| Param | Type | In | Required | Description |
+|-------|------|----|----------|-------------|
+| id | string | path | Yes | Container ID |
+| pull_policy | string | body | Yes | `"Always"` or `"IfNotPresent"` |
+
+**Example request:**
+```bash
+curl -X PUT https://compute.cloud.eddisonso.com/compute/containers/abc12345/pull-policy \
+  -H "Authorization: Bearer eyJhbGci..." \
+  -H "Content-Type: application/json" \
+  -d '{"pull_policy": "Always"}'
+```
+
+**Response:**
+```json
+{
+  "pull_policy": "Always"
+}
+```
+
+---
+
 ## WebSocket
 
 ### GET /compute/ws
