@@ -69,6 +69,11 @@ Usage: edd [--json] [--token T] [--base D] <command> [args]
 
 Commands:
   login | logout | whoami
-  compute   manage containers
-(more commands added incrementally)`)
+  compute   manage containers (ls|get|create|start|stop|rm|logs|ssh|ingress|mounts|pull-policy)
+  storage   manage file storage (ns ls|create|rm  /  ls <ns>  /  rm <ns> <path>)
+  registry  manage container images (repos|tags <repo>|rm <repo> <tag>)
+  sa        manage service accounts (ls|create|rm)
+  token     manage API tokens (ls|create|rm)
+  domains   manage custom domains (ls|add|rm)
+  net       manage networking (connections ls|add|rm)`)
 }
