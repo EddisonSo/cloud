@@ -1,7 +1,7 @@
-BINARY=edd
+BINARY=ec
 
 build:
-	go build -o $(BINARY) ./cmd/edd
+	go build -o $(BINARY) ./cmd/ec
 
 install: build
 	mkdir -p $(HOME)/bin

@@ -16,7 +16,7 @@ func defaultConfigPath() string {
 	if err != nil {
 		return ".edd-config.json"
 	}
-	return filepath.Join(home, ".config", "edd", "config.json")
+	return filepath.Join(home, ".config", "ec", "config.json")
 }
 
 func loadConfig(path string) Config {
@@ -38,7 +38,7 @@ func saveConfig(path string, c Config) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// resolveToken: flag > EDD_TOKEN env > config file. Returns token and base domain.
+// resolveToken: flag > EC_TOKEN env > config file. Returns token and base domain.
 func resolveToken(flagToken, cfgPath string) (string, string) {
 	cfg := loadConfig(cfgPath)
 	base := cfg.BaseDomain
@@ -48,7 +48,7 @@ func resolveToken(flagToken, cfgPath string) (string, string) {
 	if flagToken != "" {
 		return flagToken, base
 	}
-	if env := os.Getenv("EDD_TOKEN"); env != "" {
+	if env := os.Getenv("EC_TOKEN"); env != "" {
 		return env, base
 	}
 	return cfg.Token, base

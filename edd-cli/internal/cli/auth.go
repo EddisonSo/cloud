@@ -33,7 +33,7 @@ func cmdLogin(c *eddsdk.Client, cfgPath string, args []string) error {
 		return err
 	}
 	if res.Requires2FA {
-		return fmt.Errorf("this account requires 2FA/WebAuthn, which the CLI can't do interactively; create a service-account token in the dashboard and set EDD_TOKEN instead")
+		return fmt.Errorf("this account requires 2FA/WebAuthn, which the CLI can't do interactively; create a service-account token in the dashboard and set EC_TOKEN instead")
 	}
 	cfg := loadConfig(cfgPath)
 	cfg.Token = res.Token

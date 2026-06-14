@@ -63,9 +63,9 @@ func Run(argv []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `edd — edd-cloud CLI
+	fmt.Fprintln(os.Stderr, `ec — edd-cloud CLI
 
-Usage: edd [--json] [--token T] [--base D] <command> [args]
+Usage: ec [--json] [--token T] [--base D] <command> [args]
 
 Commands:
   login | logout | whoami
