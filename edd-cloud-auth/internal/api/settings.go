@@ -56,16 +56,9 @@ func (h *Handler) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := h.db.CountCredentialsByUserID(claims.UserID)
-	if err != nil {
-		writeError(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	if count <= 1 {
-		writeError(w, "cannot delete last security key", http.StatusBadRequest)
-		return
-	}
-
+	// Deleting the last security key is allowed: with zero credentials the login
+	// flow falls back to password-only (see handleLogin's credCount check), so a
+	// user can intentionally remove 2FA from their account.
 	if err := h.db.DeleteCredential(keyID, claims.UserID); err != nil {
 		writeError(w, "key not found", http.StatusNotFound)
 		return
