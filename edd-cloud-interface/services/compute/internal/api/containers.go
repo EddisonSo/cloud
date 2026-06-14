@@ -782,6 +782,44 @@ func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type updatePullPolicyRequest struct {
+	PullPolicy string `json:"pull_policy"`
+}
+
+func (h *Handler) UpdatePullPolicy(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := getUserFromContext(r.Context())
+	if !ok {
+		writeError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	containerID := r.PathValue("id")
+	container, err := h.db.GetContainer(containerID)
+	if err != nil {
+		slog.Error("failed to get container", "error", err)
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if container == nil || container.UserID != userID {
+		writeError(w, "container not found", http.StatusNotFound)
+		return
+	}
+	var req updatePullPolicyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if !validPullPolicy(req.PullPolicy) {
+		writeError(w, "invalid pull_policy: must be 'Always' or 'IfNotPresent'", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.UpdateContainerPullPolicy(containerID, req.PullPolicy); err != nil {
+		slog.Error("failed to update pull policy", "error", err)
+		writeError(w, "failed to update pull policy", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]string{"pull_policy": req.PullPolicy})
+}
+
 // mintRegistryPullToken creates a short-lived OCI registry JWT granting pull access to a repository.
 // Uses the shared JWT_SECRET that the auth service and registry both trust.
 func mintRegistryPullToken(userID, repoName string) (string, error) {

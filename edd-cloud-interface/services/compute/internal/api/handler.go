@@ -74,6 +74,9 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client, notifier *notifypub.Publ
 	h.mux.HandleFunc("GET /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheckContainer("read", h.GetMountPaths)))
 	h.mux.HandleFunc("PUT /compute/containers/{id}/mounts", h.authMiddleware(h.scopeCheckContainer("update", h.UpdateMountPaths)))
 
+	// Image pull policy
+	h.mux.HandleFunc("PUT /compute/containers/{id}/pull-policy", h.authMiddleware(h.scopeCheckContainer("update", h.UpdatePullPolicy)))
+
 	// Images listing endpoint
 	h.mux.HandleFunc("GET /compute/images", h.authMiddleware(h.scopeCheck("containers", "read", h.ListImages)))
 

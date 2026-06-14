@@ -194,3 +194,11 @@ func (db *DB) UpdateHTTPSEnabled(id string, enabled bool) error {
 	}
 	return nil
 }
+
+func (db *DB) UpdateContainerPullPolicy(id, pullPolicy string) error {
+	_, err := db.Exec(`UPDATE containers SET pull_policy = $1 WHERE id = $2`, pullPolicy, id)
+	if err != nil {
+		return fmt.Errorf("update container pull policy: %w", err)
+	}
+	return nil
+}
