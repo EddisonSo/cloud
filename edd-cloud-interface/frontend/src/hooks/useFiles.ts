@@ -212,7 +212,15 @@ export function useFiles() {
         throw new Error(message || "Delete failed");
       }
       setStatus(`Deleted ${file.name}`);
-      await loadFiles(namespace, true);
+      // Optimistically drop the file from state and cache. We don't refetch here:
+      // the storage backend can briefly still list a just-deleted file (read-after-
+      // delete lag), and a refetch racing that would re-add the row until reload.
+      const cacheKey = namespace || DEFAULT_NAMESPACE;
+      const keep = (f: FileEntry) => f.name !== file.name;
+      setFiles((prev) => prev.filter(keep));
+      if (filesCache[cacheKey]) {
+        filesCache[cacheKey] = filesCache[cacheKey].filter(keep);
+      }
       onComplete?.();
     } catch (err) {
       setStatus((err as Error).message);
