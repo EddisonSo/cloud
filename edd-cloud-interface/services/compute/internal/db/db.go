@@ -87,6 +87,7 @@ func (db *DB) migrate() error {
 			scopes JSONB NOT NULL,
 			version BIGINT NOT NULL DEFAULT 0
 		)`,
+		`ALTER TABLE containers ADD COLUMN IF NOT EXISTS pull_policy TEXT DEFAULT 'IfNotPresent'`,
 	}
 
 	for _, m := range migrations {

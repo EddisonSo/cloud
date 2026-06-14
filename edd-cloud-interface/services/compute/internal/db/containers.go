@@ -18,6 +18,7 @@ type Container struct {
 	MemoryMB     int
 	StorageGB    int
 	Image        string
+	PullPolicy   string   // "Always" | "IfNotPresent"
 	InstanceType string   // nano/micro/mini (arm64) or tiny/small/medium (amd64)
 	MountPaths   []string // directories to persist
 	CreatedAt    time.Time
@@ -34,9 +35,9 @@ func (db *DB) CreateContainer(c *Container) error {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled, mount_paths)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled, string(mountPathsJSON),
+		INSERT INTO containers (id, user_id, owner_username, name, namespace, status, memory_mb, storage_gb, image, instance_type, ssh_enabled, mount_paths, pull_policy)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		c.ID, c.UserID, c.Owner, c.Name, c.Namespace, c.Status, c.MemoryMB, c.StorageGB, c.Image, c.InstanceType, c.SSHEnabled, string(mountPathsJSON), c.PullPolicy,
 	)
 	if err != nil {
 		return fmt.Errorf("insert container: %w", err)
@@ -50,10 +51,12 @@ func (db *DB) GetContainer(id string) (*Container, error) {
 	err := db.QueryRow(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
 		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
-		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
+		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false),
+		       COALESCE(pull_policy, 'IfNotPresent')
 		FROM containers WHERE id = $1`, id,
 	).Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-		&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled)
+		&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled,
+		&c.PullPolicy)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

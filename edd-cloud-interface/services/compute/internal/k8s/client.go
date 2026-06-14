@@ -258,7 +258,7 @@ func (c *Client) UpdateNetworkPolicy(ctx context.Context, namespace string, allo
 }
 
 // CreatePod creates the container pod with user-specified mount paths
-func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string, mountPaths []string) error {
+func (c *Client) CreatePod(ctx context.Context, namespace string, image string, memoryMB int, arch string, cpuCores string, mountPaths []string, pullPolicy string) error {
 	defaultMode := int32(0600)
 
 	// Build subpath names for each mount path
@@ -326,8 +326,9 @@ func (c *Client) CreatePod(ctx context.Context, namespace string, image string, 
 			},
 			Containers: []corev1.Container{
 				{
-					Name:  "main",
-					Image: image,
+					Name:            "main",
+					Image:           image,
+					ImagePullPolicy: resolvePullPolicy(pullPolicy),
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceMemory: parseQuantity(fmt.Sprintf("%dMi", memoryMB)),

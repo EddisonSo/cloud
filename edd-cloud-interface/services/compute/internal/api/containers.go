@@ -31,6 +31,7 @@ type containerRequest struct {
 	SSHEnabled   bool     `json:"ssh_enabled"`
 	MountPaths   []string `json:"mount_paths"` // directories to persist (e.g., ["/root", "/var/data"])
 	Image        string   `json:"image,omitempty"`
+	PullPolicy   string   `json:"pull_policy,omitempty"`
 }
 
 type containerResponse struct {
@@ -180,6 +181,15 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		image = req.Image
 	}
 
+	// Resolve pull policy (default IfNotPresent; only Always is the alternative)
+	pullPolicy := req.PullPolicy
+	if pullPolicy == "" {
+		pullPolicy = "IfNotPresent"
+	} else if pullPolicy != "Always" && pullPolicy != "IfNotPresent" {
+		writeError(w, "invalid pull_policy: must be 'Always' or 'IfNotPresent'", http.StatusBadRequest)
+		return
+	}
+
 	// Generate container ID and namespace (lowercase for K8s compatibility)
 	containerID := uuid.New().String()[:8]
 	namespace := strings.ToLower(fmt.Sprintf("compute-%s-%s", userID, containerID))
@@ -195,6 +205,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 		MemoryMB:     memoryMB,
 		StorageGB:    storageGB,
 		Image:        image,
+		PullPolicy:   pullPolicy,
 		InstanceType: instanceType,
 		MountPaths:   mountPaths,
 		SSHEnabled:   req.SSHEnabled,
@@ -285,7 +296,7 @@ func (h *Handler) provisionContainer(container *db.Container, sshKeys []*db.SSHK
 
 	// Create Pod with instance type spec and mount paths
 	spec := instanceTypes[container.InstanceType]
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths, container.PullPolicy); err != nil {
 		slog.Error("failed to create pod", "container", container.ID, "error", err)
 		h.db.UpdateContainerStatus(container.ID, "failed")
 		GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
@@ -548,7 +559,7 @@ func (h *Handler) StartContainer(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	spec := instanceTypes[container.InstanceType]
-	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
+	if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths, container.PullPolicy); err != nil {
 		slog.Error("failed to create pod", "error", err)
 		writeError(w, "failed to start container", http.StatusInternalServerError)
 		return
@@ -753,7 +764,7 @@ func (h *Handler) UpdateMountPaths(w http.ResponseWriter, r *http.Request) {
 
 		// Recreate pod with new mounts
 		spec := instanceTypes[container.InstanceType]
-		if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths); err != nil {
+		if err := h.k8s.CreatePod(ctx, container.Namespace, container.Image, container.MemoryMB, spec.Arch, spec.CPUCores, container.MountPaths, container.PullPolicy); err != nil {
 			slog.Error("failed to create pod with new mounts", "error", err)
 			h.db.UpdateContainerStatus(containerID, "failed")
 			GetHub().SendContainerStatus(container.UserID, container.ID, "failed", nil)
