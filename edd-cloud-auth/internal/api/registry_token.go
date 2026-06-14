@@ -234,10 +234,12 @@ func translateSAActionToOCI(saAction string) string {
 	switch saAction {
 	case "read":
 		return "pull"
-	case "create", "update", "delete":
+	case "create", "update":
 		return "push"
+	case "delete":
+		return "delete"
 	default:
-		return saAction
+		return saAction // push, pull pass through
 	}
 }
 
