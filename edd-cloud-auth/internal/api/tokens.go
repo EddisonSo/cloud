@@ -26,6 +26,20 @@ type APITokenClaims struct {
 var (
 	validRoots   = map[string]bool{"compute": true, "storage": true}
 	validActions = map[string]bool{"create": true, "read": true, "update": true, "delete": true}
+
+	// validResourceActions defines the allowed actions per <root>.<resource>.
+	// Falls back to validActions when a resource has no specific entry.
+	validResourceActions = map[string]map[string]map[string]bool{
+		"compute": {
+			"containers": {"create": true, "read": true, "update": true, "delete": true, "start": true, "stop": true},
+			"keys":       {"create": true, "read": true, "delete": true},
+		},
+		"storage": {
+			"namespaces": {"create": true, "read": true, "update": true, "delete": true},
+			"files":      {"create": true, "read": true, "delete": true},
+			"registry":   {"push": true, "pull": true, "delete": true},
+		},
+	}
 )
 
 type createTokenRequest struct {
@@ -246,13 +260,8 @@ func (h *Handler) handleCheckToken(w http.ResponseWriter, r *http.Request) {
 // validateScopes checks that all scopes reference the caller's user_id,
 // paths are valid, and actions are from the allowed set.
 func validateScopes(scopes map[string][]string, userID string) error {
-	validResources := map[string]map[string]bool{
-		"compute": {"containers": true, "keys": true},
-		"storage": {"namespaces": true, "files": true},
-	}
-
 	for scope, actions := range scopes {
-		parts := strings.Split(scope, ".")
+		parts := strings.SplitN(scope, ".", 4)
 		if len(parts) < 2 || len(parts) > 4 {
 			return fmt.Errorf("invalid scope path: %s (must be <root>.<userid>[.<resource>[.<id>]])", scope)
 		}
@@ -267,26 +276,27 @@ func validateScopes(scopes map[string][]string, userID string) error {
 			return fmt.Errorf("cannot create token for another user's resources")
 		}
 
+		// Determine the allowed action set for this scope.
+		allowed := validActions
 		if len(parts) >= 3 {
 			resource := parts[2]
-			if !validResources[root][resource] {
+			resActions, ok := validResourceActions[root][resource]
+			if !ok {
 				return fmt.Errorf("invalid resource: %s for root %s", resource, root)
 			}
+			allowed = resActions
 		}
 
-		if len(parts) == 4 {
-			resourceID := parts[3]
-			if resourceID == "" {
-				return fmt.Errorf("resource ID cannot be empty in scope %s", scope)
-			}
+		if len(parts) == 4 && parts[3] == "" {
+			return fmt.Errorf("resource ID cannot be empty in scope %s", scope)
 		}
 
 		if len(actions) == 0 {
 			return fmt.Errorf("at least one action required for scope %s", scope)
 		}
 		for _, action := range actions {
-			if !validActions[action] {
-				return fmt.Errorf("invalid action: %s (must be create, read, update, or delete)", action)
+			if !allowed[action] {
+				return fmt.Errorf("invalid action %q for scope %s", action, scope)
 			}
 		}
 	}
