@@ -73,7 +73,7 @@ func (db *DB) ListContainersByUser(userID string) ([]*Container, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, name, namespace, status, external_ip, memory_mb, storage_gb, image,
 		       COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'), created_at, stopped_at,
-		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
+		       COALESCE(ssh_enabled, false), COALESCE(https_enabled, false), COALESCE(pull_policy, 'IfNotPresent')
 		FROM containers WHERE user_id = $1 ORDER BY created_at DESC`, userID,
 	)
 	if err != nil {
@@ -86,7 +86,7 @@ func (db *DB) ListContainersByUser(userID string) ([]*Container, error) {
 		c := &Container{}
 		var mountPathsJSON string
 		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
+			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled, &c.PullPolicy); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
 		}
 		if err := json.Unmarshal([]byte(mountPathsJSON), &c.MountPaths); err != nil {
@@ -101,7 +101,7 @@ func (db *DB) ListAllContainers() ([]*Container, error) {
 	rows, err := db.Query(`
 		SELECT id, user_id, COALESCE(owner_username, ''), name, namespace, status, external_ip,
 		       memory_mb, storage_gb, image, COALESCE(instance_type, 'nano'), COALESCE(mount_paths, '["/root"]'),
-		       created_at, stopped_at, COALESCE(ssh_enabled, false), COALESCE(https_enabled, false)
+		       created_at, stopped_at, COALESCE(ssh_enabled, false), COALESCE(https_enabled, false), COALESCE(pull_policy, 'IfNotPresent')
 		FROM containers
 		ORDER BY created_at DESC`,
 	)
@@ -115,7 +115,7 @@ func (db *DB) ListAllContainers() ([]*Container, error) {
 		c := &Container{}
 		var mountPathsJSON string
 		if err := rows.Scan(&c.ID, &c.UserID, &c.Owner, &c.Name, &c.Namespace, &c.Status, &c.ExternalIP, &c.MemoryMB, &c.StorageGB, &c.Image,
-			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled); err != nil {
+			&c.InstanceType, &mountPathsJSON, &c.CreatedAt, &c.StoppedAt, &c.SSHEnabled, &c.HTTPSEnabled, &c.PullPolicy); err != nil {
 			return nil, fmt.Errorf("scan container: %w", err)
 		}
 		if err := json.Unmarshal([]byte(mountPathsJSON), &c.MountPaths); err != nil {
