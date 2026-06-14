@@ -44,8 +44,8 @@ func NewHandler(database *db.DB, k8sClient *k8s.Client, notifier *notifypub.Publ
 	h.mux.HandleFunc("POST /compute/containers", h.authMiddleware(h.scopeCheck("containers", "create", h.CreateContainer)))
 	h.mux.HandleFunc("GET /compute/containers/{id}", h.authMiddleware(h.scopeCheckContainer("read", h.GetContainer)))
 	h.mux.HandleFunc("DELETE /compute/containers/{id}", h.authMiddleware(h.scopeCheckContainer("delete", h.DeleteContainer)))
-	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.scopeCheckContainer("update", h.StopContainer)))
-	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.scopeCheckContainer("update", h.StartContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/stop", h.authMiddleware(h.scopeCheckContainer("stop", h.StopContainer)))
+	h.mux.HandleFunc("POST /compute/containers/{id}/start", h.authMiddleware(h.scopeCheckContainer("start", h.StartContainer)))
 
 	// SSH key endpoints
 	h.mux.HandleFunc("GET /compute/ssh-keys", h.authMiddleware(h.scopeCheck("keys", "read", h.ListSSHKeys)))
