@@ -27,14 +27,6 @@ func tagTable(w io.Writer, tags []eddsdk.Tag) {
 	}
 	printTable(w, []string{"TAG", "DIGEST", "SIZE"}, rows)
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func cmdRegistry(c *eddsdk.Client, _ string, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: edd registry <repos|tags|rm> [args]")
