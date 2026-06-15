@@ -24,7 +24,7 @@ type APITokenClaims struct {
 
 // Valid scope roots and allowed actions
 var (
-	validRoots   = map[string]bool{"compute": true, "storage": true}
+	validRoots   = map[string]bool{"compute": true, "storage": true, "networking": true}
 	validActions = map[string]bool{"create": true, "read": true, "update": true, "delete": true}
 
 	// validResourceActions defines the allowed actions per <root>.<resource>.
@@ -38,6 +38,10 @@ var (
 			"namespaces": {"create": true, "read": true, "update": true, "delete": true},
 			"files":      {"create": true, "read": true, "delete": true},
 			"registry":   {"push": true, "pull": true, "delete": true},
+		},
+		"networking": {
+			"domains":         {"create": true, "read": true, "delete": true},
+			"domain-mappings": {"create": true, "read": true, "delete": true},
 		},
 	}
 )
@@ -268,7 +272,7 @@ func validateScopes(scopes map[string][]string, userID string) error {
 
 		root := parts[0]
 		if !validRoots[root] {
-			return fmt.Errorf("invalid scope root: %s (must be compute or storage)", root)
+			return fmt.Errorf("invalid scope root: %s (must be compute, storage, or networking)", root)
 		}
 
 		scopeUserID := parts[1]

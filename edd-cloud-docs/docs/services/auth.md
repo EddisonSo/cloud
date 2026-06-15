@@ -139,8 +139,9 @@ Scopes follow the pattern: `<root>.<user_id>[.<resource>[.<id>]]`
 |------|-----------|
 | `compute` | `containers`, `keys` |
 | `storage` | `namespaces`, `files` |
+| `networking` | `domains`, `domain-mappings` |
 
-Actions: `create`, `read`, `update`, `delete`
+Actions: `create`, `read`, `update`, `delete` (networking only supports `create`, `read`, `delete`)
 
 Scopes cascade — `compute.uid.containers` with `read` grants read access to all containers, while `compute.uid.containers.abc` with `read` grants access to only that container.
 

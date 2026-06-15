@@ -70,6 +70,24 @@ func TestValidateScopes_RegistryDottedTag(t *testing.T) {
 	}
 }
 
+func TestValidateScopes_Networking(t *testing.T) {
+	// networking.domains and networking.domain-mappings accept create/read/delete.
+	if err := validateScopes(map[string][]string{
+		"networking.u1.domains":         {"create", "read", "delete"},
+		"networking.u1.domain-mappings": {"create", "read", "delete"},
+	}, "u1"); err != nil {
+		t.Fatalf("networking scopes should be valid: %v", err)
+	}
+	// "update" is not an allowed action for networking resources.
+	if err := validateScopes(map[string][]string{"networking.u1.domains": {"update"}}, "u1"); err == nil {
+		t.Fatal("networking.domains should not accept the 'update' action")
+	}
+	// Unknown networking resource is rejected.
+	if err := validateScopes(map[string][]string{"networking.u1.zones": {"read"}}, "u1"); err == nil {
+		t.Fatal("unknown networking resource should be rejected")
+	}
+}
+
 func TestValidateScopes_RootOnlyScope(t *testing.T) {
 	// A root-only scope (compute.<uid>, no resource) falls back to validActions.
 	if err := validateScopes(map[string][]string{"compute.u1": {"read"}}, "u1"); err != nil {
