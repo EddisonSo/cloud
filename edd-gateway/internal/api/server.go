@@ -151,8 +151,10 @@ func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*auth.JWT
 
 // authScoped wraps a networking handler. Interactive session tokens get full
 // access to their own resources; service-account tokens must carry the
-// matching networking.<userid>.<resource> scope for the request's action
-// (GET->read, POST->create, DELETE->delete).
+// matching networking.<userid>.<resource>[.<id>] scope for the request's
+// action (GET->read, POST->create, DELETE->delete). For by-id requests the
+// most-specific scope (including the resource id) is required, but a broader
+// resource-level or user-root grant satisfies it via the hasPermission cascade.
 func (s *Server) authScoped(resource string, next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := s.authenticate(w, r)
@@ -161,6 +163,9 @@ func (s *Server) authScoped(resource string, next func(http.ResponseWriter, *htt
 		}
 		if claims.IsServiceAccount() {
 			scope := "networking." + claims.UserID + "." + resource
+			if id := resourceIDFromPath(r.URL.Path, resource); id != "" {
+				scope += "." + id
+			}
 			if !hasPermission(claims.Scopes, scope, actionForMethod(r)) {
 				http.Error(w, "forbidden: missing "+scope+" scope", http.StatusForbidden)
 				return

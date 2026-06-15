@@ -88,6 +88,69 @@ func authScopedResult(t *testing.T, s *Server, resource, method, token string) (
 	return reached, w.Code
 }
 
+// authScopedAtPath is like authScopedResult but lets the test set the exact
+// request path (needed for by-id routes like /api/domains/<id>).
+func authScopedAtPath(t *testing.T, s *Server, resource, method, path, token string) (reached bool, code int) {
+	t.Helper()
+	h := s.authScoped(resource, func(w http.ResponseWriter, r *http.Request, userID string) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(method, path, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	h(w, req)
+	return reached, w.Code
+}
+
+func TestResourceIDFromPath(t *testing.T) {
+	cases := []struct{ path, resource, want string }{
+		{"/api/domains", "domains", ""},
+		{"/api/domains/", "domains", ""},
+		{"/api/domains/conn123", "domains", "conn123"},
+		{"/api/domains/conn123/refresh", "domains", "conn123"},
+		{"/api/domain-mappings/m1/verify", "domain-mappings", "m1"},
+		{"/api/domain-mappings", "domain-mappings", ""},
+	}
+	for _, c := range cases {
+		if got := resourceIDFromPath(c.path, c.resource); got != c.want {
+			t.Errorf("resourceIDFromPath(%q,%q)=%q want %q", c.path, c.resource, got, c.want)
+		}
+	}
+}
+
+func TestAuthScoped_SpecificResource(t *testing.T) {
+	t.Setenv("JWT_SECRET", testSecret)
+	s := &Server{validator: auth.NewSessionValidator()}
+
+	// Token scoped to ONE specific mapping (m1) with delete.
+	saM1 := mintToken(t, jwt.MapClaims{
+		"user_id": "u1", "type": "api_token",
+		"scopes": map[string][]string{"networking.u1.domain-mappings.m1": {"delete"}},
+	})
+	// DELETE that exact mapping → allowed.
+	if reached, code := authScopedAtPath(t, s, "domain-mappings", http.MethodDelete, "/api/domain-mappings/m1", saM1); !reached || code != http.StatusOK {
+		t.Errorf("delete m1: reached=%v code=%d, want true/200", reached, code)
+	}
+	// DELETE a DIFFERENT mapping → forbidden.
+	if reached, code := authScopedAtPath(t, s, "domain-mappings", http.MethodDelete, "/api/domain-mappings/m2", saM1); reached || code != http.StatusForbidden {
+		t.Errorf("delete m2: reached=%v code=%d, want false/403", reached, code)
+	}
+	// LIST (collection, needs resource-level read) → forbidden for a per-id token.
+	if reached, code := authScopedAtPath(t, s, "domain-mappings", http.MethodGet, "/api/domain-mappings", saM1); reached || code != http.StatusForbidden {
+		t.Errorf("list with per-id token: reached=%v code=%d, want false/403", reached, code)
+	}
+
+	// A resource-level grant satisfies a specific-id request via cascade.
+	saAll := mintToken(t, jwt.MapClaims{
+		"user_id": "u1", "type": "api_token",
+		"scopes": map[string][]string{"networking.u1.domain-mappings": {"delete"}},
+	})
+	if reached, code := authScopedAtPath(t, s, "domain-mappings", http.MethodDelete, "/api/domain-mappings/m1", saAll); !reached || code != http.StatusOK {
+		t.Errorf("resource-level delete m1: reached=%v code=%d, want true/200", reached, code)
+	}
+}
+
 func TestAuthScoped(t *testing.T) {
 	t.Setenv("JWT_SECRET", testSecret)
 	s := &Server{validator: auth.NewSessionValidator()}

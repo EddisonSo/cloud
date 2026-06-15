@@ -18,6 +18,22 @@ func actionForMethod(r *http.Request) string {
 	}
 }
 
+// resourceIDFromPath extracts the resource id from a by-id networking path,
+// e.g. resourceIDFromPath("/api/domains/abc/refresh", "domains") == "abc".
+// It returns "" for collection paths (e.g. "/api/domains"), so the caller
+// falls back to the resource-level scope.
+func resourceIDFromPath(path, resource string) string {
+	prefix := "/api/" + resource + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return ""
+	}
+	rest := strings.TrimPrefix(path, prefix)
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		rest = rest[:i] // drop trailing /refresh, /verify, etc.
+	}
+	return rest
+}
+
 // hasPermission checks whether the granted scopes allow `action` on `scope`.
 // It walks up the dot-separated path (e.g. networking.<uid>.domains ->
 // networking.<uid>) checking for the action at each level, stopping before the
