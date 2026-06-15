@@ -21,7 +21,7 @@ export function ServiceAccountsPage({ view }: ServiceAccountsPageProps) {
       <div>
         <Breadcrumb
           items={[
-            { label: "Service Accounts", href: "/service-accounts" },
+            { label: "Auth", href: "/service-accounts" },
             { label: "Account Tokens" },
           ]}
         />
@@ -36,6 +36,7 @@ export function ServiceAccountsPage({ view }: ServiceAccountsPageProps) {
       <div>
         <Breadcrumb
           items={[
+            { label: "Auth", href: "/service-accounts" },
             { label: "Service Accounts", href: "/service-accounts" },
             { label: id.slice(0, 8) },
           ]}
@@ -47,7 +48,7 @@ export function ServiceAccountsPage({ view }: ServiceAccountsPageProps) {
 
   return (
     <div>
-      <Breadcrumb items={[{ label: "Service Accounts" }]} />
+      <Breadcrumb items={[{ label: "Auth", href: "/service-accounts" }, { label: "Service Accounts" }]} />
       <PageHeader
         title="Service Accounts"
         description="Manage scoped API access for automation and integrations."
