@@ -45,6 +45,31 @@ function formatRelative(unix: number | undefined): string {
   return `${Math.round(days / 365)} year${Math.round(days / 365) > 1 ? "s" : ""}`;
 }
 
+interface ScopeRow {
+  sub: string | null; // "resource" or "resource > id"; null = whole-root grant
+  actions: string[];
+}
+
+// groupScopesByRoot turns the flat scope map (root.userid[.resource[.id]] -> actions)
+// into a hierarchy keyed by root, sorted, for a tree-style display.
+function groupScopesByRoot(scopes: Record<string, string[]>): [string, ScopeRow[]][] {
+  const groups: Record<string, ScopeRow[]> = {};
+  Object.entries(scopes).forEach(([scope, actions]) => {
+    const seg = scope.split(".");
+    const root = seg[0];
+    let sub: string | null = null;
+    if (seg.length >= 4) sub = `${seg[2]} > ${seg[3]}`;
+    else if (seg.length === 3) sub = seg[2];
+    (groups[root] ||= []).push({ sub, actions });
+  });
+  return Object.entries(groups)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([root, rows]): [string, ScopeRow[]] => [
+      root,
+      rows.sort((x, y) => (x.sub ?? "").localeCompare(y.sub ?? "")),
+    ]);
+}
+
 interface ServiceAccountDetailProps {
   id: string;
 }
@@ -267,30 +292,28 @@ export function ServiceAccountDetail({ id }: ServiceAccountDetailProps): React.R
               setSelectedScopes={setEditScopes as React.Dispatch<React.SetStateAction<Record<string, string[]>>>}
             />
           ) : (
-            <div className="text-sm text-muted-foreground">
-              {Object.entries(currentScopes!).map(([scope, actions]) => {
-                const segments = scope.split(".");
-                let label: string;
-                if (segments.length === 4) {
-                  label = `${segments[0]} > ${segments[2]} > ${segments[3]}`;
-                } else if (segments.length === 3) {
-                  label = `${segments[0]} > ${segments[2]}`;
-                } else {
-                  label = segments[0];
-                }
-                return (
-                  <div key={scope} className="flex items-center gap-2 py-1">
-                    <span className="font-medium text-foreground">{label}</span>
-                    <div className="flex gap-1">
-                      {actions.map((a: string) => (
-                        <Badge key={a} variant="secondary" className="text-xs">
-                          {a}
-                        </Badge>
-                      ))}
-                    </div>
+            <div className="space-y-3">
+              {groupScopesByRoot(currentScopes!).map(([root, rows]) => (
+                <div key={root}>
+                  <div className="font-medium text-foreground">{root}</div>
+                  <div className="mt-1 ml-2 border-l border-border pl-3 space-y-1">
+                    {rows.map((row, i) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-sm text-muted-foreground">
+                          {row.sub ?? <span className="italic">all resources</span>}
+                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                          {row.actions.map((a: string) => (
+                            <Badge key={a} variant="secondary" className="text-xs">
+                              {a}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
