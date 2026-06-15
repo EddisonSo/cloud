@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -11,8 +13,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
+
+	"eddisonso.com/edd-cli/pkg/eddsdk"
 )
 
 // isSSHSession reports whether ec appears to be running over SSH, in which
@@ -86,6 +92,96 @@ func startCallbackListener() (port int, state string, tokenCh chan string, stop 
 	port = ln.Addr().(*net.TCPAddr).Port
 	stop = func() { _ = srv.Close() }
 	return port, state, tokenCh, stop, nil
+}
+
+// openBrowser best-effort opens targetURL in the default browser. Failure is ignored.
+func openBrowser(targetURL string) {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "darwin":
+		cmd, args = "open", []string{targetURL}
+	case "windows":
+		cmd, args = "rundll32", []string{"url.dll,FileProtocolHandler", targetURL}
+	default:
+		cmd, args = "xdg-open", []string{targetURL}
+	}
+	_ = exec.Command(cmd, args...).Start()
+}
+
+// readPastedToken reads a single line from r and sends the trimmed value to ch.
+func readPastedToken(r io.Reader, ch chan<- string) {
+	br := bufio.NewReader(r)
+	line, _ := br.ReadString('\n')
+	if s := strings.TrimSpace(line); s != "" {
+		select {
+		case ch <- s:
+		default:
+		}
+	}
+}
+
+// complete2FALogin runs the browser-delegated WebAuthn flow: print a
+// verification URL, race a localhost callback (local only) against a paste
+// prompt, store the resulting session token, and confirm identity.
+func complete2FALogin(c *eddsdk.Client, cfgPath, challenge string) error {
+	cfg := loadConfig(cfgPath)
+	baseDomain := cfg.BaseDomain
+	if baseDomain == "" {
+		baseDomain = "cloud.eddisonso.com"
+	}
+
+	cbPort := 0
+	cbState := ""
+	cbCh := make(chan string, 1)
+	ssh := isSSHSession()
+	if !ssh {
+		port, state, ch, stop, err := startCallbackListener()
+		if err == nil {
+			cbPort = port
+			cbState = state
+			cbCh = ch
+			defer stop()
+		}
+	}
+
+	verifyURL := buildCli2faURL(baseDomain, challenge, cbPort, cbState)
+	fmt.Println("\nThis account uses a security key.")
+	fmt.Println("Open this URL in a browser and verify your security key:")
+	fmt.Printf("\n  %s\n\n", verifyURL)
+	if !ssh {
+		openBrowser(verifyURL)
+	}
+
+	pasteCh := make(chan string, 1)
+	if ssh {
+		fmt.Print("Paste the token shown after verifying: ")
+	} else {
+		fmt.Print("Paste the token shown after verifying (or just wait — your browser will finish it): ")
+	}
+	go readPastedToken(os.Stdin, pasteCh)
+
+	token, err := awaitToken(cbCh, pasteCh, 5*time.Minute)
+	if err != nil {
+		return fmt.Errorf("%w; re-run 'ec auth login'", err)
+	}
+
+	cfg.Token = token
+	if cfg.BaseDomain == "" {
+		cfg.BaseDomain = "cloud.eddisonso.com"
+	}
+	if err := saveConfig(cfgPath, cfg); err != nil {
+		return err
+	}
+
+	c.SetToken(token)
+	sess, err := c.Session(context.Background())
+	if err != nil {
+		fmt.Println("\nLogged in (could not fetch profile).")
+		return nil
+	}
+	fmt.Printf("\nLogged in as %s\n", sess.Username)
+	return nil
 }
 
 // awaitToken returns the first token from either channel, or an error on timeout.
