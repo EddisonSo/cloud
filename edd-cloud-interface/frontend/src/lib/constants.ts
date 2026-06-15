@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "datastore", label: "Datastore", icon: Database, path: "/datastore" },
   {
     id: "service-accounts",
-    label: "Service Accounts",
+    label: "Auth",
     icon: KeyRound,
     path: "/service-accounts",
     subItems: [
