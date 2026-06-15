@@ -24,7 +24,7 @@ export function useCustomDomains(user: string | null) {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch(`${base()}/api/domains`, {
+      const res = await fetch(`${base()}/api/domain-mappings`, {
         headers: getAuthHeaders(),
         signal: abortRef.current.signal,
       });
@@ -50,7 +50,7 @@ export function useCustomDomains(user: string | null) {
 
   const createDomain = useCallback(
     async (data: CreateCustomDomainData): Promise<CustomDomain> => {
-      const res = await fetch(`${base()}/api/domains`, {
+      const res = await fetch(`${base()}/api/domain-mappings`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(data),
@@ -67,7 +67,7 @@ export function useCustomDomains(user: string | null) {
 
   const verifyDomain = useCallback(
     async (id: string): Promise<{ status: string; detail?: string }> => {
-      const res = await fetch(`${base()}/api/domains/${id}/verify`, {
+      const res = await fetch(`${base()}/api/domain-mappings/${id}/verify`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -83,7 +83,7 @@ export function useCustomDomains(user: string | null) {
 
   const deleteDomain = useCallback(
     async (id: string): Promise<void> => {
-      const res = await fetch(`${base()}/api/domains/${id}`, {
+      const res = await fetch(`${base()}/api/domain-mappings/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -96,7 +96,7 @@ export function useCustomDomains(user: string | null) {
   );
 
   const loadConnections = useCallback(async () => {
-    const res = await fetch(`${base()}/api/cloudflare-connections`, {
+    const res = await fetch(`${base()}/api/domains`, {
       headers: getAuthHeaders(),
     });
     if (res.ok) {
@@ -107,7 +107,7 @@ export function useCustomDomains(user: string | null) {
 
   const addConnection = useCallback(
     async (token: string): Promise<CloudflareConnection> => {
-      const res = await fetch(`${base()}/api/cloudflare-connections`, {
+      const res = await fetch(`${base()}/api/domains`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ token }),
@@ -124,7 +124,7 @@ export function useCustomDomains(user: string | null) {
 
   const removeConnection = useCallback(
     async (id: string): Promise<void> => {
-      const res = await fetch(`${base()}/api/cloudflare-connections/${id}`, {
+      const res = await fetch(`${base()}/api/domains/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -138,7 +138,7 @@ export function useCustomDomains(user: string | null) {
 
   const refreshConnection = useCallback(
     async (id: string): Promise<void> => {
-      const res = await fetch(`${base()}/api/cloudflare-connections/${id}/refresh`, {
+      const res = await fetch(`${base()}/api/domains/${id}/refresh`, {
         method: "POST",
         headers: getAuthHeaders(),
       });

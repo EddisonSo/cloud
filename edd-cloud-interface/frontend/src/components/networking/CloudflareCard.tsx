@@ -93,14 +93,15 @@ export function CloudflareCard({
 
   return (
     <div className="bg-card border border-border p-5 mb-6">
-      <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint mb-1">Cloudflare integration</h2>
+      <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint mb-1">Domains</h2>
       <p className="text-xs text-muted-foreground mb-4">
-        Connect a Cloudflare API token and DNS records are created automatically when
-        you add a domain. One token per zone works great — scope each to Zone:Read +
-        DNS:Edit. Add as many connections as you have zones.
+        Add a domain you own by providing a Cloudflare API token for its zone, and DNS
+        records are created automatically when you map a hostname. One token per zone
+        works great — scope each to Zone:Read + DNS:Edit. Add as many domains as you
+        have zones.
       </p>
 
-      {/* Connection list */}
+      {/* Owned domain list */}
       {connections.length > 0 ? (
         <div className="mb-4">
           {connections.map((conn) => (
@@ -114,7 +115,7 @@ export function CloudflareCard({
         </div>
       ) : (
         <p className="text-sm text-muted-foreground mb-4">
-          No Cloudflare connections — add a token to automate DNS.
+          No domains yet — add a Cloudflare API token for a zone you own to automate DNS.
         </p>
       )}
 
@@ -128,7 +129,7 @@ export function CloudflareCard({
           required
         />
         <Button type="submit" disabled={addBusy} className="shrink-0">
-          {addBusy ? "Verifying..." : "Add connection"}
+          {addBusy ? "Verifying..." : "Add domain"}
         </Button>
       </form>
       {err && <p className="text-sm text-destructive mt-2">{err}</p>}

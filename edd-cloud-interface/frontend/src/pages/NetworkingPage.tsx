@@ -25,9 +25,9 @@ export function NetworkingPage() {
         <Breadcrumb items={[{ label: "Networking" }, { label: "Domains" }]} />
         <PageHeader
           title="Domains"
-          description="Point your own domains at your containers."
+          description="Manage the domains you own and map their hostnames to your containers."
         />
-        <p className="text-sm text-muted-foreground">Sign in to manage custom domains.</p>
+        <p className="text-sm text-muted-foreground">Sign in to manage domains and mappings.</p>
       </div>
     );
   }
@@ -37,7 +37,7 @@ export function NetworkingPage() {
       <Breadcrumb items={[{ label: "Networking" }, { label: "Domains" }]} />
       <PageHeader
         title="Domains"
-        description="Point your own domains at your containers."
+        description="Manage the domains you own and map their hostnames to your containers."
       />
 
       {error && (
@@ -46,10 +46,18 @@ export function NetworkingPage() {
         </div>
       )}
 
-      {/* Add domain */}
+      {/* Domains — owned zones (added via a Cloudflare API token) */}
+      <CloudflareCard
+        connections={connections}
+        onAdd={addConnection}
+        onRemove={removeConnection}
+        onRefresh={refreshConnection}
+      />
+
+      {/* Add domain mapping */}
       <div className="bg-card border border-border mb-6">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Add custom domain</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Add domain mapping</h2>
           <p className="text-xs text-muted-foreground mt-1">
             Map a hostname you own to one of your containers.
           </p>
@@ -59,18 +67,10 @@ export function NetworkingPage() {
         </div>
       </div>
 
-      {/* Cloudflare integration */}
-      <CloudflareCard
-        connections={connections}
-        onAdd={addConnection}
-        onRemove={removeConnection}
-        onRefresh={refreshConnection}
-      />
-
-      {/* Domain list */}
+      {/* Domain mappings list */}
       <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Custom domains</h2>
+          <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-faint">Domain mappings</h2>
         </div>
         <DomainList
           domains={domains}

@@ -31,8 +31,8 @@ export function AddDomainForm({ onCreate }: AddDomainFormProps) {
       setTargetPort(8000);
       setNotice(
         created?.dns_automated
-          ? "DNS configured automatically — your domain is going live."
-          : "Domain added — follow the DNS setup instructions below to verify it."
+          ? "DNS configured automatically — your mapping is going live."
+          : "Mapping added — follow the DNS setup instructions below to verify it."
       );
     } catch (err) {
       setError((err as Error).message);
@@ -85,7 +85,7 @@ export function AddDomainForm({ onCreate }: AddDomainFormProps) {
 
       <Button type="submit" disabled={submitting || !containerId.trim() || !domain.trim()}>
         <Plus className="w-4 h-4 mr-2" />
-        {submitting ? "Adding..." : "Add domain"}
+        {submitting ? "Adding..." : "Add mapping"}
       </Button>
     </form>
   );

@@ -53,7 +53,7 @@ export function DomainList({ domains, loading, onVerify, onDelete }: DomainListP
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-        Loading domains...
+        Loading mappings...
       </div>
     );
   }
@@ -62,8 +62,8 @@ export function DomainList({ domains, loading, onVerify, onDelete }: DomainListP
     return (
       <EmptyState
         icon={Globe}
-        title="No custom domains yet"
-        description="Add a domain below to point your own hostname at a container."
+        title="No domain mappings yet"
+        description="Add a mapping below to point your own hostname at a container."
       />
     );
   }
