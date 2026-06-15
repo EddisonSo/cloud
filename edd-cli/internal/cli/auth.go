@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -87,9 +88,20 @@ func cmdLogout(c *eddsdk.Client, cfgPath string, args []string) error {
 	return nil
 }
 
+// isAuthError reports whether err is an authentication/authorization failure
+// (401/403) from the API — i.e. the caller is not logged in or lacks access.
+func isAuthError(err error) bool {
+	var apiErr *eddsdk.APIError
+	return errors.As(err, &apiErr) && (apiErr.Status == 401 || apiErr.Status == 403)
+}
+
 func cmdStatus(c *eddsdk.Client, cfgPath string, args []string) error {
 	s, err := c.Session(context.Background())
 	if err != nil {
+		if isAuthError(err) {
+			fmt.Println("Not logged in.")
+			return nil
+		}
 		return err
 	}
 	if jsonOutput {
