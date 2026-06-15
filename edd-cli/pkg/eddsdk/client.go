@@ -38,6 +38,10 @@ func NewClient(o Options) *Client {
 	return &Client{baseDomain: base, token: o.Token, http: hc}
 }
 
+// SetToken updates the bearer token used for subsequent requests.
+// Used after an interactive login obtains a fresh session token.
+func (c *Client) SetToken(token string) { c.token = token }
+
 // serviceSubdomain maps a logical service name to its subdomain prefix.
 func serviceSubdomain(svc string) string {
 	if svc == "networking" {

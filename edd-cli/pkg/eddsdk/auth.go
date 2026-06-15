@@ -6,12 +6,13 @@ const authSvc = "auth"
 
 // LoginResult is the response from POST /api/login.
 type LoginResult struct {
-	Token       string `json:"token"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	UserID      string `json:"user_id"`
-	IsAdmin     bool   `json:"is_admin"`
-	Requires2FA bool   `json:"requires_2fa"`
+	Token          string `json:"token"`
+	Username       string `json:"username"`
+	DisplayName    string `json:"display_name"`
+	UserID         string `json:"user_id"`
+	IsAdmin        bool   `json:"is_admin"`
+	Requires2FA    bool   `json:"requires_2fa"`
+	ChallengeToken string `json:"challenge_token"`
 }
 
 // Session is the response from GET /api/session.
