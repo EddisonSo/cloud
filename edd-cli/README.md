@@ -69,7 +69,7 @@ The CLI is organized as `ec <category> <resource> <action>`.
 ```sh
 ec auth login             # prompt for credentials, save session token
 ec auth logout            # clear saved session token
-ec auth whoami            # print current user (id, name, admin flag)
+ec auth status            # print current user (id, name, admin flag)
 ec auth set-token         # store an ecloud_ token interactively (stdin)
 ec auth set-token --token ecloud_...   # store an ecloud_ token via flag
 ```

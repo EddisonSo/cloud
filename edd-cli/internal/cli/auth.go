@@ -16,18 +16,18 @@ import (
 
 func init() { register(command{name: "auth", run: cmdAuth}) }
 
-// cmdAuth routes: direct actions (login/logout/whoami/set-token) and resources (service-accounts/tokens).
+// cmdAuth routes: direct actions (login/logout/status/set-token) and resources (service-accounts/tokens).
 func cmdAuth(c *eddsdk.Client, cfgPath string, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: ec auth <login|logout|whoami|set-token|service-accounts|tokens> [args]")
+		return fmt.Errorf("usage: ec auth <login|logout|status|set-token|service-accounts|tokens> [args]")
 	}
 	switch args[0] {
 	case "login":
 		return cmdLogin(c, cfgPath, args[1:])
 	case "logout":
 		return cmdLogout(c, cfgPath, args[1:])
-	case "whoami":
-		return cmdWhoami(c, cfgPath, args[1:])
+	case "status":
+		return cmdStatus(c, cfgPath, args[1:])
 	case "set-token":
 		return cmdSetToken(c, cfgPath, args[1:])
 	case "service-accounts":
@@ -87,7 +87,7 @@ func cmdLogout(c *eddsdk.Client, cfgPath string, args []string) error {
 	return nil
 }
 
-func cmdWhoami(c *eddsdk.Client, cfgPath string, args []string) error {
+func cmdStatus(c *eddsdk.Client, cfgPath string, args []string) error {
 	s, err := c.Session(context.Background())
 	if err != nil {
 		return err

@@ -74,7 +74,7 @@ storage namespaces   ls | create | rm
 storage files        ls | rm
 storage registry     ls | tags <repo> | rm <repo> <tag>
 
-auth login | logout | whoami | set-token
+auth login | logout | status | set-token
 auth service-accounts ls | create | rm
 auth tokens          ls | create | rm
 
