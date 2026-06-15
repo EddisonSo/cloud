@@ -28,6 +28,7 @@ export const KEY_ACTIONS: string[] = ["create", "read", "delete"];
 export const NAMESPACE_ACTIONS: string[] = ["create", "read", "update", "delete"];
 export const FILE_ACTIONS: string[] = ["create", "read", "delete"];
 export const REGISTRY_ACTIONS: string[] = ["push", "pull", "delete"];
+export const NETWORKING_ACTIONS: string[] = ["create", "read", "delete"];
 
 export function scopeSummary(scopes: Record<string, string[]>): string {
   if (!scopes || Object.keys(scopes).length === 0) return "No permissions";
@@ -163,6 +164,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
 
   const [computeExpanded, setComputeExpanded] = useState<boolean>(false);
   const [storageExpanded, setStorageExpanded] = useState<boolean>(false);
+  const [networkingExpanded, setNetworkingExpanded] = useState<boolean>(false);
   const [specificContainersExpanded, setSpecificContainersExpanded] = useState<boolean>(false);
   const [specificNamespacesExpanded, setSpecificNamespacesExpanded] = useState<boolean>(false);
 
@@ -245,6 +247,8 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
   const broadNamespacesKey = `storage.${userId}.namespaces`;
   const broadFilesKey = `storage.${userId}.files`;
   const broadRegistryKey = `storage.${userId}.registry`;
+  const broadDomainsKey = `networking.${userId}.domains`;
+  const broadDomainMappingsKey = `networking.${userId}.domain-mappings`;
   const containerKey = (id: string): string => `compute.${userId}.containers.${id}`;
   const nsNamespacesKey = (nsName: string): string => `storage.${userId}.namespaces.${nsName}`;
   const nsFilesKey = (nsName: string): string => `storage.${userId}.files.${nsName}`;
@@ -252,7 +256,7 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
   return (
     <div className="space-y-3">
       <Label>Permissions</Label>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         {/* Compute section */}
         <div className="border border-border p-3 space-y-3">
           <SectionHeader
@@ -372,6 +376,32 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
                 </div>
               ))}
             </SectionHeader>
+          </SectionHeader>
+        </div>
+
+        {/* Networking section */}
+        <div className="border border-border p-3 space-y-3">
+          <SectionHeader
+            label="Networking"
+            expanded={networkingExpanded}
+            onToggle={() => setNetworkingExpanded(!networkingExpanded)}
+          >
+            <ResourceRow
+              label="Domains"
+              scopeKey={broadDomainsKey}
+              actions={NETWORKING_ACTIONS}
+              selectedScopes={selectedScopes}
+              onToggle={toggleAction}
+              onToggleAll={setAllActions}
+            />
+            <ResourceRow
+              label="Domain Mappings"
+              scopeKey={broadDomainMappingsKey}
+              actions={NETWORKING_ACTIONS}
+              selectedScopes={selectedScopes}
+              onToggle={toggleAction}
+              onToggleAll={setAllActions}
+            />
           </SectionHeader>
         </div>
       </div>
