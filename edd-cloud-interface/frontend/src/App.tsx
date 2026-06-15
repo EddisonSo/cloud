@@ -15,6 +15,7 @@ import {
   NotFoundPage,
   RegistryPage,
   NetworkingPage,
+  Cli2faPage,
 } from "@/pages";
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
           <Routes>
+            <Route path="/cli-2fa" element={<Cli2faPage />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate to="/compute" replace />} />
               <Route path="/storage" element={<StoragePage />} />

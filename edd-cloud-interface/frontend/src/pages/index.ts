@@ -9,3 +9,4 @@ export { SettingsPage } from "./SettingsPage";
 export { ServiceAccountsPage } from "./ServiceAccountsPage";
 export { NotFoundPage } from "./NotFoundPage";
 export { NetworkingPage } from "./NetworkingPage";
+export { Cli2faPage } from "./Cli2faPage";
