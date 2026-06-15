@@ -130,8 +130,17 @@ type SSHKey struct {
 
 // --- Networking (gateway) types ---
 
-// Domain mirrors the gateway's domainResponse JSON.
+// Domain mirrors the gateway's connectionResponse JSON — an owned domain/zone
+// (backed by a per-zone Cloudflare token) served at /api/domains.
 type Domain struct {
+	ID        string   `json:"id"`
+	Zones     []string `json:"zones"`
+	CreatedAt string   `json:"created_at"`
+}
+
+// DomainMapping mirrors the gateway's domainResponse JSON — a hostname->container
+// route served at /api/domain-mappings.
+type DomainMapping struct {
 	ID           string `json:"id"`
 	Domain       string `json:"domain"`
 	ContainerID  string `json:"container_id"`
@@ -142,16 +151,9 @@ type Domain struct {
 	DNSAutomated bool   `json:"dns_automated,omitempty"`
 }
 
-// CreateDomainRequest is the body for adding a custom domain.
-type CreateDomainRequest struct {
+// CreateDomainMappingRequest is the body for adding a hostname->container mapping.
+type CreateDomainMappingRequest struct {
 	ContainerID string `json:"container_id"`
 	Domain      string `json:"domain"`
 	TargetPort  int    `json:"target_port"`
-}
-
-// CloudflareConnection mirrors the gateway's connectionResponse JSON.
-type CloudflareConnection struct {
-	ID        string   `json:"id"`
-	Zones     []string `json:"zones"`
-	CreatedAt string   `json:"created_at"`
 }

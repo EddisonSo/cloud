@@ -78,6 +78,6 @@ auth login | logout | whoami | set-token
 auth service-accounts ls | create | rm
 auth tokens          ls | create | rm
 
-networking domains      ls | add | rm
-networking connections  ls | add | rm`)
+networking domains      ls | add | rm     (owned domains / zones)
+networking mappings     ls | add | rm     (hostname -> container)`)
 }

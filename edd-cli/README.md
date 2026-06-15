@@ -167,20 +167,20 @@ ec storage registry rm <repo> <tag>
 
 ### Networking
 
-#### Domains
+#### Domains (owned domains / zones)
 
 ```sh
 ec networking domains ls
-ec networking domains add <container-id> <domain> <target-port>
+ec networking domains add <cloudflare-api-token>
 ec networking domains rm <id>
 ```
 
-#### Connections
+#### Mappings (hostname -> container)
 
 ```sh
-ec networking connections ls
-ec networking connections add <cloudflare-api-token>
-ec networking connections rm <id>
+ec networking mappings ls
+ec networking mappings add <container-id> <domain> <target-port>
+ec networking mappings rm <id>
 ```
 
 ## SDK Usage
