@@ -1,3 +1,7 @@
+// This file serves /api/domains (the user's owned domains, backed by per-zone
+// Cloudflare tokens). Despite the filename, these handlers back the
+// /api/domains route group; the hostname->container routes live in server.go
+// under /api/domain-mappings.
 package api
 
 import (
@@ -24,8 +28,9 @@ func toConnectionResponse(c *router.CloudflareConnection) connectionResponse {
 	return connectionResponse{ID: c.ID, Zones: zones, CreatedAt: c.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")}
 }
 
-// handleCloudflareConnections serves GET (list) and POST (add) /api/cloudflare-connections.
-func (s *Server) handleCloudflareConnections(w http.ResponseWriter, r *http.Request, userID string) {
+// handleDomains serves GET (list) and POST (add) /api/domains — the user's
+// owned domains, each backed by a per-zone Cloudflare token.
+func (s *Server) handleDomains(w http.ResponseWriter, r *http.Request, userID string) {
 	if s.box == nil {
 		http.Error(w, "cloudflare integration not configured", http.StatusServiceUnavailable)
 		return
@@ -79,14 +84,14 @@ func (s *Server) handleCloudflareConnections(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// handleCloudflareConnectionByID serves DELETE /api/cloudflare-connections/{id}
-// and POST /api/cloudflare-connections/{id}/refresh.
-func (s *Server) handleCloudflareConnectionByID(w http.ResponseWriter, r *http.Request, userID string) {
+// handleDomainByID serves DELETE /api/domains/{id}
+// and POST /api/domains/{id}/refresh.
+func (s *Server) handleDomainByID(w http.ResponseWriter, r *http.Request, userID string) {
 	if s.box == nil {
 		http.Error(w, "cloudflare integration not configured", http.StatusServiceUnavailable)
 		return
 	}
-	rest := strings.TrimPrefix(r.URL.Path, "/api/cloudflare-connections/")
+	rest := strings.TrimPrefix(r.URL.Path, "/api/domains/")
 	if rest == "" {
 		http.NotFound(w, r)
 		return

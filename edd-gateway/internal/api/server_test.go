@@ -42,9 +42,9 @@ func TestPostCloudflareConnectionInvalid(t *testing.T) {
 
 	box, _ := secretbox.New("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	s := &Server{box: box}
-	req := httptest.NewRequest("POST", "/api/cloudflare-connections", strings.NewReader(`{"token":"bad"}`))
+	req := httptest.NewRequest("POST", "/api/domains", strings.NewReader(`{"token":"bad"}`))
 	w := httptest.NewRecorder()
-	s.handleCloudflareConnections(w, req, "u1")
+	s.handleDomains(w, req, "u1")
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
 	}
@@ -52,9 +52,9 @@ func TestPostCloudflareConnectionInvalid(t *testing.T) {
 
 func TestCloudflareConnectionsDisabled(t *testing.T) {
 	s := &Server{} // box nil
-	req := httptest.NewRequest("GET", "/api/cloudflare-connections", nil)
+	req := httptest.NewRequest("GET", "/api/domains", nil)
 	w := httptest.NewRecorder()
-	s.handleCloudflareConnections(w, req, "u1")
+	s.handleDomains(w, req, "u1")
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("want 503, got %d", w.Code)
 	}

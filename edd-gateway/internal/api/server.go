@@ -77,10 +77,10 @@ func (s *Server) cfForDomain(userID, domain string) *cloudflare.Client {
 // at cloud.eddisonso.com can call it cross-origin.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/domain-mappings", s.auth(s.handleDomainMappings))
+	mux.HandleFunc("/api/domain-mappings/", s.auth(s.handleDomainMappingByID))
 	mux.HandleFunc("/api/domains", s.auth(s.handleDomains))
 	mux.HandleFunc("/api/domains/", s.auth(s.handleDomainByID))
-	mux.HandleFunc("/api/cloudflare-connections", s.auth(s.handleCloudflareConnections))
-	mux.HandleFunc("/api/cloudflare-connections/", s.auth(s.handleCloudflareConnectionByID))
 	return corsMiddleware(mux)
 }
 
@@ -158,8 +158,9 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// handleDomains: GET list, POST create.
-func (s *Server) handleDomains(w http.ResponseWriter, r *http.Request, userID string) {
+// handleDomainMappings: GET list, POST create. Serves /api/domain-mappings
+// (hostname->container routes with DNS verification).
+func (s *Server) handleDomainMappings(w http.ResponseWriter, r *http.Request, userID string) {
 	switch r.Method {
 	case http.MethodGet:
 		list, err := s.router.ListCustomDomainsByUser(userID)
@@ -259,9 +260,9 @@ func (s *Server) createDomain(w http.ResponseWriter, r *http.Request, userID str
 	writeJSON(w, http.StatusCreated, resp)
 }
 
-// handleDomainByID: DELETE /api/domains/{id}, POST /api/domains/{id}/verify.
-func (s *Server) handleDomainByID(w http.ResponseWriter, r *http.Request, userID string) {
-	rest := strings.TrimPrefix(r.URL.Path, "/api/domains/")
+// handleDomainMappingByID: DELETE /api/domain-mappings/{id}, POST /api/domain-mappings/{id}/verify.
+func (s *Server) handleDomainMappingByID(w http.ResponseWriter, r *http.Request, userID string) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/domain-mappings/")
 	if rest == "" {
 		http.NotFound(w, r)
 		return
