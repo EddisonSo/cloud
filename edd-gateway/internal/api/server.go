@@ -77,10 +77,10 @@ func (s *Server) cfForDomain(userID, domain string) *cloudflare.Client {
 // at cloud.eddisonso.com can call it cross-origin.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/domain-mappings", s.auth(s.handleDomainMappings))
-	mux.HandleFunc("/api/domain-mappings/", s.auth(s.handleDomainMappingByID))
-	mux.HandleFunc("/api/domains", s.auth(s.handleDomains))
-	mux.HandleFunc("/api/domains/", s.auth(s.handleDomainByID))
+	mux.HandleFunc("/api/domain-mappings", s.authScoped("domain-mappings", s.handleDomainMappings))
+	mux.HandleFunc("/api/domain-mappings/", s.authScoped("domain-mappings", s.handleDomainMappingByID))
+	mux.HandleFunc("/api/domains", s.authScoped("domains", s.handleDomains))
+	mux.HandleFunc("/api/domains/", s.authScoped("domains", s.handleDomainByID))
 	return corsMiddleware(mux)
 }
 
@@ -112,22 +112,59 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// auth wraps a handler, validating the JWT and passing the user id through.
-func (s *Server) auth(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+// authenticate validates the request's JWT (Authorization header or token
+// cookie) and returns its claims, or false if the token is missing/invalid.
+func (s *Server) authenticate(w http.ResponseWriter, r *http.Request) (*auth.JWTClaims, bool) {
+	var cookie string
+	if c, err := r.Cookie("token"); err == nil {
+		cookie = c.Value
+	}
+	tok := auth.ExtractToken(r.Header.Get("Authorization"), cookie)
+	if tok == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	claims, err := s.validator.ValidateSession(tok)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	// All edd-cloud token kinds are signed with the same JWT_SECRET, so a valid
+	// signature alone is not enough — only interactive sessions ("" type) and
+	// service-account tokens ("api_token") may authenticate here. This rejects
+	// pre-auth 2FA challenge tokens ("2fa_challenge") and registry tokens.
+	// Registry tokens also have an empty Type field (same sentinel as sessions),
+	// but they carry no user_id — the UserID guard catches them before they can
+	// be treated as interactive sessions.
+	switch claims.Type {
+	case "", "api_token":
+		if claims.UserID == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return nil, false
+		}
+	default:
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	return claims, true
+}
+
+// authScoped wraps a networking handler. Interactive session tokens get full
+// access to their own resources; service-account tokens must carry the
+// matching networking.<userid>.<resource> scope for the request's action
+// (GET->read, POST->create, DELETE->delete).
+func (s *Server) authScoped(resource string, next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var cookie string
-		if c, err := r.Cookie("token"); err == nil {
-			cookie = c.Value
-		}
-		tok := auth.ExtractToken(r.Header.Get("Authorization"), cookie)
-		if tok == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		claims, ok := s.authenticate(w, r)
+		if !ok {
 			return
 		}
-		claims, err := s.validator.ValidateSession(tok)
-		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+		if claims.IsServiceAccount() {
+			scope := "networking." + claims.UserID + "." + resource
+			if !hasPermission(claims.Scopes, scope, actionForMethod(r)) {
+				http.Error(w, "forbidden: missing "+scope+" scope", http.StatusForbidden)
+				return
+			}
 		}
 		next(w, r, claims.UserID)
 	}

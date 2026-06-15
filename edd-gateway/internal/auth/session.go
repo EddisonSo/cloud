@@ -12,13 +12,22 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// JWTClaims matches edd-cloud-auth's session claims (internal/api/handler.go).
+// JWTClaims matches edd-cloud-auth's session claims (internal/api/handler.go)
+// and the api-token claims (internal/api/tokens.go). Session tokens leave Type
+// and Scopes empty; service-account (api_token) tokens set Type="api_token"
+// and carry their granted Scopes.
 type JWTClaims struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	UserID      string `json:"user_id"`
+	Username    string              `json:"username"`
+	DisplayName string              `json:"display_name"`
+	UserID      string              `json:"user_id"`
+	Type        string              `json:"type,omitempty"`
+	Scopes      map[string][]string `json:"scopes,omitempty"`
 	jwt.RegisteredClaims
 }
+
+// IsServiceAccount reports whether these claims came from a service-account
+// (api_token) token rather than an interactive session.
+func (c *JWTClaims) IsServiceAccount() bool { return c.Type == "api_token" }
 
 // SessionValidator validates tokens against the shared JWT_SECRET.
 type SessionValidator struct {
