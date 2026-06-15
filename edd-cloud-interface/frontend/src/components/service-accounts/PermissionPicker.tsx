@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import {
   buildComputeBase,
   buildStorageBase,
+  buildNetworkingBase,
   getAuthHeaders,
 } from "@/lib/api";
 import {
@@ -150,6 +151,16 @@ interface NamespaceItem {
   name: string;
 }
 
+interface DomainConnItem {
+  id: string;
+  zones: string[];
+}
+
+interface DomainMappingItem {
+  id: string;
+  domain: string;
+}
+
 interface PermissionPickerProps {
   userId: string | null | undefined;
   selectedScopes: Record<string, string[]>;
@@ -159,14 +170,20 @@ interface PermissionPickerProps {
 export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: PermissionPickerProps): React.ReactElement {
   const [containers, setContainers] = useState<ContainerItem[] | null>(null);
   const [namespaces, setNamespaces] = useState<NamespaceItem[] | null>(null);
+  const [domainConns, setDomainConns] = useState<DomainConnItem[] | null>(null);
+  const [domainMappings, setDomainMappings] = useState<DomainMappingItem[] | null>(null);
   const [loadingContainers, setLoadingContainers] = useState<boolean>(false);
   const [loadingNamespaces, setLoadingNamespaces] = useState<boolean>(false);
+  const [loadingDomainConns, setLoadingDomainConns] = useState<boolean>(false);
+  const [loadingDomainMappings, setLoadingDomainMappings] = useState<boolean>(false);
 
   const [computeExpanded, setComputeExpanded] = useState<boolean>(false);
   const [storageExpanded, setStorageExpanded] = useState<boolean>(false);
   const [networkingExpanded, setNetworkingExpanded] = useState<boolean>(false);
   const [specificContainersExpanded, setSpecificContainersExpanded] = useState<boolean>(false);
   const [specificNamespacesExpanded, setSpecificNamespacesExpanded] = useState<boolean>(false);
+  const [specificDomainsExpanded, setSpecificDomainsExpanded] = useState<boolean>(false);
+  const [specificMappingsExpanded, setSpecificMappingsExpanded] = useState<boolean>(false);
 
   const fetchContainers = useCallback(async (): Promise<void> => {
     if (containers !== null) return;
@@ -208,6 +225,46 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
     }
   }, [namespaces]);
 
+  const fetchDomainConns = useCallback(async (): Promise<void> => {
+    if (domainConns !== null) return;
+    setLoadingDomainConns(true);
+    try {
+      const res = await fetch(`${buildNetworkingBase()}/api/domains`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data: { connections?: DomainConnItem[] } = await res.json();
+        setDomainConns(data.connections || []);
+      } else {
+        setDomainConns([]);
+      }
+    } catch {
+      setDomainConns([]);
+    } finally {
+      setLoadingDomainConns(false);
+    }
+  }, [domainConns]);
+
+  const fetchDomainMappings = useCallback(async (): Promise<void> => {
+    if (domainMappings !== null) return;
+    setLoadingDomainMappings(true);
+    try {
+      const res = await fetch(`${buildNetworkingBase()}/api/domain-mappings`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data: { domains?: DomainMappingItem[] } = await res.json();
+        setDomainMappings(data.domains || []);
+      } else {
+        setDomainMappings([]);
+      }
+    } catch {
+      setDomainMappings([]);
+    } finally {
+      setLoadingDomainMappings(false);
+    }
+  }, [domainMappings]);
+
   useEffect(() => {
     if (specificContainersExpanded) fetchContainers();
   }, [specificContainersExpanded, fetchContainers]);
@@ -215,6 +272,14 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
   useEffect(() => {
     if (specificNamespacesExpanded) fetchNamespaces();
   }, [specificNamespacesExpanded, fetchNamespaces]);
+
+  useEffect(() => {
+    if (specificDomainsExpanded) fetchDomainConns();
+  }, [specificDomainsExpanded, fetchDomainConns]);
+
+  useEffect(() => {
+    if (specificMappingsExpanded) fetchDomainMappings();
+  }, [specificMappingsExpanded, fetchDomainMappings]);
 
   const toggleAction = (scopeKey: string, action: string): void => {
     setSelectedScopes((prev) => {
@@ -249,6 +314,8 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
   const broadRegistryKey = `storage.${userId}.registry`;
   const broadDomainsKey = `networking.${userId}.domains`;
   const broadDomainMappingsKey = `networking.${userId}.domain-mappings`;
+  const domainKey = (id: string): string => `networking.${userId}.domains.${id}`;
+  const mappingKey = (id: string): string => `networking.${userId}.domain-mappings.${id}`;
   const containerKey = (id: string): string => `compute.${userId}.containers.${id}`;
   const nsNamespacesKey = (nsName: string): string => `storage.${userId}.namespaces.${nsName}`;
   const nsFilesKey = (nsName: string): string => `storage.${userId}.files.${nsName}`;
@@ -387,21 +454,73 @@ export function PermissionPicker({ userId, selectedScopes, setSelectedScopes }: 
             onToggle={() => setNetworkingExpanded(!networkingExpanded)}
           >
             <ResourceRow
-              label="Domains"
+              label="All Domains"
               scopeKey={broadDomainsKey}
               actions={NETWORKING_ACTIONS}
               selectedScopes={selectedScopes}
               onToggle={toggleAction}
               onToggleAll={setAllActions}
             />
+            <SectionHeader
+              label="Specific Domains"
+              expanded={specificDomainsExpanded}
+              onToggle={() => setSpecificDomainsExpanded(!specificDomainsExpanded)}
+            >
+              {loadingDomainConns && (
+                <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground py-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Loading domains...
+                </div>
+              )}
+              {domainConns !== null && domainConns.length === 0 && !loadingDomainConns && (
+                <p className="font-mono text-[11px] text-muted-foreground">No domains found</p>
+              )}
+              {domainConns?.map((c) => (
+                <ResourceRow
+                  key={c.id}
+                  label={c.zones.length > 0 ? c.zones.join(", ") : c.id.slice(0, 8)}
+                  scopeKey={domainKey(c.id)}
+                  actions={NETWORKING_ACTIONS}
+                  selectedScopes={selectedScopes}
+                  onToggle={toggleAction}
+                  onToggleAll={setAllActions}
+                />
+              ))}
+            </SectionHeader>
             <ResourceRow
-              label="Domain Mappings"
+              label="All Domain Mappings"
               scopeKey={broadDomainMappingsKey}
               actions={NETWORKING_ACTIONS}
               selectedScopes={selectedScopes}
               onToggle={toggleAction}
               onToggleAll={setAllActions}
             />
+            <SectionHeader
+              label="Specific Domain Mappings"
+              expanded={specificMappingsExpanded}
+              onToggle={() => setSpecificMappingsExpanded(!specificMappingsExpanded)}
+            >
+              {loadingDomainMappings && (
+                <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground py-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Loading domain mappings...
+                </div>
+              )}
+              {domainMappings !== null && domainMappings.length === 0 && !loadingDomainMappings && (
+                <p className="font-mono text-[11px] text-muted-foreground">No domain mappings found</p>
+              )}
+              {domainMappings?.map((m) => (
+                <ResourceRow
+                  key={m.id}
+                  label={m.domain}
+                  scopeKey={mappingKey(m.id)}
+                  actions={NETWORKING_ACTIONS}
+                  selectedScopes={selectedScopes}
+                  onToggle={toggleAction}
+                  onToggleAll={setAllActions}
+                />
+              ))}
+            </SectionHeader>
           </SectionHeader>
         </div>
       </div>
