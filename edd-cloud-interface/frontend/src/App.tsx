@@ -46,7 +46,8 @@ function App() {
               <Route path="/auth-token" element={<Navigate to="/service-accounts" replace />} />
               <Route path="/auth-token/tokens" element={<Navigate to="/service-accounts/tokens" replace />} />
               <Route path="/networking" element={<Navigate to="/networking/domains" replace />} />
-              <Route path="/networking/domains" element={<NetworkingPage />} />
+              <Route path="/networking/domains" element={<NetworkingPage view="domains" />} />
+              <Route path="/networking/domain-mappings" element={<NetworkingPage view="mappings" />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFoundPage />} />

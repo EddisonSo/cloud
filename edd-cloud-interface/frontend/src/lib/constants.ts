@@ -10,6 +10,7 @@ import {
   KeyRound,
   Package,
   Globe,
+  Link as LinkIcon,
 } from "lucide-react";
 import type { NavItem } from "@/types";
 
@@ -53,6 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
     path: "/networking",
     subItems: [
       { id: "domains", label: "Domains", icon: Globe, path: "/networking/domains" },
+      { id: "domain-mappings", label: "Domain Mappings", icon: LinkIcon, path: "/networking/domain-mappings" },
     ],
   },
   { id: "health", label: "Health", icon: Activity, path: "/health" },
