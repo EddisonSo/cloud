@@ -39,3 +39,34 @@ func TestLogoutClearsToken(t *testing.T) {
 		t.Error("base domain should be preserved")
 	}
 }
+
+func TestScopeMeRewrite(t *testing.T) {
+	in := map[string][]string{
+		"networking.me.domains":            {"read"},
+		"networking.me.domain-mappings.m1": {"read", "delete"},
+		"compute.me":                       {"read"},
+		"storage.BINrYi.files":             {"read"}, // already-qualified, untouched
+	}
+	if !scopesUseMe(in) {
+		t.Fatal("scopesUseMe should be true")
+	}
+	out := rewriteScopeMe(in, "BINrYi")
+	want := []string{
+		"networking.BINrYi.domains",
+		"networking.BINrYi.domain-mappings.m1",
+		"compute.BINrYi",
+		"storage.BINrYi.files",
+	}
+	for _, k := range want {
+		if _, ok := out[k]; !ok {
+			t.Errorf("missing rewritten key %q (got %v)", k, out)
+		}
+	}
+	if scopesUseMe(out) {
+		t.Error("no 'me' should remain after rewrite")
+	}
+	// A fully-qualified-only set needs no expansion.
+	if scopesUseMe(map[string][]string{"compute.u1.containers": {"read"}}) {
+		t.Error("scopesUseMe should be false when no 'me' present")
+	}
+}

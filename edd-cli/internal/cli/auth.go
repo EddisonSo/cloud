@@ -197,7 +197,7 @@ func cmdSACreate(ctx context.Context, c *eddsdk.Client, args []string) error {
 	name := fs.String("name", "", "service account name (required)")
 	scopesJSON := fs.String("scopes-json", "", `scopes as JSON, e.g. '{"compute.u.containers":["read"]}'`)
 	var scopeFlags []string
-	fs.Func("scope", `scope in format root.uid.resource=action1,action2 (repeatable)`, func(s string) error {
+	fs.Func("scope", `scope as root.uid.resource=action1,action2 (uid may be "me"; repeatable)`, func(s string) error {
 		scopeFlags = append(scopeFlags, s)
 		return nil
 	})
@@ -208,6 +208,10 @@ func cmdSACreate(ctx context.Context, c *eddsdk.Client, args []string) error {
 		return fmt.Errorf("--name is required")
 	}
 	scopes, err := parseScopes(scopeFlags, *scopesJSON)
+	if err != nil {
+		return err
+	}
+	scopes, err = expandScopeMe(ctx, c, scopes)
 	if err != nil {
 		return err
 	}
@@ -276,7 +280,7 @@ func cmdTokenCreate(ctx context.Context, c *eddsdk.Client, args []string) error 
 	expiresIn := fs.String("expires-in", "never", "expiry: 30d|90d|365d|never")
 	scopesJSON := fs.String("scopes-json", "", `scopes as JSON`)
 	var scopeFlags []string
-	fs.Func("scope", `scope in format root.uid.resource=action1,action2 (repeatable)`, func(s string) error {
+	fs.Func("scope", `scope as root.uid.resource=action1,action2 (uid may be "me"; repeatable)`, func(s string) error {
 		scopeFlags = append(scopeFlags, s)
 		return nil
 	})
@@ -287,6 +291,10 @@ func cmdTokenCreate(ctx context.Context, c *eddsdk.Client, args []string) error 
 		return fmt.Errorf("--name is required")
 	}
 	scopes, err := parseScopes(scopeFlags, *scopesJSON)
+	if err != nil {
+		return err
+	}
+	scopes, err = expandScopeMe(ctx, c, scopes)
 	if err != nil {
 		return err
 	}
@@ -330,4 +338,43 @@ func parseScopes(flags []string, raw string) (map[string][]string, error) {
 		}
 	}
 	return scopes, nil
+}
+
+// scopesUseMe reports whether any scope key uses the literal "me" in the uid
+// position (the second dot-segment), e.g. networking.me.domains.
+func scopesUseMe(scopes map[string][]string) bool {
+	for k := range scopes {
+		if p := strings.SplitN(k, ".", 3); len(p) >= 2 && p[1] == "me" {
+			return true
+		}
+	}
+	return false
+}
+
+// rewriteScopeMe replaces a literal "me" uid segment with the given uid in
+// every scope key (e.g. networking.me.domains -> networking.<uid>.domains).
+func rewriteScopeMe(scopes map[string][]string, uid string) map[string][]string {
+	out := make(map[string][]string, len(scopes))
+	for k, v := range scopes {
+		if p := strings.SplitN(k, ".", 3); len(p) >= 2 && p[1] == "me" {
+			p[1] = uid
+			k = strings.Join(p, ".")
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// expandScopeMe resolves the "me" uid placeholder against the caller's own
+// user id (from the session). It only contacts the API when "me" is actually
+// used, so token creation with fully-qualified scopes makes no extra call.
+func expandScopeMe(ctx context.Context, c *eddsdk.Client, scopes map[string][]string) (map[string][]string, error) {
+	if !scopesUseMe(scopes) {
+		return scopes, nil
+	}
+	s, err := c.Session(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolving your user id for 'me' in --scope: %w", err)
+	}
+	return rewriteScopeMe(scopes, s.UserID), nil
 }
