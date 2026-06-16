@@ -34,6 +34,10 @@ func Run(argv []string) int {
 		case args[0] == "--base" && len(args) > 1:
 			flagBase = args[1]
 			args = args[2:]
+		case args[0] == "--version":
+			args = []string{"version"}
+		case args[0] == "--update":
+			args = append([]string{"update"}, args[1:]...)
 		default:
 			fmt.Fprintf(os.Stderr, "unknown global flag: %s\n", args[0])
 			return 2
@@ -79,5 +83,8 @@ auth service-accounts ls | create | rm
 auth tokens          ls | create | rm
 
 networking domains      ls | add | rm     (owned domains / zones)
-networking mappings     ls | add | rm     (hostname -> container)`)
+networking mappings     ls | add | rm     (hostname -> container)
+
+version                 print the ec version  (also: ec --version)
+update                  self-update to the latest release  (also: ec --update [--force])`)
 }
