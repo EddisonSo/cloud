@@ -28,9 +28,53 @@ Under the hood:
 
 ```bash
 TOKEN=$(curl -s \
-  "https://auth.cloud.eddisonso.com/v2/token?service=registry&scope=repository:myuser/myimage:pull,push" \
+  "https://auth.cloud.eddisonso.com/v2/token?service=registry&scope=repository:myuser/myimage:pull,push,delete" \
   -u "myuser:mypassword" | jq -r .token)
 ```
+
+### Scope Actions
+
+The OCI scope string is `repository:<name>:<actions>`, where `<actions>` is a
+comma-separated subset of `pull`, `push`, and `delete`. `delete` is required
+for the `DELETE` manifest and blob endpoints.
+
+Granted actions are filtered by ownership and visibility:
+
+- **Owner** — receives all requested actions.
+- **Public** repository — `pull` only for non-owners.
+- **Private** repository — no access for non-owners.
+- **New** (not-yet-existing) repository — full access, so the first `push` creates it.
+
+### Service Account Tokens
+
+For automation, authenticate with a service-account token (`ecloud_…`) as the
+basic-auth password instead of your account password:
+
+```bash
+echo "$SA_TOKEN" | docker login registry.cloud.eddisonso.com -u myuser --password-stdin
+```
+
+The granted registry actions derive from the service account's
+`storage.<user-id>.registry` scope, mapped to OCI actions:
+
+| Service-account action | OCI action |
+|------------------------|------------|
+| `read`                 | `pull`     |
+| `create`, `update`     | `push`     |
+| `delete`               | `delete`   |
+
+Manage these scopes on the service account — e.g. with the CLI:
+
+```bash
+ec auth service-accounts create --name ci --scope storage.me.registry=read,create,delete
+```
+
+### Session Tokens
+
+The `/v2/` endpoints also accept a **session JWT** from the auth service (the
+same token the dashboard uses) directly in the `Authorization: Bearer` header,
+granting full access to the caller's own repositories. The registry validates
+session tokens before OCI registry tokens (both are signed with the same key).
 
 ---
 
