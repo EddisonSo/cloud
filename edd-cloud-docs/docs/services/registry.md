@@ -64,7 +64,7 @@ All OCI Distribution API endpoints are served under `https://registry.cloud.eddi
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/v2/_catalog` | Required | List all repositories (paginated with `?n=&last=`) |
+| GET | `/v2/_catalog` | Optional | List visible repositories (paginated with `?n=&last=`). Anonymous callers see public repos only; authenticated callers see their own repos plus public repos. Never lists all repositories. |
 
 ### Blobs
 
@@ -92,6 +92,20 @@ All OCI Distribution API endpoints are served under `https://registry.cloud.eddi
 |--------|------|------|-------------|
 | GET | `/v2/{name}/tags/list` | pull | List tags for a repository (paginated) |
 
+### Management API
+
+Separate from the OCI `/v2/` API, a JSON REST API under `/api/` powers the dashboard's registry views. These endpoints are authenticated with the caller's auth-service **session token** (see [Authentication](#authentication)). Repo names may contain slashes and are parsed positionally.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/repos` | Optional | List repositories. Anonymous callers see public repos only; authenticated callers see their own repos plus public repos. |
+| GET | `/api/repos/{name}` | Optional | Repo detail (name, visibility, owner, tag count, total size, last pushed). Private repos require the owner (or a session token for that user). |
+| GET | `/api/repos/{name}/tags` | Optional | List tags with digest, size, and push time. Private repos require the owner (or a session token for that user). |
+| PUT | `/api/repos/{name}/visibility` | Owner | Set repository visibility. Owner-only — session tokens do **not** bypass the owner check. Body: `{"visibility": <int>}`. |
+| DELETE | `/api/repos/{name}/tags/{tag}` | Owner | Delete a tag (and clean up its manifest if unreferenced). Owner-only — session tokens do **not** bypass the owner check. |
+
+CORS is enabled for `*.cloud.eddisonso.com` origins (and `https://cloud.eddisonso.com`), allowing `GET`, `PUT`, `DELETE`, and `OPTIONS`.
+
 ## Authentication
 
 The registry uses the [Docker Token Auth](https://distribution.github.io/distribution/spec/auth/token/) flow:
@@ -102,6 +116,17 @@ The registry uses the [Docker Token Auth](https://distribution.github.io/distrib
 4. Client retries the original request with `Authorization: Bearer <token>`.
 
 The JWT encodes the scope as `repository:<name>:<actions>` (e.g. `repository:myuser/myimage:pull,push`).
+
+### Token Types
+
+The registry accepts **two** kinds of bearer token, both signed with the shared `JWT_SECRET`:
+
+1. **OCI registry tokens** — short-lived, repository-scoped tokens issued by `auth.cloud.eddisonso.com/v2/token` for `docker push`/`pull`. Access is limited to the `repository:<name>:<actions>` grants encoded in the token.
+2. **Session tokens** — standard auth-service session JWTs (the `user_id`/`type` claims used by the frontend dashboard). A session token grants the caller **full access to their own repositories** (`hasAccess` returns true for any action). It carries no per-repo scope.
+
+Because both token types share the same signing key, `authenticate` tries the **session token first**: a session JWT would also parse as a registry token, but registry parsing would wrongly use the `Subject` (username) as the user ID instead of the `user_id` claim. Order therefore matters — session validation must run before OCI validation. The resulting `authResult` sets `IsSession` so downstream checks can distinguish the two.
+
+Note: session-token "full access to own repos" applies to the OCI `/v2/` actions via `hasAccess`. The owner-only management endpoints (`PUT .../visibility`, `DELETE .../tags/{tag}`) are *not* bypassed by `IsSession` — they compare `UserID` against the repo owner directly.
 
 ### Repository Visibility
 
@@ -137,7 +162,7 @@ The API `DELETE /v2/{name}/blobs/{digest}` only sets the GC mark; actual GFS obj
 - **Replicas**: 2 pods spread across backend nodes (`backend: "true"`)
 - **Topology**: `topologySpreadConstraints` with `maxSkew: 1` ensures one pod per node
 - **Manifest**: `manifests/edd-registry/edd-registry.yaml`
-- **Liveness/readiness**: HTTP GET `/v2/` on port 8080
+- **Liveness/readiness**: HTTP GET `/healthz` on port 8080 (an unauthenticated `200 OK` handler — `/v2/` is not used for probes because it requires auth and would return `401`)
 
 ## Database Schema
 
