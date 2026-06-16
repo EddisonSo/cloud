@@ -70,9 +70,8 @@ func (c *Client) CreateServiceAccountToken(ctx context.Context, saID, name, expi
 	return &out, nil
 }
 
-// DeleteToken deletes an API token by ID.
-// NOTE: DELETE /api/tokens/{id} is implemented in the auth service handler but is
-// not currently registered as a route. This method is provided for forward compatibility.
+// DeleteToken deletes (revokes) an API token by ID — works for both standalone
+// and service-account-bound tokens (they share the api_tokens table).
 // DELETE /api/tokens/{id} → {"status":"ok"}
 func (c *Client) DeleteToken(ctx context.Context, id string) error {
 	return c.doJSON(ctx, "DELETE", c.serviceURL(authSvc), "/api/tokens/"+id, nil, nil)

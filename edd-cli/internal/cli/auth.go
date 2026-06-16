@@ -264,7 +264,6 @@ func cmdToken(c *eddsdk.Client, _ string, args []string) error {
 		if len(rest) < 1 {
 			return fmt.Errorf("usage: ec auth tokens rm <id>")
 		}
-		// NOTE: DELETE /api/tokens/{id} is not currently registered in the auth service.
 		return c.DeleteToken(ctx, rest[0])
 	default:
 		return fmt.Errorf("unknown tokens action: %s", sub)
