@@ -399,7 +399,7 @@ Create a new API token.
 | scopes | object | body | Yes | Scope-to-actions map (see [Token Scopes](/api#token-scopes)) |
 | expires_in | string | body | No | `"30d"`, `"90d"`, `"365d"`, or `"never"` (default `"never"`) |
 
-Each scope key follows the format `<service>.<user_id>[.<resource>[.<id>]]` and maps to an array of actions. Standard actions are `"create"`, `"read"`, `"update"`, `"delete"`. Container scopes additionally accept `"start"` and `"stop"`; registry scopes use `"push"`, `"pull"`, and `"delete"`.
+Each scope key follows the format `<service>.<user_id>[.<resource>[.<id>]]`, where `<service>` is one of `compute`, `storage`, or `networking`, and maps to an array of actions. Standard actions are `"create"`, `"read"`, `"update"`, `"delete"`. Container scopes additionally accept `"start"` and `"stop"`; registry scopes use `"push"`, `"pull"`, and `"delete"`; `networking` scopes (`domains`, `domain-mappings`) support `"create"`, `"read"`, `"delete"`.
 
 **Example request:**
 ```bash

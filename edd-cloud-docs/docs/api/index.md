@@ -34,9 +34,9 @@ API tokens support resource-specific scopes with up to 4 segments:
 ```
 
 **Compute examples:**
-- `compute.<uid>.containers` — access all containers
+- `compute.<uid>.containers` — access all containers (actions: `create`, `read`, `update`, `delete`, `start`, `stop`)
 - `compute.<uid>.containers.<container_id>` — access one specific container
-- `compute.<uid>.keys` — access all SSH keys
+- `compute.<uid>.keys` — access all SSH keys (actions: `create`, `read`, `delete`)
 
 **Storage examples:**
 - `storage.<uid>.namespaces` — manage all namespaces
@@ -45,6 +45,11 @@ API tokens support resource-specific scopes with up to 4 segments:
 - `storage.<uid>.files.<name>` — access files in a specific namespace
 - `storage.<uid>.registry` — push/pull/delete images in all repositories (`push`, `pull`, `delete`)
 - `storage.<uid>.registry.<repo>` — push/pull/delete images in a specific repository
+
+**Networking examples:**
+- `networking.<uid>.domains` — manage all custom domains (actions: `create`, `read`, `delete`)
+- `networking.<uid>.domain-mappings` — manage all domain mappings (actions: `create`, `read`, `delete`)
+- `networking.<uid>.domain-mappings.<id>` — manage a specific domain mapping
 
 Broad scopes cascade: a token with `compute.<uid>.containers` grants access to all individual containers. A token with `compute.<uid>.containers.<id>` only grants access to that one container.
 

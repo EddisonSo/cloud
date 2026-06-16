@@ -59,9 +59,11 @@ Base URL: `https://auth.cloud.eddisonso.com`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/api/login` | None | Authenticate user, returns JWT |
+| `POST` | `/api/login` | None | Authenticate user; returns a session JWT, or `requires_2fa: true` + a `challenge_token` when the user has security keys registered |
 | `POST` | `/api/logout` | Session | Invalidate session |
 | `GET` | `/api/session` | Session | Get current session info |
+| `POST` | `/api/webauthn/login/begin` | Challenge token | Begin WebAuthn 2FA assertion (uses the `challenge_token` from login) |
+| `POST` | `/api/webauthn/login/finish` | None | Complete 2FA, returns a session JWT |
 
 ### API Tokens
 
@@ -69,6 +71,7 @@ Base URL: `https://auth.cloud.eddisonso.com`
 |--------|------|------|-------------|
 | `POST` | `/api/tokens` | Session | Create a new API token |
 | `GET` | `/api/tokens` | Session | List user's API tokens |
+| `DELETE` | `/api/tokens/{id}` | Session | Revoke (delete) an API token |
 
 ### Service Accounts
 
@@ -98,6 +101,25 @@ Base URL: `https://auth.cloud.eddisonso.com`
 | `POST` | `/admin/users` | Admin session | Create new user |
 | `DELETE` | `/admin/users` | Admin session | Delete user |
 | `GET` | `/admin/sessions` | Admin session | List active sessions |
+
+### Settings & Security Keys
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/settings/keys` | Session | List the user's WebAuthn security keys |
+| `POST` | `/api/settings/keys/add/begin` | Session | Begin registering a new security key |
+| `POST` | `/api/settings/keys/add/finish` | Session | Complete registration of a new security key |
+| `POST` | `/api/settings/keys/delete` | Session | Delete a security key |
+| `POST` | `/api/settings/keys/rename` | Session | Rename a security key |
+| `PUT` | `/api/settings/profile` | Session | Update display name |
+| `PUT` | `/api/settings/password` | Session | Change password |
+| `GET` | `/api/settings/sessions` | Session | List the user's active sessions |
+
+### Docker Registry
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/v2/token` | HTTP Basic (optional) | Issue a short-lived Docker registry token for the requested OCI scope |
 
 ## Token Types
 
@@ -138,10 +160,20 @@ Scopes follow the pattern: `<root>.<user_id>[.<resource>[.<id>]]`
 | Root | Resources |
 |------|-----------|
 | `compute` | `containers`, `keys` |
-| `storage` | `namespaces`, `files` |
+| `storage` | `namespaces`, `files`, `registry` |
 | `networking` | `domains`, `domain-mappings` |
 
-Actions: `create`, `read`, `update`, `delete` (networking only supports `create`, `read`, `delete`)
+Allowed actions are per-resource:
+
+| Root | Resource | Actions |
+|------|----------|---------|
+| `compute` | `containers` | `create`, `read`, `update`, `delete`, `start`, `stop` |
+| `compute` | `keys` | `create`, `read`, `delete` |
+| `storage` | `namespaces` | `create`, `read`, `update`, `delete` |
+| `storage` | `files` | `create`, `read`, `delete` |
+| `storage` | `registry` | `push`, `pull`, `delete` |
+| `networking` | `domains` | `create`, `read`, `delete` |
+| `networking` | `domain-mappings` | `create`, `read`, `delete` |
 
 Scopes cascade — `compute.uid.containers` with `read` grants read access to all containers, while `compute.uid.containers.abc` with `read` grants access to only that container.
 
