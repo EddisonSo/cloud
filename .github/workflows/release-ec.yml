@@ -1,0 +1,51 @@
+name: Release ec CLI
+
+# Publishes the ec CLI as a GitHub Release whenever edd-cli changes on main.
+# `ec update` / `ec --update` downloads the asset for the user's OS/arch from
+# the latest release (the repo is public, so downloads need no auth).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "edd-cli/**"
+      - ".github/workflows/release-ec.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Cross-compile ec
+        working-directory: edd-cli
+        run: |
+          set -euo pipefail
+          TAG="ec-$(date -u +%Y%m%d-%H%M%S)"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            echo "building ec_${os}_${arch}"
+            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
+              -trimpath \
+              -ldflags "-s -w -X eddisonso.com/edd-cli/internal/cli.Version=${TAG}" \
+              -o "dist/ec_${os}_${arch}" ./cmd/ec
+          done
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" edd-cli/dist/ec_* \
+            --repo "${{ github.repository }}" \
+            --title "ec $TAG" \
+            --notes "Automated ec CLI build from ${{ github.sha }}. Run 'ec update' to upgrade." \
+            --latest
