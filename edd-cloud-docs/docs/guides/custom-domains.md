@@ -28,8 +28,8 @@ flowchart TD
     VER -->|TXT found| E[Status: Verified]
     VER -->|TXT not found after 7 days| F[Status: Failed — retry to reset]
     AUTO --> E
-    E --> G[Gateway pre-fetches TLS certificate]
-    G --> H[Status: Live — HTTPS serving]
+    E --> G[Gateway pre-fetches TLS certificate<br/>status stays Verified]
+    G --> H[HTTPS serving]
 ```
 
 ## Domains: Cloudflare-managed DNS (optional)
@@ -145,7 +145,7 @@ If DNS propagation is slow, wait a few minutes and click **Verify now** again. T
 
 ## Step 5: HTTPS goes live automatically
 
-When a mapping transitions to **Verified**, the gateway pre-fetches a Let's Encrypt certificate in the background so the first visitor does not wait for issuance. The status changes to **Live** once the certificate has been issued and served.
+When a mapping transitions to **Verified**, the gateway pre-fetches a Let's Encrypt certificate in the background so the first visitor does not wait for issuance. **Verified** is the terminal success state — the status does not change again; the certificate pre-fetch happens behind the scenes while the mapping remains **Verified**.
 
 On first access to a brand-new hostname the initial request may take a few seconds while the certificate is finalized. Subsequent requests are instant.
 
@@ -154,8 +154,7 @@ On first access to a brand-new hostname the initial request may take a few secon
 | Status | Meaning | Next step |
 |--------|---------|-----------|
 | **Pending verification** | Waiting for the `_edd-verify` TXT record to be found | Add the TXT record and click **Verify now** |
-| **Verified** | TXT confirmed; gateway is issuing a certificate | Wait for the certificate pre-fetch to complete |
-| **Live** | Certificate issued and serving HTTPS | No action needed |
+| **Verified** | TXT confirmed (terminal success state); the gateway pre-fetches and serves the certificate without changing status | No action needed |
 | **Failed** | TXT record was not found within 7 days | Click **Verify now** (or re-add the mapping) to reset to Pending |
 
 ## Notes

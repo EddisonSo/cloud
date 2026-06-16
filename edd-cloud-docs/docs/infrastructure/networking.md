@@ -80,6 +80,8 @@ eddisonso.com
 ├── compute.cloud.eddisonso.com     # Compute API
 ├── health.cloud.eddisonso.com      # Health/Monitoring API + Log streaming
 ├── notifications.cloud.eddisonso.com  # Notification API + WebSocket push
+├── net.cloud.eddisonso.com         # Networking management API (gateway, loopback)
+├── ingress.cloud.eddisonso.com     # Stable CNAME target for custom domains
 └── docs.cloud.eddisonso.com        # Documentation site
 ```
 
@@ -116,6 +118,16 @@ spec:
 
 The gateway loads the wildcard certificate from the `eddisonso-wildcard-tls` Kubernetes secret and terminates TLS for all static routes. For user container HTTPS traffic, the gateway supports TLS passthrough.
 
+### Custom (Bring-Your-Own) Domains
+
+Users can point their own hostnames (e.g. `app.example.com`) at a container. This stack is separate from the wildcard certificate:
+
+- **`ingress.cloud.eddisonso.com`** is the stable CNAME target for all custom hostnames. It is itself covered by the `*.cloud.eddisonso.com` wildcard A record, so it resolves to the gateway VIP (`192.168.3.200`).
+- **On-demand Let's Encrypt certificates**: the gateway terminates TLS for verified custom hostnames using certmagic, issuing a per-hostname certificate on first request (including the `acme-tls/1` TLS-ALPN-01 challenge). Issued certs are stored in the shared database so all gateway replicas serve them.
+- **Optional Cloudflare per-user DNS automation**: when a user registers a Cloudflare API token (an "owned domain"), creating a mapping for a hostname inside that zone automatically provisions a DNS-only CNAME to `ingress.cloud.eddisonso.com` — no manual record setup. Otherwise the user verifies ownership with a TXT record and adds the CNAME themselves.
+
+See the [Networking API reference](../api/networking.md) and the [custom domains guide](../guides/custom-domains.md) for details.
+
 ## Gateway Routing
 
 The gateway determines the backend target based on the `Host` header and request path. Routes are stored in PostgreSQL (`gateway_db`) and cached in memory with a 100-entry LRU cache.
@@ -131,6 +143,7 @@ The gateway determines the backend target based on the `Host` header and request
 | `health.cloud.eddisonso.com` | `/` | cluster-monitor:80 |
 | `health.cloud.eddisonso.com` | `/logs` | log-service:80 |
 | `notifications.cloud.eddisonso.com` | `/` | notification-service:80 |
+| `net.cloud.eddisonso.com` | `/` | gateway networking API (loopback) |
 | `docs.cloud.eddisonso.com` | `/` | edd-cloud-docs:80 |
 
 Route configuration is managed in the `gateway-routes` ConfigMap (`edd-gateway/manifests/gateway-routes.yaml`).

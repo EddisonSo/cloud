@@ -20,7 +20,8 @@ The Gateway service (`edd-cloud-gateway`) is the main entry point for all extern
 
 ### TLS Handling
 
-- **TLS Termination**: For static routes (core services), gateway terminates TLS and proxies plain HTTP to backends
+- **TLS Termination (static routes)**: For static routes (core services) backed by the wildcard certificate, the gateway terminates TLS and proxies plain HTTP to backends
+- **TLS Termination (custom domains)**: For mapped custom (bring-your-own) hostnames, the gateway terminates TLS using an **on-demand Let's Encrypt certificate** issued by [certmagic](https://github.com/caddyserver/certmagic). This path also answers the `acme-tls/1` TLS-ALPN-01 challenge handshake (certmagic completes issuance, then the connection is closed). This is distinct from both the wildcard static-route termination and the `*.compute.*` passthrough described here. See `edd-gateway/internal/proxy/tls.go`.
 - **TLS Passthrough**: For container routes (`*.compute.cloud.eddisonso.com`), raw TLS is forwarded to the container's LoadBalancer
 - **SNI Extraction**: Reads SNI from TLS ClientHello to determine routing before handshake
 
@@ -227,6 +228,14 @@ routes:
 | `path` | Path prefix to match (e.g., `/compute`) |
 | `target` | Backend service and port (e.g., `edd-compute:80`) |
 | `strip_prefix` | If `true`, removes the path prefix before forwarding |
+
+## Networking Management API
+
+The gateway also hosts an authenticated **networking management API** for custom
+(bring-your-own) domains and their Cloudflare DNS automation. It binds to
+loopback and is exposed to the internet via a static route at
+`net.cloud.eddisonso.com`. See the [Networking API reference](../api/networking.md)
+for endpoints, authentication, and scopes.
 
 ## Health Check
 
