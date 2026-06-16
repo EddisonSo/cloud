@@ -10,8 +10,12 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 
 - **Container Management**: Create, start, stop, delete containers
 - **Custom Images**: Launch containers from images stored in the internal registry (`registry.cloud.eddisonso.com`)
+- **Image Pull Policy**: Per-container pull policy (`Always` or `IfNotPresent`, default `IfNotPresent`)
 - **SSH Access**: Enable SSH access to containers
 - **Port Forwarding**: Expose container ports via ingress rules
+- **Persistent Storage**: Configurable persistent mount paths (default `/root`)
+- **Log Streaming**: Stream container stdout/stderr over WebSocket
+- **Web Terminal**: Interactive in-browser terminal over WebSocket
 - **Real-time Updates**: WebSocket-based status updates
 
 ## API Endpoints
@@ -22,9 +26,11 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 |--------|----------|-------------|
 | GET | `/compute/containers` | List user's containers |
 | POST | `/compute/containers` | Create container |
+| GET | `/compute/containers/:id` | Get a single container |
 | DELETE | `/compute/containers/:id` | Delete container |
 | POST | `/compute/containers/:id/start` | Start container |
 | POST | `/compute/containers/:id/stop` | Stop container |
+| PUT | `/compute/containers/:id/pull-policy` | Update image pull policy |
 
 ### Images
 
@@ -49,23 +55,40 @@ The Compute Service manages containers running on the Kubernetes cluster. It pro
 | GET | `/compute/containers/:id/ingress` | List ingress rules |
 | POST | `/compute/containers/:id/ingress` | Add ingress rule |
 | DELETE | `/compute/containers/:id/ingress/:port` | Remove ingress rule |
+| GET | `/compute/containers/:id/mounts` | List persistent mount paths |
+| PUT | `/compute/containers/:id/mounts` | Update persistent mount paths |
 
 ### WebSocket
 
-| Endpoint | Description |
-|----------|-------------|
-| `/compute/ws` | Real-time container status updates |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/compute/ws` | Real-time container status updates |
+| GET | `/compute/containers/:id/terminal` | Interactive web terminal |
+| GET | `/compute/containers/:id/logs` | Container log stream |
+
+### Admin
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/compute/admin/containers` | List all containers across users (admin only) |
 
 ## Container Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> stopped: create
-    stopped --> running: start
+    [*] --> pending: create
+    pending --> initializing: resources created
+    initializing --> running: pod ready
+    pending --> failed: provisioning error
+    initializing --> failed: provisioning error
     running --> stopped: stop
-    stopped --> [*]: delete
+    stopped --> pending: start
     running --> [*]: delete
+    stopped --> [*]: delete
+    failed --> [*]: delete
 ```
+
+Status values: `pending`, `initializing`, `running`, `stopped`, `failed`. A newly created container goes `pending -> initializing -> running` as its Kubernetes resources are provisioned and the pod becomes ready (it is never `stopped` on create). Starting a stopped container returns it to `pending` and it polls back through to `running`.
 
 ## WebSocket Updates
 
@@ -93,7 +116,7 @@ When SSH is enabled for a container:
 
 1. Container gets an SSH server sidecar
 2. User's SSH keys are injected
-3. Access via: `ssh <container-id>@compute.cloud.eddisonso.com`
+3. Access via: `ssh root@<short-id>.compute.cloud.eddisonso.com` (user `root`, per-container subdomain using the 8-character short ID)
 
 ## Ingress Rules
 
@@ -107,6 +130,8 @@ Expose container ports to the internet:
 ```
 
 This creates an ingress rule routing `<container-id>.compute.cloud.eddisonso.com:<port>` to the container's target port.
+
+Adding an ingress rule on port `443` automatically enables HTTPS routing for the container through the gateway (and removing it disables HTTPS again).
 
 ## Network Isolation
 
@@ -127,19 +152,31 @@ Compute containers **cannot** reach any internal cluster service (NATS, PostgreS
 ```sql
 CREATE TABLE containers (
     id TEXT PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id),
+    user_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    image TEXT NOT NULL,
-    status TEXT DEFAULT 'stopped',
+    namespace TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    external_ip TEXT,
+    memory_mb INTEGER DEFAULT 512,
+    storage_gb INTEGER DEFAULT 5,
+    image TEXT DEFAULT 'eddisonso/ecloud-compute-base:latest',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    stopped_at TIMESTAMP,
     ssh_enabled BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT NOW()
+    https_enabled BOOLEAN DEFAULT false,
+    owner_username TEXT NOT NULL DEFAULT '',
+    instance_type TEXT NOT NULL DEFAULT 'nano',
+    mount_paths TEXT NOT NULL DEFAULT '["/root"]',
+    pull_policy TEXT DEFAULT 'IfNotPresent'
 );
 
 CREATE TABLE ingress_rules (
     id SERIAL PRIMARY KEY,
-    container_id TEXT REFERENCES containers(id),
+    container_id TEXT NOT NULL REFERENCES containers(id) ON DELETE CASCADE,
     port INTEGER NOT NULL,
-    target_port INTEGER NOT NULL
+    target_port INTEGER NOT NULL DEFAULT 80,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(container_id, port)
 );
 
 CREATE TABLE ssh_keys (

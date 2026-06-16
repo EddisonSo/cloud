@@ -66,6 +66,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers \
       "created_at": "2024-01-15T10:30:00Z",
       "ssh_enabled": true,
       "https_enabled": false,
+      "pull_policy": "IfNotPresent",
       "ssh_command": "ssh root@abc12345.compute.cloud.eddisonso.com"
     }
   ]
@@ -118,7 +119,8 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers \
   "instance_type": "nano",
   "created_at": "2024-01-15T10:30:00Z",
   "ssh_enabled": true,
-  "https_enabled": false
+  "https_enabled": false,
+  "pull_policy": "IfNotPresent"
 }
 ```
 
@@ -156,6 +158,7 @@ curl https://compute.cloud.eddisonso.com/compute/containers/abc12345 \
   "created_at": "2024-01-15T10:30:00Z",
   "ssh_enabled": true,
   "https_enabled": false,
+  "pull_policy": "IfNotPresent",
   "ssh_command": "ssh root@abc12345.compute.cloud.eddisonso.com"
 }
 ```
@@ -217,7 +220,8 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sta
   "instance_type": "nano",
   "created_at": "2024-01-15T10:30:00Z",
   "ssh_enabled": true,
-  "https_enabled": false
+  "https_enabled": false,
+  "pull_policy": "IfNotPresent"
 }
 ```
 
@@ -252,7 +256,8 @@ curl -X POST https://compute.cloud.eddisonso.com/compute/containers/abc12345/sto
   "instance_type": "nano",
   "created_at": "2024-01-15T10:30:00Z",
   "ssh_enabled": true,
-  "https_enabled": false
+  "https_enabled": false,
+  "pull_policy": "IfNotPresent"
 }
 ```
 
@@ -276,7 +281,7 @@ curl https://compute.cloud.eddisonso.com/compute/images \
 [
   {
     "name": "Debian (Base)",
-    "image": "eddisonso/ecloud-debian:latest",
+    "image": "eddisonso/ecloud-compute-base:latest",
     "source": "builtin"
   },
   {
@@ -291,6 +296,44 @@ Each entry has:
 - `name` — human-readable label
 - `image` — full image reference to pass as the `image` field when creating a container
 - `source` — `"builtin"` for default images, `"registry"` for images from the internal registry
+
+---
+
+## Admin
+
+### GET /compute/admin/containers
+
+List **all** containers across every user. Admin-only: the caller's session must belong to the configured admin user (`ADMIN_USERNAME`); all other callers receive `403 Forbidden`.
+
+**Auth:** Session (admin user only)
+
+**Example request:**
+```bash
+curl https://compute.cloud.eddisonso.com/compute/admin/containers \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "abc12345",
+    "user_id": "u_9f3a2b",
+    "owner": "alice",
+    "name": "my-app",
+    "hostname": "abc12345.cloud.eddisonso.com",
+    "status": "running",
+    "external_ip": "10.0.0.5",
+    "memory_mb": 512,
+    "storage_gb": 5,
+    "created_at": 1705326600,
+    "ssh_enabled": true,
+    "https_enabled": false
+  }
+]
+```
+
+Each entry includes the owning `user_id` and `owner` (username) in addition to the standard container fields.
 
 ---
 
