@@ -55,6 +55,31 @@ func TestCreateServiceAccount(t *testing.T) {
 	}
 }
 
+func TestCreateServiceAccountToken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || r.URL.Path != "/api/service-accounts/sa2/tokens" {
+			t.Errorf("got %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["name"] != "ci-token" || body["expires_in"] != "90d" {
+			t.Errorf("unexpected body %v", body)
+		}
+		// SA-bound tokens carry no scopes; the secret is returned on creation.
+		json.NewEncoder(w).Encode(map[string]any{
+			"id": "tok9", "name": "ci-token", "expires_at": 0, "token": "ecloud_secret",
+		})
+	}))
+	defer srv.Close()
+	tok, err := newTestClient(srv).CreateServiceAccountToken(context.Background(), "sa2", "ci-token", "90d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.ID != "tok9" || tok.Token != "ecloud_secret" {
+		t.Fatalf("got %+v", tok)
+	}
+}
+
 func TestDeleteServiceAccount(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "DELETE" || r.URL.Path != "/api/service-accounts/sa1" {

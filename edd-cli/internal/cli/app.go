@@ -79,8 +79,8 @@ storage files        ls | rm
 storage registry     ls | tags <repo> | rm <repo> <tag>
 
 auth login | logout | status | set-token
-auth service-accounts ls | create | rm
-auth tokens          ls | create | rm
+auth service-accounts ls | create | rm        (scopes live here)
+auth tokens          ls | create | rm         (create --name N --service-account ID; inherits SA scopes)
 
 networking domains      ls | add | rm     (owned domains / zones)
 networking mappings     ls | add | rm     (hostname -> container)

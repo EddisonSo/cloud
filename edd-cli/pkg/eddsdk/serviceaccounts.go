@@ -53,6 +53,23 @@ func (c *Client) CreateToken(ctx context.Context, req CreateTokenRequest) (*Toke
 	return &out, nil
 }
 
+// CreateServiceAccountToken creates a token bound to a service account. The
+// token carries no embedded scopes — it inherits the service account's scopes.
+// POST /api/service-accounts/{id}/tokens → Token (Token.Token holds the raw
+// ecloud_ secret, only present on creation).
+func (c *Client) CreateServiceAccountToken(ctx context.Context, saID, name, expiresIn string) (*Token, error) {
+	var out Token
+	body := struct {
+		Name      string `json:"name"`
+		ExpiresIn string `json:"expires_in"`
+	}{Name: name, ExpiresIn: expiresIn}
+	path := "/api/service-accounts/" + saID + "/tokens"
+	if err := c.doJSON(ctx, "POST", c.serviceURL(authSvc), path, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeleteToken deletes an API token by ID.
 // NOTE: DELETE /api/tokens/{id} is implemented in the auth service handler but is
 // not currently registered as a route. This method is provided for forward compatibility.

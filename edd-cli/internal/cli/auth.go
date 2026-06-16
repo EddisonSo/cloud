@@ -273,34 +273,26 @@ func cmdToken(c *eddsdk.Client, _ string, args []string) error {
 
 // cmdTokenCreate parses flags for:
 //
-//	ec auth tokens create --name <n> --expires-in <30d|90d|365d|never> [--scope ...] [--scopes-json ...]
+//	ec auth tokens create --name <n> --service-account <id> [--expires-in 30d|90d|365d|never]
+//
+// Tokens are bound to a service account and inherit its scopes; set scopes on
+// the service account (ec auth service-accounts create --scope ...).
 func cmdTokenCreate(ctx context.Context, c *eddsdk.Client, args []string) error {
 	fs := flag.NewFlagSet("tokens create", flag.ContinueOnError)
 	name := fs.String("name", "", "token name (required)")
+	sa := fs.String("service-account", "", "service account id the token belongs to (required)")
 	expiresIn := fs.String("expires-in", "never", "expiry: 30d|90d|365d|never")
-	scopesJSON := fs.String("scopes-json", "", `scopes as JSON`)
-	var scopeFlags []string
-	fs.Func("scope", `scope as root.uid.resource=action1,action2 (uid may be "me"; repeatable)`, func(s string) error {
-		scopeFlags = append(scopeFlags, s)
-		return nil
-	})
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *name == "" {
 		return fmt.Errorf("--name is required")
 	}
-	scopes, err := parseScopes(scopeFlags, *scopesJSON)
-	if err != nil {
-		return err
+	if *sa == "" {
+		return fmt.Errorf("--service-account is required; tokens inherit a service account's scopes. " +
+			"List them with 'ec auth service-accounts ls' or create one with 'ec auth service-accounts create --name ... --scope ...'")
 	}
-	scopes, err = expandScopeMe(ctx, c, scopes)
-	if err != nil {
-		return err
-	}
-	tok, err := c.CreateToken(ctx, eddsdk.CreateTokenRequest{
-		Name: *name, Scopes: scopes, ExpiresIn: *expiresIn,
-	})
+	tok, err := c.CreateServiceAccountToken(ctx, *sa, *name, *expiresIn)
 	if err != nil {
 		return err
 	}
