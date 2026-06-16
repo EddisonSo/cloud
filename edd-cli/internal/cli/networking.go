@@ -78,7 +78,7 @@ func cmdDomains(ctx context.Context, c *eddsdk.Client, args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: ec networking domains rm <id>")
 		}
-		return c.DeleteDomain(ctx, args[1])
+		return done(c.DeleteDomain(ctx, args[1]), "deleted domain %s", args[1])
 	default:
 		return fmt.Errorf("unknown domains action: %s", args[0])
 	}
@@ -128,7 +128,7 @@ func cmdMappings(ctx context.Context, c *eddsdk.Client, args []string) error {
 		if len(rest) < 1 {
 			return fmt.Errorf("usage: ec networking mappings rm <id>")
 		}
-		return c.DeleteDomainMapping(ctx, rest[0])
+		return done(c.DeleteDomainMapping(ctx, rest[0]), "deleted domain mapping %s", rest[0])
 	default:
 		return fmt.Errorf("unknown mappings action: %s", sub)
 	}

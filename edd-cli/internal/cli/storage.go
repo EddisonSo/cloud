@@ -125,7 +125,7 @@ func cmdStorageFiles(ctx context.Context, c *eddsdk.Client, args []string) error
 		if len(args) != 3 {
 			return fmt.Errorf("usage: ec storage files rm <namespace> <path>")
 		}
-		return c.DeleteFile(ctx, args[1], args[2])
+		return done(c.DeleteFile(ctx, args[1], args[2]), "deleted %s/%s", args[1], args[2])
 	default:
 		return fmt.Errorf("unknown files action: %s", args[0])
 	}
@@ -163,7 +163,7 @@ func cmdStorageRegistry(ctx context.Context, c *eddsdk.Client, args []string) er
 		if len(args) != 3 {
 			return fmt.Errorf("usage: ec storage registry rm <repo> <tag>")
 		}
-		return c.DeleteTag(ctx, args[1], args[2])
+		return done(c.DeleteTag(ctx, args[1], args[2]), "deleted %s:%s", args[1], args[2])
 	default:
 		return fmt.Errorf("unknown registry action: %s", args[0])
 	}

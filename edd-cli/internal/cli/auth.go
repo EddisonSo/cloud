@@ -183,7 +183,7 @@ func cmdSA(c *eddsdk.Client, _ string, args []string) error {
 		if len(rest) < 1 {
 			return fmt.Errorf("usage: ec auth service-accounts rm <id>")
 		}
-		return c.DeleteServiceAccount(ctx, rest[0])
+		return done(c.DeleteServiceAccount(ctx, rest[0]), "deleted service account %s", rest[0])
 	default:
 		return fmt.Errorf("unknown service-accounts action: %s", sub)
 	}
@@ -264,7 +264,7 @@ func cmdToken(c *eddsdk.Client, _ string, args []string) error {
 		if len(rest) < 1 {
 			return fmt.Errorf("usage: ec auth tokens rm <id>")
 		}
-		return c.DeleteToken(ctx, rest[0])
+		return done(c.DeleteToken(ctx, rest[0]), "deleted token %s", rest[0])
 	default:
 		return fmt.Errorf("unknown tokens action: %s", sub)
 	}

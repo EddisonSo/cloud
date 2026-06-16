@@ -66,21 +66,21 @@ func cmdComputeContainers(c *eddsdk.Client, args []string) error {
 		containerTable(os.Stdout, []eddsdk.Container{*ct})
 		return nil
 	case "start":
-		return needID(rest, func(id string) error { return c.StartContainer(ctx, id) })
+		return needID(rest, func(id string) error { return done(c.StartContainer(ctx, id), "started container %s", id) })
 	case "stop":
-		return needID(rest, func(id string) error { return c.StopContainer(ctx, id) })
+		return needID(rest, func(id string) error { return done(c.StopContainer(ctx, id), "stopped container %s", id) })
 	case "rm":
-		return needID(rest, func(id string) error { return c.DeleteContainer(ctx, id) })
+		return needID(rest, func(id string) error { return done(c.DeleteContainer(ctx, id), "deleted container %s", id) })
 	case "pull-policy":
 		if len(rest) != 2 {
 			return fmt.Errorf("usage: ec compute containers pull-policy <id> <Always|IfNotPresent>")
 		}
-		return c.SetPullPolicy(ctx, rest[0], rest[1])
+		return done(c.SetPullPolicy(ctx, rest[0], rest[1]), "set pull policy of %s to %s", rest[0], rest[1])
 	case "ssh":
 		if len(rest) != 2 || (rest[1] != "on" && rest[1] != "off") {
 			return fmt.Errorf("usage: ec compute containers ssh <id> <on|off>")
 		}
-		return c.SetSSH(ctx, rest[0], rest[1] == "on")
+		return done(c.SetSSH(ctx, rest[0], rest[1] == "on"), "set ssh of %s to %s", rest[0], rest[1])
 	case "logs":
 		if len(rest) < 1 {
 			return fmt.Errorf("usage: ec compute containers logs <id>")
@@ -143,7 +143,7 @@ func cmdComputeIngress(ctx context.Context, c *eddsdk.Client, args []string) err
 		if err != nil {
 			return fmt.Errorf("invalid target: %w", err)
 		}
-		return c.AddIngress(ctx, args[1], port, target)
+		return done(c.AddIngress(ctx, args[1], port, target), "added ingress %d -> %d on %s", port, target, args[1])
 	case "rm":
 		if len(args) != 3 {
 			return fmt.Errorf("usage: ec compute containers ingress rm <id> <port>")
@@ -152,7 +152,7 @@ func cmdComputeIngress(ctx context.Context, c *eddsdk.Client, args []string) err
 		if err != nil {
 			return fmt.Errorf("invalid port: %w", err)
 		}
-		return c.RemoveIngress(ctx, args[1], port)
+		return done(c.RemoveIngress(ctx, args[1], port), "removed ingress port %d on %s", port, args[1])
 	default:
 		return fmt.Errorf("unknown ingress subcommand: %s", args[0])
 	}
@@ -182,7 +182,7 @@ func cmdComputeMounts(ctx context.Context, c *eddsdk.Client, args []string) erro
 		if len(args) < 2 {
 			return fmt.Errorf("usage: ec compute containers mounts set <id> [path...]")
 		}
-		return c.SetMounts(ctx, args[1], args[2:])
+		return done(c.SetMounts(ctx, args[1], args[2:]), "set mounts on %s", args[1])
 	default:
 		return fmt.Errorf("unknown mounts subcommand: %s", args[0])
 	}
@@ -248,7 +248,7 @@ func cmdComputeKeys(c *eddsdk.Client, args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: ec compute keys rm <id>")
 		}
-		return c.DeleteSSHKey(ctx, args[1])
+		return done(c.DeleteSSHKey(ctx, args[1]), "deleted ssh key %s", args[1])
 	default:
 		return fmt.Errorf("unknown keys action: %s", args[0])
 	}

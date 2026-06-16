@@ -66,6 +66,22 @@ func Run(argv []string) int {
 	return 0
 }
 
+// done reports the outcome of a mutating operation: it passes any error
+// through unchanged (the top-level handler prints "error: ...") and, on
+// success, prints a confirmation — a human message, or {"status":"ok"} with
+// the message under --json. Use it so every write operation gives feedback.
+func done(err error, format string, args ...any) error {
+	if err != nil {
+		return err
+	}
+	msg := fmt.Sprintf(format, args...)
+	if jsonOutput {
+		return printJSON(map[string]string{"status": "ok", "message": msg})
+	}
+	fmt.Println(msg)
+	return nil
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `ec — edd-cloud CLI
 
