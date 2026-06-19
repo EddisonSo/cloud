@@ -75,13 +75,15 @@ func (s *server) authenticate(r *http.Request) *authResult {
 }
 
 // hasAccess checks if the auth result grants the given action on the repository.
-func hasAccess(auth *authResult, repoName, action string) bool {
+// ownerID is the owner of the repository being accessed; session tokens are
+// scoped to repos they own, while OCI tokens are scoped by their Access claims.
+func hasAccess(auth *authResult, repoName, ownerID, action string) bool {
 	if auth == nil {
 		return false
 	}
-	// Session tokens have full access (used by internal services forwarding user identity)
+	// Session tokens (dashboard users) may only access repositories they own.
 	if auth.IsSession {
-		return true
+		return ownerID != "" && auth.UserID == ownerID
 	}
 	for _, a := range auth.Access {
 		if a.Type == "repository" && a.Name == repoName {

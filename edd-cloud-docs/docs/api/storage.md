@@ -12,9 +12,12 @@ Base URL: `https://storage.cloud.eddisonso.com`
 
 | Value | Name | Behavior |
 |-------|------|----------|
-| `0` | Private | Only the owner can see and access |
-| `1` | Visible | Only the owner sees in listings, but accessible via direct URL |
-| `2` | Public | Everyone can see and access |
+| `0` | Private | Only the owner (and service accounts scoped to that owner) can access |
+| `1` | Public | Anyone with the direct link can read; namespaces are **never listed or advertised** to other users |
+
+:::warning
+The three-level visibility model (`0`/`1`/`2`) has been replaced with a two-level model. The old `visibility=1` ("Visible / unlisted") level no longer exists. Submitting `visibility=2` is rejected with `400 Bad Request`. All namespaces default to **private** on creation.
+:::
 
 ---
 
@@ -22,9 +25,9 @@ Base URL: `https://storage.cloud.eddisonso.com`
 
 ### GET /storage/namespaces
 
-List namespaces. Private namespaces are only shown to the owner.
+List namespaces owned by the authenticated caller. Only the caller's own namespaces are ever returned — other users' namespaces are never included, regardless of visibility. Unauthenticated callers receive an empty list.
 
-**Auth:** Session / API token (optional — public namespaces are always listed)
+**Auth:** Session / API token (required to receive any results)
 **Token Scope:** `storage.<uid>.namespaces` with `read`
 
 **Example request:**
@@ -39,7 +42,7 @@ curl https://storage.cloud.eddisonso.com/storage/namespaces \
   {
     "name": "my-files",
     "count": 12,
-    "visibility": 2,
+    "visibility": 0,
     "owner_id": "abc123"
   }
 ]
@@ -57,7 +60,7 @@ Create a new namespace.
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
 | name | string | body | Yes | Namespace name (alphanumeric, hyphens, underscores, dots) |
-| visibility | int | body | No | `0`, `1`, or `2` (default `2`) |
+| visibility | int | body | No | `0` (private) or `1` (public). Defaults to `0` (private). |
 
 **Example request:**
 ```bash
@@ -115,7 +118,7 @@ Update namespace visibility.
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
 | name | string | path | Yes | Namespace name |
-| visibility | int | body | Yes | `0`, `1`, or `2` |
+| visibility | int | body | Yes | `0` (private) or `1` (public) |
 
 **Example request:**
 ```bash
@@ -141,7 +144,7 @@ curl -X PUT https://storage.cloud.eddisonso.com/storage/namespaces/my-files \
 
 List files in a namespace.
 
-**Auth:** Required for private namespaces, optional for public/visible
+**Auth:** Required for private namespaces; optional for public namespaces when accessing via direct link
 **Token Scope:** `storage.<uid>.files.<namespace>` with `read`
 
 | Param | Type | In | Required | Description |
@@ -249,7 +252,7 @@ Returns `409` if the file already exists and `overwrite` is not set. Triggers a 
 
 Download a file (forced attachment download).
 
-**Auth:** Required for private namespaces, optional for public/visible
+**Auth:** Required for private namespaces; optional for public namespaces when accessing via direct link
 **Token Scope:** `storage.<uid>.files.<namespace>` with `read`
 
 | Param | Type | In | Required | Description |
@@ -329,17 +332,19 @@ curl -X DELETE \
 
 ---
 
-## Public Access
+## Direct-Link File Access
+
+Public namespaces (`visibility=1`) allow unauthenticated read access via direct URL. These namespaces are never listed or advertised — a caller must know the namespace name and filename to access the content. Private namespaces require authentication on all of the endpoints below.
 
 ### GET /storage/:namespace/:filename
 
-Serve a file inline (auto-detected content type). Available for public and visible namespaces without authentication.
+Serve a file inline (auto-detected content type). Available without authentication for public namespaces accessed by direct URL.
 
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
 | namespace | string | path | Yes | Namespace name |
 | filename | string | path | Yes | File path |
-| token | string | query | No | JWT for shareable links |
+| token | string | query | No | JWT for shareable links to private namespaces |
 
 **Example request:**
 ```bash
@@ -352,13 +357,13 @@ curl https://storage.cloud.eddisonso.com/storage/my-files/image.png -o image.png
 
 ### GET /storage/download/:namespace/:filename
 
-Force-download a file from a public or visible namespace.
+Force-download a file from a public namespace via direct URL.
 
 | Param | Type | In | Required | Description |
 |-------|------|----|----------|-------------|
 | namespace | string | path | Yes | Namespace name |
 | filename | string | path | Yes | File path |
-| token | string | query | No | JWT for shareable links |
+| token | string | query | No | JWT for shareable links to private namespaces |
 
 **Example request:**
 ```bash

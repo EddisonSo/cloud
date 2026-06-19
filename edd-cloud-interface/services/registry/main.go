@@ -49,6 +49,10 @@ func main() {
 		log.Fatalf("failed to init database: %v", err)
 	}
 
+	if err := runMigrations(db); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
+
 	ctx := context.Background()
 	gfsClient, err := gfs.New(ctx, *master,
 		gfs.WithConnectionPool(8, 60*time.Second),

@@ -49,21 +49,23 @@ function SortHeader({
 
 /* ── Tab definitions ──────────────────────────────────────────────────── */
 
-const tabs = [
-  { id: "realtime",   label: "Real-time" },
-  { id: "historical", label: "Historical" },
-  { id: "logs",       label: "Logs" },
+// Historical tab queries /api/metrics/nodes which is admin-only.
+// Non-admins only see realtime (pod metrics) and logs.
+const ALL_TABS = [
+  { id: "realtime",   label: "Real-time",  adminOnly: false },
+  { id: "historical", label: "Historical", adminOnly: true  },
+  { id: "logs",       label: "Logs",       adminOnly: false },
 ];
 
 function getTabFromHash() {
   const hash = window.location.hash.slice(1);
-  return tabs.find((t) => t.id === hash)?.id || "realtime";
+  return ALL_TABS.find((t) => t.id === hash)?.id || "realtime";
 }
 
 /* ── Page ─────────────────────────────────────────────────────────────── */
 
 export function HealthPage() {
-  const { user, userId } = useAuth();
+  const { user, userId, isAdmin } = useAuth();
   const { health, podMetrics, loading, error, updateFrequency, setUpdateFrequency } =
     useHealth(user, true);
 
@@ -157,18 +159,20 @@ export function HealthPage() {
     });
   }, [health.nodes, nodeSort]);
 
-  /* Filter pods — user's own compute namespaces + core namespace */
+  /* Filter pods — admins see all; non-admins see only their own compute namespaces */
   const filteredPods = useMemo(() => {
     if (!podMetrics.pods) return [];
     return podMetrics.pods.filter((pod) => {
-      const ns = pod.namespace || "core";
-      if (ns === "core") return true;
+      const ns = pod.namespace || "";
+      // Admins see everything (core + all compute namespaces)
+      if (isAdmin) return true;
+      // Non-admins: only their own compute-{userID}-* namespaces
       if (ns.startsWith("compute-") && userId) {
         return ns.startsWith(`compute-${userId}-`);
       }
       return false;
     });
-  }, [podMetrics.pods, userId]);
+  }, [podMetrics.pods, userId, isAdmin]);
 
   const sortPods = (pods: Pod[]) => {
     if (!podSort.column) {
@@ -226,7 +230,7 @@ export function HealthPage() {
 
       {/* ── Bare views tab switcher ──────────────────────────────────────── */}
       <nav className="flex items-baseline gap-6 pb-3 border-b border-border mb-6">
-        {tabs.map((tab) => (
+        {ALL_TABS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -244,7 +248,7 @@ export function HealthPage() {
         ))}
       </nav>
 
-      {activeTab === "historical" && <HistoricalMetricsView />}
+      {activeTab === "historical" && isAdmin && <HistoricalMetricsView />}
 
       {activeTab === "logs" && <LogsView />}
 
@@ -268,16 +272,20 @@ export function HealthPage() {
           </div>
 
           {/* ── Ambient status strip ──────────────────────────────────── */}
-          {!loading && !error && health.nodes.length > 0 && (
+          {!loading && !error && (isAdmin ? health.nodes.length > 0 : filteredPods.length > 0) && (
             <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-faint py-2.5 border-y border-line mb-5">
-              <span>
-                Nodes{" "}
-                <span className="text-muted-foreground">{health.nodes.length}</span>
-              </span>
-              <span>
-                Healthy{" "}
-                <span className="text-muted-foreground">{healthyNodeCount}</span>
-              </span>
+              {isAdmin && (
+                <>
+                  <span>
+                    Nodes{" "}
+                    <span className="text-muted-foreground">{health.nodes.length}</span>
+                  </span>
+                  <span>
+                    Healthy{" "}
+                    <span className="text-muted-foreground">{healthyNodeCount}</span>
+                  </span>
+                </>
+              )}
               <span>
                 Pods{" "}
                 <span className="text-muted-foreground">{filteredPods.length}</span>
@@ -285,8 +293,8 @@ export function HealthPage() {
             </div>
           )}
 
-          {/* ── Cluster Nodes table ───────────────────────────────────── */}
-          <Card>
+          {/* ── Cluster Nodes table — admin only ─────────────────────── */}
+          {isAdmin && <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
               <CardTitle>Cluster Nodes</CardTitle>
               <button
@@ -469,7 +477,7 @@ export function HealthPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
           {/* ── Pod Metrics table ────────────────────────────────────────── */}
           <Card className="mt-5">

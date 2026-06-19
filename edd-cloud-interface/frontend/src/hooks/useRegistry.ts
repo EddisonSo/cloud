@@ -17,7 +17,7 @@ export interface TagInfo {
   pushed_at: string;
 }
 
-export function useRegistry(userId?: string) {
+export function useRegistry() {
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
@@ -48,15 +48,6 @@ export function useRegistry(userId?: string) {
     return data.tags || [];
   }, []);
 
-  const setVisibility = useCallback(async (repoName: string, visibility: number) => {
-    await fetch(`${buildRegistryBase()}/api/repos/${repoName}/visibility`, {
-      method: "PUT",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ visibility }),
-    });
-    loadRepos();
-  }, [loadRepos]);
-
   const deleteTag = useCallback(async (repoName: string, tag: string) => {
     await fetch(`${buildRegistryBase()}/api/repos/${repoName}/tags/${tag}`, {
       method: "DELETE",
@@ -64,8 +55,5 @@ export function useRegistry(userId?: string) {
     });
   }, []);
 
-  const myRepos = repos.filter((r) => r.owner_id === userId);
-  const publicRepos = repos.filter((r) => r.visibility > 0);
-
-  return { repos, myRepos, publicRepos, loading, error, loadRepos, loadTags, setVisibility, deleteTag };
+  return { repos, loading, error, loadRepos, loadTags, deleteTag };
 }

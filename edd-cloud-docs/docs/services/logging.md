@@ -100,13 +100,20 @@ slog.Error("Connection failed", "error", err)
 | `StreamLogs(StreamLogsRequest)` | Stream logs (server-side streaming) |
 | `GetLogs(GetLogsRequest)` | Query recent log entries |
 
-### HTTP/SSE (External)
+### HTTP/SSE and WebSocket (External)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /sse/logs` | Stream logs via SSE |
-| `GET /sse/logs?source=<name>` | Filter by source |
-| `GET /sse/logs?level=<level>` | Filter by minimum level |
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /sse/logs` | JWT required (admin only) | Stream logs via SSE |
+| `GET /sse/logs?source=<name>` | JWT required (admin only) | Filter by source name |
+| `GET /sse/logs?level=<level>` | JWT required (admin only) | Filter by minimum level |
+| `WS /ws/logs` | JWT required (admin only) | Stream logs via WebSocket |
+
+:::warning Phase 1 — Admin-only log access
+Log streaming currently requires a valid JWT with admin privileges. Because log entries do not yet carry per-user or per-namespace ownership data, non-admin users cannot be scoped to their own container logs at this time.
+
+Per-user log streaming is planned for Phase 2, which will add a `namespace` field to log entries so that non-admin users can stream logs from their own `compute-{userID}-*` containers. This requires coordinated changes across all log-producing services.
+:::
 
 ## Log Entry Format
 

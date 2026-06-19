@@ -35,6 +35,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      string `json:"user_id"`
+	IsAdmin     bool   `json:"is_admin"`
 	jwt.RegisteredClaims
 }
 
@@ -80,26 +81,49 @@ func getTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-func filterPodsForUser(pods []PodMetrics, userID string) []PodMetrics {
-	if userID == "" {
-		// No auth - only show core namespace pods
-		var filtered []PodMetrics
-		for _, pod := range pods {
-			if pod.Namespace == "core" {
-				filtered = append(filtered, pod)
-			}
-		}
-		return filtered
+// filterPodsForUser filters pods based on user identity and admin status.
+// Admins see all pods. Non-admins see only their own compute-{userID}-* namespaces.
+// core namespace is admin-only; non-admins never see it.
+func filterPodsForUser(pods []PodMetrics, userID string, isAdmin bool) []PodMetrics {
+	if isAdmin {
+		return pods
 	}
-	// Authenticated - show core + user's compute containers
+	if userID == "" {
+		return nil
+	}
 	var filtered []PodMetrics
 	prefix := "compute-" + userID + "-"
 	for _, pod := range pods {
-		if pod.Namespace == "core" || strings.HasPrefix(pod.Namespace, prefix) {
+		if strings.HasPrefix(pod.Namespace, prefix) {
 			filtered = append(filtered, pod)
 		}
 	}
 	return filtered
+}
+
+// requireAuth validates the JWT in the request and returns claims, or writes 401 and returns nil.
+func requireAuth(w http.ResponseWriter, r *http.Request) *JWTClaims {
+	token := getTokenFromRequest(r)
+	claims := validateToken(token)
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return nil
+	}
+	return claims
+}
+
+// requireAdmin validates the JWT and checks the IsAdmin flag.
+// Writes 401 if unauthenticated, 403 if authenticated but not admin. Returns nil in either failure case.
+func requireAdmin(w http.ResponseWriter, r *http.Request) *JWTClaims {
+	claims := requireAuth(w, r)
+	if claims == nil {
+		return nil
+	}
+	if !claims.IsAdmin {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return nil
+	}
+	return claims
 }
 
 type NodeMetrics struct {
@@ -393,32 +417,60 @@ func main() {
 	go podMetricsWorker(clientset, cache, metricsStore, *refreshInterval, js)
 
 	mux := http.NewServeMux()
+	// Admin-only: cluster-wide node metrics
 	mux.HandleFunc("/cluster-info", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(cache.GetClusterInfo())
 	})
 
 	mux.HandleFunc("/ws/cluster-info", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		handleClusterInfoWS(w, r, cache)
 	})
 
-	// SSE endpoint for cluster-info (HTTP/2 compatible)
+	// SSE endpoint for cluster-info (HTTP/2 compatible) — admin-only
 	mux.HandleFunc("/sse/cluster-info", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		handleClusterInfoSSE(w, r, cache)
 	})
 
+	// Per-user pod metrics — JWT required, results filtered to caller's namespaces
 	mux.HandleFunc("/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
+		claims := requireAuth(w, r)
+		if claims == nil {
+			return
+		}
+		podInfo := cache.GetPodMetrics()
+		filtered := filterPodsForUser(podInfo.Pods, claims.UserID, claims.IsAdmin)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cache.GetPodMetrics())
+		json.NewEncoder(w).Encode(&PodMetricsInfo{
+			Timestamp: podInfo.Timestamp,
+			Pods:      filtered,
+		})
 	})
 
 	mux.HandleFunc("/ws/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
-		handlePodMetricsWS(w, r, cache)
+		claims := requireAuth(w, r)
+		if claims == nil {
+			return
+		}
+		handlePodMetricsWS(w, r, cache, claims)
 	})
 
-	// SSE endpoint for pod-metrics (HTTP/2 compatible)
+	// SSE endpoint for pod-metrics (HTTP/2 compatible) — JWT required, filtered
 	mux.HandleFunc("/sse/pod-metrics", func(w http.ResponseWriter, r *http.Request) {
-		handlePodMetricsSSE(w, r, cache)
+		claims := requireAuth(w, r)
+		if claims == nil {
+			return
+		}
+		handlePodMetricsSSE(w, r, cache, claims)
 	})
 
 	// Combined SSE endpoint for both cluster-info and pod-metrics
@@ -433,17 +485,30 @@ func main() {
 
 	// Historical metrics API endpoints
 	mux.HandleFunc("/api/metrics/nodes", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		handleMetricsNodes(w, r, metricsStore)
 	})
 	mux.HandleFunc("/api/metrics/nodes/", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		handleMetricsNode(w, r, metricsStore)
 	})
 	mux.HandleFunc("/api/metrics/pods", func(w http.ResponseWriter, r *http.Request) {
-		handleMetricsPods(w, r, metricsStore)
+		claims := requireAuth(w, r)
+		if claims == nil {
+			return
+		}
+		handleMetricsPods(w, r, metricsStore, claims)
 	})
 
-	// Service dependency graph endpoint
+	// Admin-only: service dependency graph
 	mux.HandleFunc("/api/graph/dependencies", func(w http.ResponseWriter, r *http.Request) {
+		if requireAdmin(w, r) == nil {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(graph.GetDependencies())
 	})
@@ -884,7 +949,7 @@ func handleClusterInfoWS(w http.ResponseWriter, r *http.Request, cache *MetricsC
 	}
 }
 
-func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCache, claims *JWTClaims) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("WebSocket upgrade failed", "error", err)
@@ -909,18 +974,27 @@ func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCa
 		}
 	}()
 
-	// Send current data immediately
-	if err := conn.WriteJSON(cache.GetPodMetrics()); err != nil {
+	// Send current data immediately, filtered for the caller
+	podInfo := cache.GetPodMetrics()
+	filtered := &PodMetricsInfo{
+		Timestamp: podInfo.Timestamp,
+		Pods:      filterPodsForUser(podInfo.Pods, claims.UserID, claims.IsAdmin),
+	}
+	if err := conn.WriteJSON(filtered); err != nil {
 		return
 	}
 
-	// Send updates as they come in
+	// Send updates as they come in, filtered per user
 	for {
 		select {
 		case <-done:
 			return
 		case info := <-updates:
-			if err := conn.WriteJSON(info); err != nil {
+			filteredInfo := &PodMetricsInfo{
+				Timestamp: info.Timestamp,
+				Pods:      filterPodsForUser(info.Pods, claims.UserID, claims.IsAdmin),
+			}
+			if err := conn.WriteJSON(filteredInfo); err != nil {
 				slog.Error("WebSocket send failed", "error", err)
 				return
 			}
@@ -963,8 +1037,8 @@ func handleClusterInfoSSE(w http.ResponseWriter, r *http.Request, cache *Metrics
 	}
 }
 
-// SSE handler for pod-metrics (HTTP/2 compatible)
-func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache) {
+// SSE handler for pod-metrics (HTTP/2 compatible) — caller must be authenticated (claims required)
+func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache, claims *JWTClaims) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -980,18 +1054,27 @@ func handlePodMetricsSSE(w http.ResponseWriter, r *http.Request, cache *MetricsC
 	updates := cache.SubscribePods()
 	defer cache.UnsubscribePods(updates)
 
-	// Send current data immediately
-	data, _ := json.Marshal(cache.GetPodMetrics())
+	// Send current data immediately, filtered for the caller
+	podInfo := cache.GetPodMetrics()
+	filteredNow := &PodMetricsInfo{
+		Timestamp: podInfo.Timestamp,
+		Pods:      filterPodsForUser(podInfo.Pods, claims.UserID, claims.IsAdmin),
+	}
+	data, _ := json.Marshal(filteredNow)
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 
-	// Send updates as they come in
+	// Send updates as they come in, filtered per user
 	for {
 		select {
 		case <-r.Context().Done():
 			return
 		case info := <-updates:
-			data, _ := json.Marshal(info)
+			filteredInfo := &PodMetricsInfo{
+				Timestamp: info.Timestamp,
+				Pods:      filterPodsForUser(info.Pods, claims.UserID, claims.IsAdmin),
+			}
+			data, _ := json.Marshal(filteredInfo)
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		}
@@ -1017,11 +1100,14 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 		return
 	}
 
-	// Extract user ID from token for pod filtering
+	// Extract user identity from token for pod filtering.
+	// /sse/health does not require auth (unauthenticated callers get empty pod list).
 	var userID string
+	var isAdmin bool
 	token := getTokenFromRequest(r)
 	if claims := validateToken(token); claims != nil {
 		userID = claims.UserID
+		isAdmin = claims.IsAdmin
 	}
 
 	// Subscribe to both updates
@@ -1030,15 +1116,19 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 	podUpdates := cache.SubscribePods()
 	defer cache.UnsubscribePods(podUpdates)
 
-	// Send current data immediately
-	clusterData, _ := json.Marshal(HealthData{Type: "cluster", Payload: cache.GetClusterInfo()})
-	fmt.Fprintf(w, "data: %s\n\n", clusterData)
+	// Send current data immediately.
+	// Cluster/node topology (CPU, mem, disk capacity, live utilization, node pressure)
+	// is admin-only — only emit the cluster frame for authenticated admins.
+	if isAdmin {
+		clusterData, _ := json.Marshal(HealthData{Type: "cluster", Payload: cache.GetClusterInfo()})
+		fmt.Fprintf(w, "data: %s\n\n", clusterData)
+	}
 
 	// Filter pods for this user
 	podMetrics := cache.GetPodMetrics()
 	filteredPodMetrics := &PodMetricsInfo{
 		Timestamp: podMetrics.Timestamp,
-		Pods:      filterPodsForUser(podMetrics.Pods, userID),
+		Pods:      filterPodsForUser(podMetrics.Pods, userID, isAdmin),
 	}
 	podData, _ := json.Marshal(HealthData{Type: "pods", Payload: filteredPodMetrics})
 	fmt.Fprintf(w, "data: %s\n\n", podData)
@@ -1050,14 +1140,17 @@ func handleHealthSSE(w http.ResponseWriter, r *http.Request, cache *MetricsCache
 		case <-r.Context().Done():
 			return
 		case info := <-clusterUpdates:
-			data, _ := json.Marshal(HealthData{Type: "cluster", Payload: info})
-			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
+			// Admin-only: do not leak node topology to non-admin or anonymous callers.
+			if isAdmin {
+				data, _ := json.Marshal(HealthData{Type: "cluster", Payload: info})
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				flusher.Flush()
+			}
 		case info := <-podUpdates:
 			// Filter pods for this user
 			filteredInfo := &PodMetricsInfo{
 				Timestamp: info.Timestamp,
-				Pods:      filterPodsForUser(info.Pods, userID),
+				Pods:      filterPodsForUser(info.Pods, userID, isAdmin),
 			}
 			data, _ := json.Marshal(HealthData{Type: "pods", Payload: filteredInfo})
 			fmt.Fprintf(w, "data: %s\n\n", data)
@@ -1139,21 +1232,51 @@ func handleMetricsNode(w http.ResponseWriter, r *http.Request, store *timeseries
 	})
 }
 
-func handleMetricsPods(w http.ResponseWriter, r *http.Request, store *timeseries.MetricsStore) {
+func handleMetricsPods(w http.ResponseWriter, r *http.Request, store *timeseries.MetricsStore, claims *JWTClaims) {
 	start, end, resolution := parseTimeRange(r)
 	namespace := r.URL.Query().Get("namespace")
 
-	series := store.QueryPods(namespace, start, end, resolution)
-
-	resolutionStr := "raw"
-	if resolution >= 15*time.Minute {
-		resolutionStr = "15m"
-	} else if resolution >= 5*time.Minute {
-		resolutionStr = "5m"
-	} else if resolution >= time.Minute {
-		resolutionStr = "1m"
+	// Enforce namespace ownership for non-admins.
+	if !claims.IsAdmin {
+		userPrefix := "compute-" + claims.UserID + "-"
+		if namespace != "" {
+			// Explicit namespace: must belong to the caller.
+			if !strings.HasPrefix(namespace, userPrefix) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+		// Query with the provided (validated) namespace; post-filter when it's empty.
+		series := store.QueryPods(namespace, start, end, resolution)
+		if namespace == "" {
+			// No namespace filter requested — restrict to caller's namespaces.
+			filtered := make(map[string][]timeseries.PodDataPoint)
+			for key, data := range series {
+				// key format is "namespace/podname"
+				ns := key
+				if idx := strings.Index(key, "/"); idx >= 0 {
+					ns = key[:idx]
+				}
+				if strings.HasPrefix(ns, userPrefix) {
+					filtered[key] = data
+				}
+			}
+			series = filtered
+		}
+		resolutionStr := podMetricsResolutionStr(resolution)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(PodMetricsResponse{
+			Start:      start,
+			End:        end,
+			Resolution: resolutionStr,
+			Series:     series,
+		})
+		return
 	}
 
+	// Admin: honor namespace param as-is (empty = all).
+	series := store.QueryPods(namespace, start, end, resolution)
+	resolutionStr := podMetricsResolutionStr(resolution)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(PodMetricsResponse{
 		Start:      start,
@@ -1161,6 +1284,17 @@ func handleMetricsPods(w http.ResponseWriter, r *http.Request, store *timeseries
 		Resolution: resolutionStr,
 		Series:     series,
 	})
+}
+
+func podMetricsResolutionStr(resolution time.Duration) string {
+	if resolution >= 15*time.Minute {
+		return "15m"
+	} else if resolution >= 5*time.Minute {
+		return "5m"
+	} else if resolution >= time.Minute {
+		return "1m"
+	}
+	return "raw"
 }
 
 func parseTimeRange(r *http.Request) (start, end time.Time, resolution time.Duration) {

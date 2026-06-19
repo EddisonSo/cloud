@@ -64,7 +64,7 @@ All OCI Distribution API endpoints are served under `https://registry.cloud.eddi
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/v2/_catalog` | Optional | List visible repositories (paginated with `?n=&last=`). Anonymous callers see public repos only; authenticated callers see their own repos plus public repos. Never lists all repositories. |
+| GET | `/v2/_catalog` | Required | List the caller's own repositories (paginated with `?n=&last=`). Anonymous callers receive `401`. No cross-user catalog browsing. |
 
 ### Blobs
 
@@ -98,10 +98,9 @@ Separate from the OCI `/v2/` API, a JSON REST API under `/api/` powers the dashb
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/repos` | Optional | List repositories. Anonymous callers see public repos only; authenticated callers see their own repos plus public repos. |
-| GET | `/api/repos/{name}` | Optional | Repo detail (name, visibility, owner, tag count, total size, last pushed). Private repos require the owner (or a session token for that user). |
-| GET | `/api/repos/{name}/tags` | Optional | List tags with digest, size, and push time. Private repos require the owner (or a session token for that user). |
-| PUT | `/api/repos/{name}/visibility` | Owner | Set repository visibility. Owner-only — session tokens do **not** bypass the owner check. Body: `{"visibility": <int>}`. |
+| GET | `/api/repos` | Required (session) | List the caller's own repositories. Unauthenticated callers receive `401`. |
+| GET | `/api/repos/{name}` | Required (owner or SA) | Repo detail (name, visibility, owner, tag count, total size, last pushed). |
+| GET | `/api/repos/{name}/tags` | Required (owner or SA) | List tags with digest, size, and push time. |
 | DELETE | `/api/repos/{name}/tags/{tag}` | Owner | Delete a tag (and clean up its manifest if unreferenced). Owner-only — session tokens do **not** bypass the owner check. |
 
 CORS is enabled for `*.cloud.eddisonso.com` origins (and `https://cloud.eddisonso.com`), allowing `GET`, `PUT`, `DELETE`, and `OPTIONS`.
@@ -126,14 +125,15 @@ The registry accepts **two** kinds of bearer token, both signed with the shared 
 
 Because both token types share the same signing key, `authenticate` tries the **session token first**: a session JWT would also parse as a registry token, but registry parsing would wrongly use the `Subject` (username) as the user ID instead of the `user_id` claim. Order therefore matters — session validation must run before OCI validation. The resulting `authResult` sets `IsSession` so downstream checks can distinguish the two.
 
-Note: session-token "full access to own repos" applies to the OCI `/v2/` actions via `hasAccess`. The owner-only management endpoints (`PUT .../visibility`, `DELETE .../tags/{tag}`) are *not* bypassed by `IsSession` — they compare `UserID` against the repo owner directly.
+Note: session-token "full access to own repos" applies to the OCI `/v2/` actions via `hasAccess`. The owner-only management endpoint (`DELETE .../tags/{tag}`) is *not* bypassed by `IsSession` — it compares `UserID` against the repo owner directly.
 
 ### Repository Visibility
 
-| Value | Behavior |
-|-------|----------|
-| `0` (private) | Owner only — pull, push, and catalog listing all require authentication |
-| `1` (public) | Pull and manifest/tags fetch allowed without a token; push and delete still require auth |
+All repositories are private (`visibility=0`). There is no public repository level. All pull, push, delete, and catalog operations require a valid token scoped to the owner.
+
+:::warning
+The `PUT /api/repos/{name}/visibility` endpoint has been removed. Changing a repository's visibility is no longer supported. All repositories are private-only.
+:::
 
 ## Storage Layout
 

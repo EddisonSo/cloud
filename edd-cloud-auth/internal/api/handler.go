@@ -117,6 +117,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      string `json:"user_id"` // nanoid
+	IsAdmin     bool   `json:"is_admin"`
 	jwt.RegisteredClaims
 }
 

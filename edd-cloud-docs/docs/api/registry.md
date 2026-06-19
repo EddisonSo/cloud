@@ -38,11 +38,10 @@ The OCI scope string is `repository:<name>:<actions>`, where `<actions>` is a
 comma-separated subset of `pull`, `push`, and `delete`. `delete` is required
 for the `DELETE` manifest and blob endpoints.
 
-Granted actions are filtered by ownership and visibility:
+Granted actions are filtered by ownership:
 
 - **Owner** — receives all requested actions.
-- **Public** repository — `pull` only for non-owners.
-- **Private** repository — no access for non-owners.
+- **Non-owner** — no access. All repositories are private; there are no public repositories.
 - **New** (not-yet-existing) repository — full access, so the first `push` creates it.
 
 ### Service Account Tokens
@@ -98,9 +97,9 @@ curl https://registry.cloud.eddisonso.com/v2/ \
 
 ### GET /v2/_catalog
 
-List all repositories visible to the authenticated user.
+List repositories owned by the authenticated caller. Returns only the caller's own repositories — unauthenticated callers receive `401`. Cross-user catalog browsing is not available.
 
-**Auth:** Required
+**Auth:** Required (returns `401` if absent)
 **Query params:** `n` (page size), `last` (pagination cursor)
 
 ```bash
@@ -364,9 +363,9 @@ CORS is enabled for `cloud.eddisonso.com` and `*.cloud.eddisonso.com` origins.
 
 ### GET /api/repos
 
-List repositories. Authenticated users see their own repositories plus all public repositories. Unauthenticated callers see only public repositories.
+List the authenticated caller's own repositories. Unauthenticated callers receive `401`. There are no public repositories — cross-user listing is not available.
 
-**Auth:** Optional (session)
+**Auth:** Required (session)
 
 ```bash
 curl https://registry.cloud.eddisonso.com/api/repos \
@@ -379,7 +378,7 @@ curl https://registry.cloud.eddisonso.com/api/repos \
   "repositories": [
     {
       "name": "myuser/myapp",
-      "visibility": 1,
+      "visibility": 0,
       "owner_id": "usr_abc123",
       "tag_count": 3,
       "total_size": 52428800,
@@ -389,15 +388,15 @@ curl https://registry.cloud.eddisonso.com/api/repos \
 }
 ```
 
-`visibility`: `1` = public, `0` = private.
+`visibility`: always `0` (private). All repositories are private.
 
 ---
 
 ### GET /api/repos/\{name\}
 
-Get details for a single repository.
+Get details for a single repository. Owner or a service account scoped to that owner only.
 
-**Auth:** Session (required for private repositories; optional for public)
+**Auth:** Session (required)
 
 ```bash
 curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp \
@@ -408,9 +407,9 @@ curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp \
 
 ### GET /api/repos/\{name\}/tags
 
-List tags for a repository, including digest, size, and push date.
+List tags for a repository, including digest, size, and push date. Owner or a service account scoped to that owner only.
 
-**Auth:** Session (required for private repositories; optional for public)
+**Auth:** Session (required)
 
 ```bash
 curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/tags \
@@ -431,25 +430,6 @@ curl https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/tags \
   ]
 }
 ```
-
----
-
-### PUT /api/repos/\{name\}/visibility
-
-Toggle a repository between public and private. Only the owner may change visibility.
-
-**Auth:** Session (owner only)
-
-```bash
-curl -X PUT https://registry.cloud.eddisonso.com/api/repos/myuser/myapp/visibility \
-  -H "Authorization: Bearer $SESSION_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"visibility": 1}'
-```
-
-`visibility`: `1` = public, `0` = private.
-
-**Response:** `204 No Content`
 
 ---
 

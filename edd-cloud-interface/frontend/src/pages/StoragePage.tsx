@@ -13,7 +13,7 @@ import { NamespaceCard, FileList, FileUploader } from "@/components/storage";
 import { useNamespaces, useFiles } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildStorageBase, buildNotificationsBase, getAuthHeaders } from "@/lib/api";
-import { Plus, Settings, Eye, EyeOff, Link, Trash2, BellOff, Bell } from "lucide-react";
+import { Plus, Settings, EyeOff, Link, Trash2, BellOff, Bell } from "lucide-react";
 import type { NamespaceVisibility, FileEntry, NotificationMute } from "@/types";
 
 export function StoragePage() {
@@ -65,7 +65,7 @@ export function StoragePage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showVisibilityModal, setShowVisibilityModal] = useState(false);
   const [namespaceInput, setNamespaceInput] = useState("");
-  const [namespaceVisibility, setNamespaceVisibility] = useState<NamespaceVisibility>(2); // 0=private, 1=unlisted, 2=public
+  const [namespaceVisibility, setNamespaceVisibility] = useState<NamespaceVisibility>(0); // 0=private, 1=public
   const [creating, setCreating] = useState(false);
   const [deletingNs, setDeletingNs] = useState(false);
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
@@ -137,7 +137,7 @@ export function StoragePage() {
     try {
       await createNamespace(namespaceInput.trim(), namespaceVisibility);
       setNamespaceInput("");
-      setNamespaceVisibility(2);
+      setNamespaceVisibility(0);
       setShowCreateModal(false);
     } catch (err) {
       setNamespaceError((err as Error).message);
@@ -299,7 +299,7 @@ export function StoragePage() {
                         <Badge variant="secondary">Private</Badge>
                       )}
                       {currentNamespace?.visibility === 1 && (
-                        <Badge variant="warning">Unlisted</Badge>
+                        <Badge variant="success">Public</Badge>
                       )}
                     </div>
                     <p className="font-mono text-[10.5px] text-faint mt-1">
@@ -354,7 +354,7 @@ export function StoragePage() {
         onClose={() => {
           setShowCreateModal(false);
           setNamespaceInput("");
-          setNamespaceVisibility(2);
+          setNamespaceVisibility(0);
           setNamespaceError("");
         }}
         title="Create Namespace"
@@ -389,7 +389,7 @@ export function StoragePage() {
                 <EyeOff className="w-4 h-4 text-muted-foreground" />
                 <div>
                   <span className="text-sm font-medium">Private</span>
-                  <p className="text-xs text-muted-foreground">Only you can see and access</p>
+                  <p className="text-xs text-muted-foreground">Only you and your service accounts can access</p>
                 </div>
               </label>
               <label
@@ -404,28 +404,10 @@ export function StoragePage() {
                   onChange={() => setNamespaceVisibility(1)}
                   className="w-4 h-4 accent-primary"
                 />
-                <Link className="w-4 h-4 text-warning" />
-                <div>
-                  <span className="text-sm font-medium">Unlisted</span>
-                  <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
-                </div>
-              </label>
-              <label
-                className={`flex items-center gap-3 p-3 cursor-pointer transition-colors border ${
-                  namespaceVisibility === 2 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-secondary/80"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="visibility"
-                  checked={namespaceVisibility === 2}
-                  onChange={() => setNamespaceVisibility(2)}
-                  className="w-4 h-4 accent-primary"
-                />
-                <Eye className="w-4 h-4 text-success" />
+                <Link className="w-4 h-4 text-success" />
                 <div>
                   <span className="text-sm font-medium">Public</span>
-                  <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
+                  <p className="text-xs text-muted-foreground">Anyone with the direct link can read — never listed or advertised</p>
                 </div>
               </label>
             </div>
@@ -454,15 +436,13 @@ export function StoragePage() {
           >
             {currentNamespace?.visibility === 0 ? (
               <EyeOff className="w-4 h-4 text-muted-foreground" />
-            ) : currentNamespace?.visibility === 1 ? (
-              <Link className="w-4 h-4 text-warning" />
             ) : (
-              <Eye className="w-4 h-4 text-success" />
+              <Link className="w-4 h-4 text-success" />
             )}
             <div>
               <span className="text-sm font-medium">Change Visibility</span>
               <p className="text-xs text-muted-foreground">
-                Currently: {currentNamespace?.visibility === 0 ? "Private" : currentNamespace?.visibility === 1 ? "Unlisted" : "Public"}
+                Currently: {currentNamespace?.visibility === 0 ? "Private" : "Public"}
               </p>
             </div>
           </button>
@@ -516,7 +496,7 @@ export function StoragePage() {
               <EyeOff className="w-4 h-4 text-muted-foreground" />
               <div className="flex-1">
                 <span className="text-sm font-medium">Private</span>
-                <p className="text-xs text-muted-foreground">Only you can see and access</p>
+                <p className="text-xs text-muted-foreground">Only you and your service accounts can access</p>
               </div>
               {currentNamespace?.visibility === 0 && <span className="text-xs text-primary">Current</span>}
             </button>
@@ -527,26 +507,12 @@ export function StoragePage() {
                 currentNamespace?.visibility === 1 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-popover"
               }`}
             >
-              <Link className="w-4 h-4 text-warning" />
-              <div className="flex-1">
-                <span className="text-sm font-medium">Unlisted</span>
-                <p className="text-xs text-muted-foreground">Not shown in list, but accessible via URL</p>
-              </div>
-              {currentNamespace?.visibility === 1 && <span className="text-xs text-primary">Current</span>}
-            </button>
-            <button
-              onClick={() => handleUpdateVisibility(2)}
-              disabled={updatingVisibility}
-              className={`w-full flex items-center gap-3 p-3 transition-colors text-left border ${
-                currentNamespace?.visibility === 2 ? "border-primary bg-transparent" : "border-border bg-secondary hover:bg-popover"
-              }`}
-            >
-              <Eye className="w-4 h-4 text-success" />
+              <Link className="w-4 h-4 text-success" />
               <div className="flex-1">
                 <span className="text-sm font-medium">Public</span>
-                <p className="text-xs text-muted-foreground">Shown in list, anyone can view</p>
+                <p className="text-xs text-muted-foreground">Anyone with the direct link can read — never listed or advertised</p>
               </div>
-              {currentNamespace?.visibility === 2 && <span className="text-xs text-primary">Current</span>}
+              {currentNamespace?.visibility === 1 && <span className="text-xs text-primary">Current</span>}
             </button>
           </div>
           {updatingVisibility && <p className="text-sm text-muted-foreground text-center">Updating...</p>}

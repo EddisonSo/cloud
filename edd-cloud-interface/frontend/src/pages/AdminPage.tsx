@@ -8,7 +8,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { CopyableText, Modal } from "@/components/common";
 import { buildAuthBase, buildComputeBase, buildStorageBase, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2, UserPlus, Eye, EyeOff, Link } from "lucide-react";
+import { Trash2, UserPlus, EyeOff, Link } from "lucide-react";
 import type { AdminUser, AdminSession, AdminNamespace, Container } from "@/types";
 
 export function AdminPage() {
@@ -335,14 +335,9 @@ export function AdminPage() {
                         <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-muted-foreground">Private</span>
                       </>
-                    ) : ns.visibility === 1 ? (
-                      <>
-                        <Link className="w-3.5 h-3.5 text-warning" />
-                        <span className="text-warning">Unlisted</span>
-                      </>
                     ) : (
                       <>
-                        <Eye className="w-3.5 h-3.5 text-success" />
+                        <Link className="w-3.5 h-3.5 text-success" />
                         <span className="text-success">Public</span>
                       </>
                     )}

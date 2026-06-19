@@ -35,6 +35,11 @@ spec:
                 secretKeyRef:
                   name: gfs-jwt-secret
                   key: GFS_JWT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: edd-cloud-auth
+                  key: JWT_SECRET
           ports:
             - containerPort: 50051
               name: grpc
