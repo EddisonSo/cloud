@@ -63,17 +63,21 @@ jobs:
             go-gfs:
               - 'go-gfs/**'
             sfs:
-              - 'edd-cloud-interface/services/sfs/**'
+              - 'sfs/**'
               - 'go-gfs/**'
+              - 'pkg/events/**'
+              - 'notification-service/**'
             logging:
               - 'log-service/**'
               - 'go-gfs/**'
               - 'proto/**'
             compute:
-              - 'edd-cloud-interface/services/compute/**'
+              - 'compute/**'
               - 'go-gfs/**'
+              - 'pkg/events/**'
+              - 'notification-service/**'
             compute-base:
-              - 'edd-cloud-interface/services/compute/images/base/**'
+              - 'compute/images/base/**'
             frontend:
               - 'edd-cloud-interface/frontend/**'
             auth:
@@ -97,13 +101,18 @@ jobs:
               - 'go-gfs/**'
               - 'proto/**'
             registry:
-              - 'edd-cloud-interface/services/registry/**'
+              - 'registry/**'
               - 'go-gfs/**'
+              - 'notification-service/**'
             manifests:
               - 'manifests/**'
               - 'edd-gateway/manifests/**'
             any_service:
-              - 'edd-cloud-interface/**'
+              - 'compute/**'
+              - 'sfs/**'
+              - 'registry/**'
+              - 'pkg/events/**'
+              - 'edd-cloud-interface/frontend/**'
               - 'edd-cloud-auth/**'
               - 'edd-gateway/**'
               - 'edd-cloud-docs/**'
@@ -150,7 +159,7 @@ jobs:
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
-            -f edd-cloud-interface/services/sfs/Dockerfile \
+            -f sfs/Dockerfile \
             -t ${SFS_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
@@ -230,7 +239,7 @@ jobs:
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
-            -f edd-cloud-interface/services/compute/Dockerfile \
+            -f compute/Dockerfile \
             -t ${COMPUTE_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 
@@ -261,9 +270,9 @@ jobs:
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
-            -f edd-cloud-interface/services/compute/images/base/Dockerfile \
+            -f compute/images/base/Dockerfile \
             -t ${COMPUTE_BASE_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
-            --provenance=false --sbom=false --push edd-cloud-interface/services/compute/images/base
+            --provenance=false --sbom=false --push compute/images/base
 
   # Build Frontend
   build-frontend:
@@ -563,7 +572,7 @@ jobs:
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
-            -f edd-cloud-interface/services/registry/Dockerfile \
+            -f registry/Dockerfile \
             -t ${REGISTRY_IMAGE}:${IMAGE_TAG}-${{ matrix.suffix }} \
             --provenance=false --sbom=false --push .
 

@@ -59,9 +59,9 @@ Convert HTML tables to div-based layouts:
 ## Scope
 
 - **Write**: `edd-cloud-interface/frontend/` only
-- **Read-only**: `edd-cloud-interface/services/` (to understand API contracts — do not modify)
+- **Read-only**: the top-level backend services `compute/`, `sfs/`, `registry/` (to understand API contracts — do not modify)
 
-If a task requires changing `edd-cloud-interface/services/` or any backend service, set `cross_service_flags` in your output and do not attempt those changes yourself.
+If a task requires changing `compute/`, `sfs/`, `registry/`, or any other backend service, set `cross_service_flags` in your output and do not attempt those changes yourself.
 
 ## Output Contract
 

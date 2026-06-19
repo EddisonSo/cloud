@@ -30,7 +30,7 @@ You have **read access to all service directories** to understand APIs, data mod
 
 Key directories to reference:
 - `edd-cloud-auth/` — auth flows, JWT, WebAuthn, API tokens
-- `edd-cloud-interface/services/` — compute, storage, SFS API handlers
+- `compute/`, `sfs/`, `registry/` — top-level backend service API handlers
 - `cluster-monitor/` — health metrics endpoints
 - `log-service/` — log ingestion and streaming
 - `alerting-service/` — alert thresholds and conditions
