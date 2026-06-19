@@ -36,6 +36,7 @@ type JWTClaims struct {
 	DisplayName string `json:"display_name"`
 	UserID      string `json:"user_id"`
 	IsAdmin     bool   `json:"is_admin"`
+	Type        string `json:"type"`
 	jwt.RegisteredClaims
 }
 
@@ -65,6 +66,9 @@ func validateToken(tokenString string) *JWTClaims {
 	}
 	claims, ok := token.Claims.(*JWTClaims)
 	if !ok || !token.Valid {
+		return nil
+	}
+	if claims.Type == "2fa_challenge" {
 		return nil
 	}
 	return claims

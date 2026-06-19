@@ -20,6 +20,7 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      string `json:"user_id"`
+	Type        string `json:"type"`
 	jwt.RegisteredClaims
 }
 
@@ -350,7 +351,11 @@ func (h *Handler) validateJWT(tokenString string) string {
 	if !ok || !token.Valid {
 		return ""
 	}
-
+	// Reject pre-auth 2FA challenge tokens: they are signed with the same shared
+	// secret but must not authenticate session-protected endpoints (2FA bypass).
+	if claims.Type == "2fa_challenge" {
+		return ""
+	}
 	return claims.UserID
 }
 

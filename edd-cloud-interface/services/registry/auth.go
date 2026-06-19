@@ -54,7 +54,13 @@ func (s *server) authenticate(r *http.Request) *authResult {
 	})
 	if err == nil {
 		if claims, ok := sessToken.Claims.(*sessionClaims); ok && claims.UserID != "" {
-			return &authResult{UserID: claims.UserID, IsSession: true}
+			// A 2FA challenge token carries the victim's user_id and is signed with
+			// the same secret, but it is NOT a session. Refuse to treat it as one
+			// (and let it fall through to the OCI path, where it has no Access claim
+			// and therefore grants no access either).
+			if claims.Type != "2fa_challenge" {
+				return &authResult{UserID: claims.UserID, IsSession: true}
+			}
 		}
 	}
 
