@@ -310,6 +310,7 @@ func (h *Handler) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reque
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		UserID:      user.UserID,
+		IsAdmin:     h.isAdmin(user.Username),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expires),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

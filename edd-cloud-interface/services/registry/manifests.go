@@ -71,7 +71,7 @@ func (s *server) serveManifest(w http.ResponseWriter, r *http.Request, headOnly 
 		return
 	}
 
-	repoID, _, visibility, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -82,9 +82,9 @@ func (s *server) serveManifest(w http.ResponseWriter, r *http.Request, headOnly 
 		return
 	}
 
-	// Auth: pull access required unless repo is public (visibility == 1)
+	// Auth: pull access always required (registry is private-only)
 	auth := s.authenticate(r)
-	if visibility != 1 && !hasAccess(auth, repoName, "pull") {
+	if !hasAccess(auth, repoName, ownerID, "pull") {
 		s.requireAuth(w, repoName, "pull")
 		return
 	}
@@ -155,8 +155,19 @@ func (s *server) handleManifestPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the repo owner (if the repo already exists) so session tokens are
+	// scoped to repos they own. For a first push the repo does not exist yet, so
+	// ownerID is "" and only an OCI token (Access claim) is accepted; the
+	// repo is then auto-created below via getOrCreateRepo.
+	_, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error("handleManifestPut: getRepoByName", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "push") {
+	if !hasAccess(auth, repoName, ownerID, "push") {
 		s.requireAuth(w, repoName, "push")
 		return
 	}
@@ -299,13 +310,7 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "delete") {
-		s.requireAuth(w, repoName, "delete")
-		return
-	}
-
-	repoID, _, _, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -313,6 +318,12 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("handleManifestDelete: getRepoByName", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	auth := s.authenticate(r)
+	if !hasAccess(auth, repoName, ownerID, "delete") {
+		s.requireAuth(w, repoName, "delete")
 		return
 	}
 
@@ -378,7 +389,7 @@ func (s *server) handleTagsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repoID, _, visibility, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -389,8 +400,9 @@ func (s *server) handleTagsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auth: pull access always required (registry is private-only)
 	auth := s.authenticate(r)
-	if visibility != 1 && !hasAccess(auth, repoName, "pull") {
+	if !hasAccess(auth, repoName, ownerID, "pull") {
 		s.requireAuth(w, repoName, "pull")
 		return
 	}
@@ -416,8 +428,14 @@ func (s *server) handleTagsList(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCatalog handles GET /v2/_catalog with cursor-based pagination.
+// Registry is private-only: anonymous callers get 401; authenticated callers
+// see only their own repositories.
 func (s *server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	auth := s.authenticate(r)
+	if auth == nil || auth.UserID == "" {
+		s.requireAuth(w, "", "")
+		return
+	}
 
 	q := r.URL.Query()
 	last := q.Get("last")
@@ -433,57 +451,30 @@ func (s *server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 
 	var repos []string
 	var err error
-	if auth != nil && auth.UserID != "" {
-		// Authenticated: own repos + public repos, cursor after `last`
-		const qAuth = `
+	// Authenticated: own repos only, cursor after `last`
+	const qAuth = `
 SELECT name FROM repositories
-WHERE (owner_id = $1 OR visibility > 0)
+WHERE owner_id = $1
   AND ($2 = '' OR name > $2)
 ORDER BY name
 LIMIT $3`
-		rows, e := s.db.QueryContext(r.Context(), qAuth, auth.UserID, last, limit)
-		if e != nil {
-			slog.Error("handleCatalog: query (auth)", "err", e)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var name string
-			if err := rows.Scan(&name); err != nil {
-				slog.Error("handleCatalog: scan", "err", err)
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			repos = append(repos, name)
-		}
-		err = rows.Err()
-	} else {
-		// Anonymous: public repos only
-		const qAnon = `
-SELECT name FROM repositories
-WHERE visibility > 0
-  AND ($1 = '' OR name > $1)
-ORDER BY name
-LIMIT $2`
-		rows, e := s.db.QueryContext(r.Context(), qAnon, last, limit)
-		if e != nil {
-			slog.Error("handleCatalog: query (anon)", "err", e)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var name string
-			if err := rows.Scan(&name); err != nil {
-				slog.Error("handleCatalog: scan", "err", err)
-				http.Error(w, "internal server error", http.StatusInternalServerError)
-				return
-			}
-			repos = append(repos, name)
-		}
-		err = rows.Err()
+	rows, e := s.db.QueryContext(r.Context(), qAuth, auth.UserID, last, limit)
+	if e != nil {
+		slog.Error("handleCatalog: query (auth)", "err", e)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
 	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			slog.Error("handleCatalog: scan", "err", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		repos = append(repos, name)
+	}
+	err = rows.Err()
 
 	if err != nil {
 		slog.Error("handleCatalog: rows.Err", "err", err)

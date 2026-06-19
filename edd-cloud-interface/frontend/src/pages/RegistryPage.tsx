@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -26,10 +25,7 @@ export function RegistryPage() {
 
   const repoName = parseRepoFromPath(location.pathname);
 
-  const { myRepos, publicRepos, loading, error, loadRepos, loadTags, setVisibility, deleteTag } =
-    useRegistry(userId ?? undefined);
-
-  const [activeTab, setActiveTab] = useState<"mine" | "public">("mine");
+  const { repos, loading, error, loadRepos, loadTags, deleteTag } = useRegistry();
 
   const handleSelectRepo = (name: string) => {
     navigate(`${REGISTRY_BASE}/${name}`);
@@ -39,12 +35,9 @@ export function RegistryPage() {
     navigate(REGISTRY_BASE);
   };
 
-  // Find the selected repo info for visibility/ownerId
-  const allRepos = [...myRepos, ...publicRepos];
-  const selectedRepo = repoName ? allRepos.find((r) => r.name === repoName) : null;
-
   // Detail view
   if (repoName) {
+    const selectedRepo = repos.find((r) => r.name === repoName);
     return (
       <div>
         <Breadcrumb
@@ -61,15 +54,11 @@ export function RegistryPage() {
         <RepoDetail
           repoName={repoName}
           ownerId={selectedRepo?.owner_id ?? ""}
-          visibility={selectedRepo?.visibility ?? 0}
           currentUserId={userId ?? undefined}
           onBack={handleBack}
           onLoadTags={loadTags}
           onDeleteTag={async (name, tag) => {
             await deleteTag(name, tag);
-          }}
-          onSetVisibility={async (name, vis) => {
-            await setVisibility(name, vis);
           }}
         />
       </div>
@@ -96,26 +85,10 @@ export function RegistryPage() {
         </div>
       )}
 
-      {/* Bare view switcher */}
-      <div className="flex gap-5 mb-6 font-mono text-[11.5px] uppercase tracking-[0.16em]">
-        <button
-          onClick={() => setActiveTab("mine")}
-          className={activeTab === "mine" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
-        >
-          {activeTab === "mine" && <span className="text-primary">› </span>}My Repos <span className="text-faint">{myRepos.length}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("public")}
-          className={activeTab === "public" ? "text-foreground" : "text-faint hover:text-foreground transition-colors duration-150"}
-        >
-          {activeTab === "public" && <span className="text-primary">› </span>}Public <span className="text-faint">{publicRepos.length}</span>
-        </button>
-      </div>
-
       <div className="bg-card border border-border">
         <div className="px-5 py-4 border-b border-border">
           <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            {activeTab === "mine" ? "My Repositories" : "Public Repositories"}
+            My Repositories
           </h2>
         </div>
         {loading ? (
@@ -124,7 +97,7 @@ export function RegistryPage() {
           </div>
         ) : (
           <RepoList
-            repos={activeTab === "mine" ? myRepos : publicRepos}
+            repos={repos}
             onSelect={handleSelectRepo}
           />
         )}

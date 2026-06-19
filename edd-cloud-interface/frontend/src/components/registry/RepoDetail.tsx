@@ -10,34 +10,23 @@ import type { TagInfo } from "@/hooks/useRegistry";
 interface RepoDetailProps {
   repoName: string;
   ownerId: string;
-  visibility: number;
   currentUserId?: string;
   onBack: () => void;
   onLoadTags: (repoName: string) => Promise<TagInfo[]>;
   onDeleteTag: (repoName: string, tag: string) => Promise<void>;
-  onSetVisibility: (repoName: string, visibility: number) => Promise<void>;
-}
-
-function VisibilityBadge({ visibility }: { visibility: number }) {
-  return visibility > 0
-    ? <Badge variant="success">Public</Badge>
-    : <Badge variant="secondary">Private</Badge>;
 }
 
 export function RepoDetail({
   repoName,
   ownerId,
-  visibility,
   currentUserId,
   onBack,
   onLoadTags,
   onDeleteTag,
-  onSetVisibility,
 }: RepoDetailProps) {
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingTag, setDeletingTag] = useState<string | null>(null);
-  const [togglingVisibility, setTogglingVisibility] = useState(false);
 
   const isOwner = currentUserId === ownerId;
 
@@ -63,15 +52,6 @@ export function RepoDetail({
     }
   };
 
-  const handleToggleVisibility = async () => {
-    setTogglingVisibility(true);
-    try {
-      await onSetVisibility(repoName, visibility > 0 ? 0 : 1);
-    } finally {
-      setTogglingVisibility(false);
-    }
-  };
-
   return (
     <div>
       {/* Header */}
@@ -81,41 +61,8 @@ export function RepoDetail({
           Back
         </Button>
         <h2 className="text-xl font-semibold font-mono">{repoName}</h2>
-        <VisibilityBadge visibility={visibility} />
+        <Badge variant="secondary">Private</Badge>
       </div>
-
-      {/* Actions (owner only) */}
-      {isOwner && (
-        <div className="bg-card border border-border mb-4">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="font-mono text-[10.5px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Repository Settings</h2>
-          </div>
-          <div className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium">Visibility</span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {visibility > 0
-                    ? "This repository is public and visible to all users."
-                    : "This repository is private and only visible to you."}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleToggleVisibility}
-                disabled={togglingVisibility}
-              >
-                {togglingVisibility
-                  ? "Saving..."
-                  : visibility > 0
-                  ? "Make Private"
-                  : "Make Public"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tags */}
       <div className="bg-card border border-border">

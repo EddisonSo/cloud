@@ -117,11 +117,16 @@ eventSource.onmessage = (event) => {
 
 ## Namespaces
 
-Namespaces provide logical separation of files:
+Namespaces provide logical separation of files. All namespaces are owned by a single user (the creator) and default to **private** on creation.
 
-- `default` - Default namespace for unauthenticated access
-- Custom namespaces for user organization
-- Hidden namespaces (not shown in UI)
+### Visibility
+
+| Value | Name | Behavior |
+|-------|------|----------|
+| `0` | Private | Accessible by the owner and service accounts scoped to that owner only |
+| `1` | Public | Anyone with the direct link can read; **never listed or advertised** to other users |
+
+The namespace listing endpoint (`GET /storage/namespaces`) returns only the authenticated caller's own namespaces — other users' namespaces are never surfaced regardless of visibility. Unauthenticated callers receive an empty list.
 
 ## Deployment
 

@@ -35,30 +35,43 @@ flowchart TB
     SSE --> Clients[Browser Clients]
 ```
 
+## Authentication and Access Control
+
+Cluster Monitor enforces JWT-based authentication and role-based access on all metrics endpoints:
+
+- **Admin-only endpoints** — require a valid JWT with `IsAdmin: true` (issued by the auth service). Non-admin tokens receive `403`. Unauthenticated requests receive `401`.
+- **Authenticated endpoints (own pods)** — require a valid JWT. Results are automatically filtered to the caller's own containers (`compute-{userID}-*` namespaces). The `core` system namespace is excluded for non-admins.
+- **`/healthz`** — unauthenticated health probe only; no metrics data.
+
+The `IsAdmin` claim is set by the auth service at login time based on the `ADMIN_USERNAME` environment variable. Admin tokens must be reissued (re-login) to pick up this claim.
+
 ## API Endpoints
 
 ### REST
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /cluster-info` | Current node metrics (JSON) |
-| `GET /pod-metrics` | Current pod metrics (JSON) |
-| `GET /healthz` | Health check |
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /cluster-info` | Admin only | Current node metrics for all cluster nodes (JSON) |
+| `GET /pod-metrics` | JWT required | Pod metrics filtered to the caller's own containers |
+| `GET /api/metrics/nodes` | Admin only | Node metrics (same data as `/cluster-info`, REST path) |
+| `GET /api/metrics/pods` | JWT required | Pod metrics; `namespace` query param honored only for the caller's own namespaces |
+| `GET /api/graph/dependencies` | Admin only | Cluster service dependency graph |
+| `GET /healthz` | None | Liveness/readiness health check |
 
 ### SSE (Real-time)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /sse/health` | Combined cluster + pod metrics stream |
-| `GET /sse/cluster-info` | Node metrics stream |
-| `GET /sse/pod-metrics` | Pod metrics stream |
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /sse/health` | JWT required | Combined cluster + pod metrics stream (pods filtered to caller's own) |
+| `GET /sse/cluster-info` | Admin only | Node metrics stream for all cluster nodes |
+| `GET /sse/pod-metrics` | JWT required | Pod metrics stream filtered to the caller's own containers |
 
 ### WebSocket (Legacy)
 
-| Endpoint | Description |
-|----------|-------------|
-| `WS /ws/cluster-info` | Node metrics WebSocket |
-| `WS /ws/pod-metrics` | Pod metrics WebSocket |
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `WS /ws/cluster-info` | Admin only | Node metrics WebSocket (all nodes) |
+| `WS /ws/pod-metrics` | JWT required | Pod metrics WebSocket filtered to the caller's own containers |
 
 ## Metrics
 
@@ -90,14 +103,16 @@ flowchart TB
 
 ### Pod Metrics
 
+Non-admin callers receive only pods in their own `compute-{userID}-*` namespace(s). The `core` system namespace is visible to admins only.
+
 ```json
 {
   "timestamp": "2024-01-19T12:34:56Z",
   "pods": [
     {
-      "name": "gateway-abc123",
-      "namespace": "core",
-      "node": "s0",
+      "name": "myapp-abc123",
+      "namespace": "compute-usr_abc123-main",
+      "node": "rp2",
       "cpu_usage": 50000000,
       "cpu_capacity": 4000000000,
       "memory_usage": 67108864,

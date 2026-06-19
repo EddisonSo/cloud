@@ -58,7 +58,7 @@ export interface Namespace {
   visibility: NamespaceVisibility;
 }
 
-export type NamespaceVisibility = 0 | 1 | 2; // 0=private, 1=unlisted, 2=public
+export type NamespaceVisibility = 0 | 1; // 0=private, 1=public (link-accessible, never listed)
 
 export interface FileEntry {
   name: string;

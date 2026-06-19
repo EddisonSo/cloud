@@ -52,11 +52,12 @@ export function useNamespaces() {
       if (!response.ok) throw new Error("Failed to load namespaces");
       const payload = await response.json();
       const sorted: Namespace[] = payload
-        .map((item: { name: string; count?: number; hidden?: boolean; visibility?: NamespaceVisibility }) => ({
+        .map((item: { name: string; count?: number; hidden?: boolean; visibility?: number }) => ({
           name: item.name,
           count: item.count ?? 0,
           hidden: item.hidden ?? false,
-          visibility: (item.visibility ?? 2) as NamespaceVisibility, // Default to public
+          // Map legacy visibility: 0=private stays 0; 1 or 2 (old unlisted/public) → 1=public
+          visibility: (item.visibility != null ? (item.visibility >= 1 ? 1 : 0) : 0) as NamespaceVisibility,
         }))
         .sort((a: Namespace, b: Namespace) => a.name.localeCompare(b.name));
       setNamespaces(sorted);
@@ -72,8 +73,8 @@ export function useNamespaces() {
     }
   }, []);
 
-  // visibility: 0=private, 1=visible (unlisted), 2=public
-  const createNamespace = useCallback(async (name: string, visibility: NamespaceVisibility = 2) => {
+  // visibility: 0=private, 1=public (link-accessible)
+  const createNamespace = useCallback(async (name: string, visibility: NamespaceVisibility = 0) => {
     const normalizedName = normalizeNamespace(name);
     const response = await fetch(`${buildStorageBase()}/storage/namespaces`, {
       method: "POST",
@@ -101,7 +102,7 @@ export function useNamespaces() {
     await loadNamespaces(true);
   }, [loadNamespaces]);
 
-  // visibility: 0=private, 1=visible (unlisted), 2=public
+  // visibility: 0=private, 1=public (link-accessible)
   const updateNamespaceVisibility = useCallback(async (name: string, visibility: NamespaceVisibility) => {
     const response = await fetch(
       `${buildStorageBase()}/storage/namespaces/${encodeURIComponent(name)}`,

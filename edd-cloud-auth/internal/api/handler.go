@@ -117,6 +117,8 @@ type JWTClaims struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	UserID      string `json:"user_id"` // nanoid
+	IsAdmin     bool   `json:"is_admin"`
+	Type        string `json:"type"` // empty for session tokens; "2fa_challenge" for pre-2FA challenge tokens
 	jwt.RegisteredClaims
 }
 
@@ -185,6 +187,17 @@ func (h *Handler) validateToken(r *http.Request) (*JWTClaims, bool) {
 
 	claims, ok := token.Claims.(*JWTClaims)
 	if !ok || !token.Valid {
+		return nil, false
+	}
+
+	// Reject 2FA challenge tokens here: they are issued after password
+	// verification but BEFORE the second factor is satisfied. They must only
+	// be accepted by the dedicated WebAuthn 2FA-completion handlers (which use
+	// their own TwoFAClaims parser). Treating them as session tokens would let
+	// a password-only attacker bypass 2FA and reach session-protected
+	// endpoints (token-type confusion). Legitimate session tokens carry no
+	// type (Type == "").
+	if claims.Type == "2fa_challenge" {
 		return nil, false
 	}
 

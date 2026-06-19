@@ -66,9 +66,54 @@ CREATE TABLE IF NOT EXISTS upload_sessions (
 	bytes_received BIGINT NOT NULL DEFAULT 0,
 	created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+	id          TEXT PRIMARY KEY,
+	applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `
 	_, err := db.Exec(schema)
 	return err
+}
+
+// runMigrations applies one-time, guarded data migrations. Each migration is
+// recorded in schema_migrations by a stable id so it runs exactly once and is
+// not re-applied on subsequent startups (which would clobber later state).
+func runMigrations(db *sql.DB) error {
+	// 0001: registry is now private-only. Force every repository to
+	// visibility=0. The visibility column is retained but vestigial (always 0).
+	// Guarded so a later startup does not re-run and clobber other state.
+	const id = "0001_force_private_repositories"
+	applied, err := migrationApplied(db, id)
+	if err != nil {
+		return err
+	}
+	if applied {
+		return nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`UPDATE repositories SET visibility = 0 WHERE visibility <> 0`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// migrationApplied reports whether the migration with the given id has already
+// been recorded.
+func migrationApplied(db *sql.DB, id string) (bool, error) {
+	const q = `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE id = $1)`
+	var exists bool
+	err := db.QueryRow(q, id).Scan(&exists)
+	return exists, err
 }
 
 // getOrCreateRepo returns the ID of the named repository, creating it if it
@@ -89,34 +134,6 @@ func getRepoByName(ctx context.Context, db *sql.DB, name string) (id int, ownerI
 	const q = `SELECT id, owner_id, visibility FROM repositories WHERE name = $1`
 	err = db.QueryRowContext(ctx, q, name).Scan(&id, &ownerID, &visibility)
 	return
-}
-
-// listRepos returns repository names visible to ownerID. When includePublic is
-// true, repositories with visibility > 0 owned by other users are also included.
-func listRepos(ctx context.Context, db *sql.DB, ownerID string, includePublic bool, limit, offset int) ([]string, error) {
-	var rows *sql.Rows
-	var err error
-	if includePublic {
-		const q = `SELECT name FROM repositories WHERE owner_id = $1 OR visibility > 0 ORDER BY name LIMIT $2 OFFSET $3`
-		rows, err = db.QueryContext(ctx, q, ownerID, limit, offset)
-	} else {
-		const q = `SELECT name FROM repositories WHERE owner_id = $1 ORDER BY name LIMIT $2 OFFSET $3`
-		rows, err = db.QueryContext(ctx, q, ownerID, limit, offset)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var names []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		names = append(names, name)
-	}
-	return names, rows.Err()
 }
 
 // insertRepoBlob records that a blob exists in a repository. Duplicate inserts

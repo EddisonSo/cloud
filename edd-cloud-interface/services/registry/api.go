@@ -82,19 +82,6 @@ func (s *server) routeAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// PUT /api/repos/{name}/visibility — toggle visibility (path ends with /visibility)
-	if strings.HasSuffix(rest, "/visibility") {
-		repoName := strings.TrimSuffix(rest, "/visibility")
-		if repoName != "" {
-			if r.Method == http.MethodPut {
-				s.handleAPISetVisibility(w, r, repoName)
-			} else {
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-	}
-
 	// GET /api/repos/{name} — repo detail; name is the entire rest value
 	repoName := rest
 	if r.Method == http.MethodGet {
@@ -123,34 +110,24 @@ type apiTag struct {
 }
 
 // handleAPIListRepos handles GET /api/repos.
-// Anonymous callers see only public repos; authenticated callers see own + public.
+// Registry is private-only: anonymous callers get 401; authenticated callers
+// see only their own repositories.
 func (s *server) handleAPIListRepos(w http.ResponseWriter, r *http.Request) {
 	auth := s.authenticate(r)
-
-	var rows *sql.Rows
-	var err error
-
-	if auth != nil && auth.UserID != "" {
-		const q = `
-SELECT r.name, r.visibility, r.owner_id,
-    COALESCE((SELECT COUNT(*) FROM tags WHERE repository_id = r.id), 0),
-    COALESCE((SELECT SUM(rb.size) FROM repository_blobs rb WHERE rb.repository_id = r.id), 0),
-    COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repository_id = r.id), r.created_at)
-FROM repositories r
-WHERE r.owner_id = $1 OR r.visibility > 0
-ORDER BY r.name`
-		rows, err = s.db.QueryContext(r.Context(), q, auth.UserID)
-	} else {
-		const q = `
-SELECT r.name, r.visibility, r.owner_id,
-    COALESCE((SELECT COUNT(*) FROM tags WHERE repository_id = r.id), 0),
-    COALESCE((SELECT SUM(rb.size) FROM repository_blobs rb WHERE rb.repository_id = r.id), 0),
-    COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repository_id = r.id), r.created_at)
-FROM repositories r
-WHERE r.visibility > 0
-ORDER BY r.name`
-		rows, err = s.db.QueryContext(r.Context(), q)
+	if auth == nil || auth.UserID == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
+
+	const q = `
+SELECT r.name, r.visibility, r.owner_id,
+    COALESCE((SELECT COUNT(*) FROM tags WHERE repository_id = r.id), 0),
+    COALESCE((SELECT SUM(rb.size) FROM repository_blobs rb WHERE rb.repository_id = r.id), 0),
+    COALESCE((SELECT MAX(t.updated_at) FROM tags t WHERE t.repository_id = r.id), r.created_at)
+FROM repositories r
+WHERE r.owner_id = $1
+ORDER BY r.name`
+	rows, err := s.db.QueryContext(r.Context(), q, auth.UserID)
 
 	if err != nil {
 		slog.Error("handleAPIListRepos: query", "err", err)
@@ -181,7 +158,7 @@ ORDER BY r.name`
 
 // handleAPIGetRepo handles GET /api/repos/{name}.
 func (s *server) handleAPIGetRepo(w http.ResponseWriter, r *http.Request, repoName string) {
-	repoID, ownerID, visibility, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -192,12 +169,11 @@ func (s *server) handleAPIGetRepo(w http.ResponseWriter, r *http.Request, repoNa
 		return
 	}
 
+	// Registry is private-only: owner or service-account (session) access only.
 	auth := s.authenticate(r)
-	if visibility != 1 {
-		if auth == nil || (auth.UserID != ownerID && !auth.IsSession) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
+	if auth == nil || auth.UserID != ownerID {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	var repo apiRepo
@@ -222,7 +198,7 @@ WHERE r.id = $1`
 
 // handleAPIListTags handles GET /api/repos/{name}/tags.
 func (s *server) handleAPIListTags(w http.ResponseWriter, r *http.Request, repoName string) {
-	repoID, ownerID, visibility, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		http.NotFound(w, r)
 		return
@@ -233,12 +209,11 @@ func (s *server) handleAPIListTags(w http.ResponseWriter, r *http.Request, repoN
 		return
 	}
 
+	// Registry is private-only: owner or service-account (session) access only.
 	auth := s.authenticate(r)
-	if visibility != 1 {
-		if auth == nil || (auth.UserID != ownerID && !auth.IsSession) {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
+	if auth == nil || auth.UserID != ownerID {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	const q = `
@@ -273,49 +248,6 @@ ORDER BY t.name`
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"name": repoName, "tags": tags})
-}
-
-// handleAPISetVisibility handles PUT /api/repos/{name}/visibility.
-// Only the owner may change visibility. Session tokens do not bypass this check.
-func (s *server) handleAPISetVisibility(w http.ResponseWriter, r *http.Request, repoName string) {
-	auth := s.authenticate(r)
-	if auth == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	_, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
-	if err == sql.ErrNoRows {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		slog.Error("handleAPISetVisibility: getRepoByName", "err", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if auth.UserID != ownerID {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
-	var body struct {
-		Visibility int `json:"visibility"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	const q = `UPDATE repositories SET visibility = $1, updated_at = NOW() WHERE name = $2`
-	if _, err := s.db.ExecContext(r.Context(), q, body.Visibility, repoName); err != nil {
-		slog.Error("handleAPISetVisibility: update", "err", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleAPIDeleteTag handles DELETE /api/repos/{name}/tags/{tag}.

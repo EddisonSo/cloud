@@ -66,6 +66,11 @@ func (v *SessionValidator) ValidateSession(tokenString string) (*JWTClaims, erro
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token")
 	}
+	// Reject pre-auth 2FA challenge tokens: they are signed with the same shared
+	// secret but must not authenticate session-protected endpoints (2FA bypass).
+	if claims.Type == "2fa_challenge" {
+		return nil, fmt.Errorf("invalid token type")
+	}
 	return claims, nil
 }
 

@@ -14,8 +14,8 @@ export function NamespaceCard({
   isActive,
   onSelect,
 }: NamespaceCardProps) {
-  // visibility: 0=private, 1=unlisted, 2=public
-  const visibility: NamespaceVisibility = namespace.visibility ?? 2;
+  // visibility: 0=private, 1=public (link-accessible)
+  const visibility: NamespaceVisibility = namespace.visibility ?? 0;
 
   return (
     <div
@@ -23,7 +23,7 @@ export function NamespaceCard({
       className={cn(
         "flex items-center justify-between px-4 py-3 cursor-pointer transition-colors duration-150 hover:bg-popover sm:grid sm:grid-cols-[1fr_100px_100px] sm:gap-4",
         isActive && "border-l-2 border-primary bg-popover",
-        visibility < 2 && "opacity-80"
+        visibility === 0 && "opacity-80"
       )}
     >
       <div className="flex items-center gap-2 min-w-0">
@@ -34,13 +34,9 @@ export function NamespaceCard({
         {namespace.count} {namespace.count === 1 ? "file" : "files"}
       </div>
       <div className="flex sm:justify-center">
-        {visibility === 0 && (
+        {visibility === 0 ? (
           <Badge variant="secondary">Private</Badge>
-        )}
-        {visibility === 1 && (
-          <Badge variant="warning">Unlisted</Badge>
-        )}
-        {visibility === 2 && (
+        ) : (
           <Badge variant="success">Public</Badge>
         )}
       </div>

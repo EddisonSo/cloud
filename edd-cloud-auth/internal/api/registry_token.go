@@ -40,7 +40,7 @@ func (h *Handler) handleRegistryToken(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			requested = []registryAccess{access}
 		}
-		// If parse fails, treat as empty scope (anonymous / catalog access)
+		// If parse fails, treat as empty scope (no access granted)
 	}
 
 	username, password, hasBasicAuth := r.BasicAuth()
@@ -76,8 +76,8 @@ func (h *Handler) handleRegistryToken(w http.ResponseWriter, r *http.Request) {
 			granted = nil
 		}
 	} else {
-		// Anonymous — pull-only on public repos
-		granted = h.filterAccessAnonymous(requested)
+		// Anonymous access is not permitted — registry is private-only.
+		granted = nil
 	}
 
 	claims := registryTokenClaims{
@@ -181,8 +181,8 @@ func (h *Handler) authenticateRegistryServiceAccount(username, tokenStr string) 
 	return claims.UserID, claims.ServiceAccountID, nil
 }
 
-// filterAccessByUser grants access based on repo ownership/visibility.
-// Pull is granted for owned or public repos; push only for owned repos.
+// filterAccessByUser grants access based on repo ownership.
+// All actions are granted only for repos owned by the user (private-only registry).
 func (h *Handler) filterAccessByUser(requested []registryAccess, userID string) []registryAccess {
 	if len(requested) == 0 {
 		return nil
@@ -207,15 +207,8 @@ func (h *Handler) filterAccessByUser(requested []registryAccess, userID string) 
 		} else if repo.OwnerID == userID {
 			// Owner — grant all requested actions
 			allowedActions = req.Actions
-		} else if repo.Visibility == 1 {
-			// Public repo — pull only
-			for _, action := range req.Actions {
-				if action == "pull" {
-					allowedActions = append(allowedActions, action)
-				}
-			}
 		}
-		// else: private repo, not owner — no access
+		// else: not owner — no access (private-only registry)
 
 		if len(allowedActions) > 0 {
 			granted = append(granted, registryAccess{
@@ -279,12 +272,6 @@ func (h *Handler) filterAccessByServiceAccount(requested []registryAccess, saID,
 			}
 		}
 
-		// Also grant pull if the repo is public (Fix #6)
-		repo, repoErr := h.db.GetRepositoryByName(req.Name)
-		if repoErr == nil && repo != nil && repo.Visibility == 1 {
-			ociActionSet["pull"] = true
-		}
-
 		if len(ociActionSet) == 0 {
 			continue
 		}
@@ -328,44 +315,4 @@ func (h *Handler) validateInternalToken(tokenStr string) ([]registryAccess, stri
 		return nil, "", false
 	}
 	return claims.Access, claims.Subject, true
-}
-
-// filterAccessAnonymous grants pull-only access to public repos.
-func (h *Handler) filterAccessAnonymous(requested []registryAccess) []registryAccess {
-	if len(requested) == 0 {
-		return nil
-	}
-
-	var granted []registryAccess
-	for _, req := range requested {
-		if req.Type != "repository" {
-			continue
-		}
-
-		repo, err := h.db.GetRepositoryByName(req.Name)
-		if err != nil || repo == nil {
-			// Repo doesn't exist or DB error — no anonymous access
-			continue
-		}
-
-		if repo.Visibility != 1 {
-			continue
-		}
-
-		var allowedActions []string
-		for _, action := range req.Actions {
-			if action == "pull" {
-				allowedActions = append(allowedActions, action)
-			}
-		}
-
-		if len(allowedActions) > 0 {
-			granted = append(granted, registryAccess{
-				Type:    req.Type,
-				Name:    req.Name,
-				Actions: allowedActions,
-			})
-		}
-	}
-	return granted
 }

@@ -54,7 +54,13 @@ func (s *server) authenticate(r *http.Request) *authResult {
 	})
 	if err == nil {
 		if claims, ok := sessToken.Claims.(*sessionClaims); ok && claims.UserID != "" {
-			return &authResult{UserID: claims.UserID, IsSession: true}
+			// A 2FA challenge token carries the victim's user_id and is signed with
+			// the same secret, but it is NOT a session. Refuse to treat it as one
+			// (and let it fall through to the OCI path, where it has no Access claim
+			// and therefore grants no access either).
+			if claims.Type != "2fa_challenge" {
+				return &authResult{UserID: claims.UserID, IsSession: true}
+			}
 		}
 	}
 
@@ -75,13 +81,15 @@ func (s *server) authenticate(r *http.Request) *authResult {
 }
 
 // hasAccess checks if the auth result grants the given action on the repository.
-func hasAccess(auth *authResult, repoName, action string) bool {
+// ownerID is the owner of the repository being accessed; session tokens are
+// scoped to repos they own, while OCI tokens are scoped by their Access claims.
+func hasAccess(auth *authResult, repoName, ownerID, action string) bool {
 	if auth == nil {
 		return false
 	}
-	// Session tokens have full access (used by internal services forwarding user identity)
+	// Session tokens (dashboard users) may only access repositories they own.
 	if auth.IsSession {
-		return true
+		return ownerID != "" && auth.UserID == ownerID
 	}
 	for _, a := range auth.Access {
 		if a.Type == "repository" && a.Name == repoName {

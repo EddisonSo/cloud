@@ -100,21 +100,30 @@ type JWTClaims struct {
 
 const (
 	defaultNamespace = "default"
-	hiddenNamespace  = "hidden"
 )
 
-// Visibility levels for namespaces
+// Visibility levels for namespaces (2-level model).
+// Legacy value 2 (formerly "public/advertised") is normalized to visibilityPublic(1)
+// on read via normalizeVisibility; only 0 or 1 are ever written.
 const (
-	visibilityPrivate = 0 // Only owner can see and access
-	visibilityVisible = 1 // Not advertised, but accessible unauthenticated via direct URL
-	visibilityPublic  = 2 // Advertised and accessible unauthenticated
+	visibilityPrivate = 0 // Only owner (and owner's service accounts) can access
+	visibilityPublic  = 1 // Anyone with the direct link can read; never listed/advertised
 )
+
+// normalizeVisibility maps any stored visibility value into the 2-level domain {0,1}.
+// Any legacy value >= 1 (including the old public=2) is treated as public(1).
+func normalizeVisibility(v int) int {
+	if v >= visibilityPublic {
+		return visibilityPublic
+	}
+	return visibilityPrivate
+}
 
 type namespaceInfo struct {
 	Name       string  `json:"name"`
 	Count      int     `json:"count"`
-	Hidden     bool    `json:"hidden"`             // Keep for backward compat
-	Visibility int     `json:"visibility"`         // 0=private, 1=visible, 2=public
+	Hidden     bool    `json:"hidden"`             // Vestigial; mirrors visibility==private
+	Visibility int     `json:"visibility"`         // 0=private, 1=public
 	OwnerID    *string `json:"owner_id,omitempty"` // User ID (nanoid)
 }
 
@@ -347,7 +356,7 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		`CREATE TABLE IF NOT EXISTS namespaces (
 			name TEXT PRIMARY KEY,
 			hidden INTEGER NOT NULL DEFAULT 0,
-			visibility INTEGER NOT NULL DEFAULT 2,
+			visibility INTEGER NOT NULL DEFAULT 0,
 			owner_id TEXT
 		)`,
 		// Identity permissions - populated from auth-service identity events
@@ -388,29 +397,69 @@ func initAuthDB(db *sql.DB, username string, password string) error {
 		}
 	}
 
-	if err := ensureNamespaceRow(db, defaultNamespace, visibilityPublic); err != nil {
-		return err
-	}
-	if err := ensureNamespaceRow(db, hiddenNamespace, visibilityPrivate); err != nil {
+	// NOTE: the global public `default`/`hidden` demo namespaces are intentionally
+	// no longer seeded (shared sample data removed). The string "default" is still
+	// used as a fallback namespace name for unscoped operations, but it no longer
+	// has a backing row; canAccessNamespace treats a missing row as accessible to
+	// preserve that fallback behavior.
+
+	// Run one-time, guarded migrations (e.g. force-migrate existing rows to private).
+	if err := runMigrations(db); err != nil {
 		return err
 	}
 	return nil
 }
 
-func ensureNamespaceRow(db *sql.DB, name string, visibility int) error {
-	// Map visibility to hidden for backward compatibility
-	hiddenValue := 0
-	if visibility == visibilityPrivate {
-		hiddenValue = 1
+// runMigrations applies one-time guarded migrations. Each migration is recorded in
+// the schema_migrations table inside the same transaction, so it runs exactly once
+// across the lifetime of the database and will not re-run on subsequent startups
+// (which would otherwise clobber later per-namespace public opt-ins).
+func runMigrations(db *sql.DB) error {
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		id TEXT PRIMARY KEY,
+		applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return err
 	}
-	_, err := db.Exec(
-		`INSERT INTO namespaces (name, hidden, visibility) VALUES ($1, $2, $3)
-		 ON CONFLICT(name) DO NOTHING`,
-		name,
-		hiddenValue,
-		visibility,
-	)
-	return err
+
+	migrations := []struct {
+		id   string
+		stmt string
+	}{
+		// Collapse to private-by-default: force all existing namespaces to private.
+		// Owners may opt individual namespaces back to public afterward.
+		{id: "2026-06-18-sfs-private-by-default", stmt: `UPDATE namespaces SET visibility = 0`},
+	}
+
+	for _, m := range migrations {
+		var exists bool
+		if err := db.QueryRow(
+			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE id = $1)`, m.id,
+		).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			continue
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(m.stmt); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO schema_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, m.id); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		log.Printf("applied migration %s", m.id)
+	}
+	return nil
 }
 
 func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
@@ -486,23 +535,26 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	currentUserID, isLoggedIn := s.currentUserID(r)
+	// No cross-user discovery: anonymous callers get an empty list.
+	if !isLoggedIn {
+		writeJSON(w, []namespaceInfo{})
+		return
+	}
+
 	namespaceRows, err := s.loadAllNamespaces()
 	if err != nil {
 		http.Error(w, "failed to load namespaces", http.StatusInternalServerError)
 		return
 	}
 
-	// Build map for quick lookup
+	// Build map for quick lookup.
+	// Listing ALWAYS filters to namespaces owned by the current user, regardless of
+	// visibility. A namespace owned by anyone else is never listed (public namespaces
+	// remain reachable only via a direct link, never advertised here).
 	nsMap := make(map[string]namespaceInfo)
 	for _, entry := range namespaceRows {
-		// Visibility-based filtering for namespace listing:
-		// - Private (0): only show to owner
-		// - Visible (1): only show to owner (not advertised, but accessible via URL)
-		// - Public (2): show to everyone
-		if entry.Visibility == visibilityPrivate || entry.Visibility == visibilityVisible {
-			if !isLoggedIn || entry.OwnerID == nil || *entry.OwnerID != currentUserID {
-				continue
-			}
+		if entry.OwnerID == nil || *entry.OwnerID != currentUserID {
+			continue
 		}
 		count, err := s.countNamespaceFiles(ctx, entry.Name)
 		if err != nil {
@@ -524,7 +576,7 @@ func (s *server) handleNamespaceList(w http.ResponseWriter, r *http.Request) {
 type namespaceCreateRequest struct {
 	Name       string `json:"name"`
 	Hidden     bool   `json:"hidden"`     // Deprecated: use Visibility instead
-	Visibility *int   `json:"visibility"` // 0=private, 1=visible, 2=public
+	Visibility *int   `json:"visibility"` // 0=private, 1=public
 }
 
 func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
@@ -544,12 +596,12 @@ func (s *server) handleNamespaceCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine visibility: prefer explicit visibility, fall back to hidden bool
-	visibility := visibilityPublic
+	// Determine visibility: default private; accept only {0,1}. Legacy hidden bool maps to private.
+	visibility := visibilityPrivate
 	if payload.Visibility != nil {
 		visibility = *payload.Visibility
-		if visibility < 0 || visibility > 2 {
-			http.Error(w, "invalid visibility value (must be 0, 1, or 2)", http.StatusBadRequest)
+		if visibility < visibilityPrivate || visibility > visibilityPublic {
+			http.Error(w, "invalid visibility value (must be 0 or 1)", http.StatusBadRequest)
 			return
 		}
 	} else if payload.Hidden {
@@ -635,7 +687,7 @@ func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
 type namespaceUpdateRequest struct {
 	Name       string `json:"name"`
 	Hidden     bool   `json:"hidden"`     // Deprecated: use Visibility instead
-	Visibility *int   `json:"visibility"` // 0=private, 1=visible, 2=public
+	Visibility *int   `json:"visibility"` // 0=private, 1=public
 }
 
 func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
@@ -661,12 +713,12 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine visibility: prefer explicit visibility, fall back to hidden bool
-	visibility := visibilityPublic
+	// Determine visibility: default private; accept only {0,1}. Legacy hidden bool maps to private.
+	visibility := visibilityPrivate
 	if payload.Visibility != nil {
 		visibility = *payload.Visibility
-		if visibility < 0 || visibility > 2 {
-			http.Error(w, "invalid visibility value (must be 0, 1, or 2)", http.StatusBadRequest)
+		if visibility < visibilityPrivate || visibility > visibilityPublic {
+			http.Error(w, "invalid visibility value (must be 0 or 1)", http.StatusBadRequest)
 			return
 		}
 	} else if payload.Hidden {
@@ -747,19 +799,19 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 
 	var payload struct {
 		Hidden     bool `json:"hidden"`     // Deprecated: use Visibility instead
-		Visibility *int `json:"visibility"` // 0=private, 1=visible, 2=public
+		Visibility *int `json:"visibility"` // 0=private, 1=public
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
-	// Determine visibility: prefer explicit visibility, fall back to hidden bool
-	visibility := visibilityPublic
+	// Determine visibility: default private; accept only {0,1}. Legacy hidden bool maps to private.
+	visibility := visibilityPrivate
 	if payload.Visibility != nil {
 		visibility = *payload.Visibility
-		if visibility < 0 || visibility > 2 {
-			http.Error(w, "invalid visibility value (must be 0, 1, or 2)", http.StatusBadRequest)
+		if visibility < visibilityPrivate || visibility > visibilityPublic {
+			http.Error(w, "invalid visibility value (must be 0 or 1)", http.StatusBadRequest)
 			return
 		}
 	} else if payload.Hidden {
@@ -1595,6 +1647,13 @@ func (s *server) parseJWT(tokenString string) (*JWTClaims, bool) {
 	if !ok || !token.Valid {
 		return nil, false
 	}
+	// A 2FA challenge token carries the victim's user_id and is signed with the
+	// same secret as a real session, but it must never be accepted as one.
+	// Reject it here so every session path (currentUser, currentUserID,
+	// requireAuthWithScope, canAccessNamespace) treats it as unauthenticated.
+	if claims.Type == "2fa_challenge" {
+		return nil, false
+	}
 	return claims, true
 }
 
@@ -1704,6 +1763,7 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 		if err := rows.Scan(&name, &hiddenFlag, &visibility, &ownerID); err != nil {
 			return nil, err
 		}
+		visibility = normalizeVisibility(visibility)
 		namespaces = append(namespaces, namespaceInfo{
 			Name:       name,
 			Hidden:     visibility == visibilityPrivate,
@@ -1718,16 +1778,11 @@ func (s *server) loadAllNamespaces() ([]namespaceInfo, error) {
 }
 
 func (s *server) upsertNamespace(name string, visibility int, ownerID *string) error {
-	// Map visibility to hidden for backward compatibility
-	hiddenValue := 0
-	if visibility == visibilityPrivate {
-		hiddenValue = 1
-	}
+	// The `hidden` column is vestigial and no longer written; it keeps its DB default.
 	_, err := s.db.Exec(
-		`INSERT INTO namespaces (name, hidden, visibility, owner_id) VALUES ($1, $2, $3, $4)
-		 ON CONFLICT(name) DO UPDATE SET hidden = excluded.hidden, visibility = excluded.visibility`,
+		`INSERT INTO namespaces (name, visibility, owner_id) VALUES ($1, $2, $3)
+		 ON CONFLICT(name) DO UPDATE SET visibility = excluded.visibility`,
 		name,
-		hiddenValue,
 		visibility,
 		ownerID,
 	)
@@ -1748,12 +1803,8 @@ func (s *server) gfsNamespace(namespace string) string {
 }
 
 func (s *server) updateNamespaceVisibility(name string, visibility int) error {
-	// Map visibility to hidden for backward compatibility
-	hiddenValue := 0
-	if visibility == visibilityPrivate {
-		hiddenValue = 1
-	}
-	result, err := s.db.Exec(`UPDATE namespaces SET hidden = $1, visibility = $2 WHERE name = $3`, hiddenValue, visibility, name)
+	// The `hidden` column is vestigial and no longer written.
+	result, err := s.db.Exec(`UPDATE namespaces SET visibility = $1 WHERE name = $2`, visibility, name)
 	if err != nil {
 		return err
 	}
@@ -1780,9 +1831,8 @@ func (s *server) namespaceExists(name string) (bool, error) {
 }
 
 // canAccessNamespace checks if a user can access a namespace for reading.
-// - Private (0): Only owner can access
-// - Visible (1): Anyone can access via direct URL (not advertised)
-// - Public (2): Anyone can access (advertised in list)
+// - Private (0): owner only (service-account tokens resolve to the owner's user ID)
+// - Public (1): anyone, read-only — direct-link access preserved, never advertised
 const nsVisibilityCacheTTL = 30 * time.Second
 
 // getNsVisibility returns cached namespace visibility info, fetching from DB if stale or missing.
@@ -1804,6 +1854,7 @@ func (s *server) getNsVisibility(namespace string) (visibility int, ownerID *str
 	if err != nil {
 		return 0, nil, false
 	}
+	vis = normalizeVisibility(vis)
 
 	s.nsCacheMu.Lock()
 	s.nsCache[namespace] = &nsVisibility{visibility: vis, ownerID: oid, fetchedAt: time.Now()}
@@ -1815,16 +1866,17 @@ func (s *server) getNsVisibility(namespace string) (visibility int, ownerID *str
 func (s *server) canAccessNamespace(r *http.Request, namespace string) bool {
 	visibility, ownerID, found := s.getNsVisibility(namespace)
 	if !found {
-		// Namespace doesn't exist in DB - allow access (e.g., default namespace)
+		// Namespace doesn't exist in DB - allow access (e.g., the fallback default namespace)
 		return true
 	}
 
-	// Public or Visible: anyone can read
-	if visibility >= visibilityVisible {
+	// Public: anyone can read (direct-link access preserved; never advertised in listings).
+	if visibility == visibilityPublic {
 		return true
 	}
 
-	// Private: must be owner
+	// Private: must be the owner. Service-account tokens resolve to the owner's user ID
+	// via currentUserID, so an SA scoped to the owner gets owner-level access.
 	userID, ok := s.currentUserID(r)
 	if !ok {
 		return false

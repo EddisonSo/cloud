@@ -99,13 +99,7 @@ func (s *server) handleBlobHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "pull") {
-		s.requireAuth(w, repoName, "pull")
-		return
-	}
-
-	repoID, _, _, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -113,6 +107,12 @@ func (s *server) handleBlobHead(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("handleBlobHead: getRepoByName", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	auth := s.authenticate(r)
+	if !hasAccess(auth, repoName, ownerID, "pull") {
+		s.requireAuth(w, repoName, "pull")
 		return
 	}
 
@@ -141,13 +141,7 @@ func (s *server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "pull") {
-		s.requireAuth(w, repoName, "pull")
-		return
-	}
-
-	repoID, _, _, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -155,6 +149,12 @@ func (s *server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("handleBlobGet: getRepoByName", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	auth := s.authenticate(r)
+	if !hasAccess(auth, repoName, ownerID, "pull") {
+		s.requireAuth(w, repoName, "pull")
 		return
 	}
 
@@ -187,13 +187,7 @@ func (s *server) handleBlobDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "delete") {
-		s.requireAuth(w, repoName, "delete")
-		return
-	}
-
-	repoID, _, _, err := getRepoByName(r.Context(), s.db, repoName)
+	repoID, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
 	if err == sql.ErrNoRows {
 		ociError(w, http.StatusNotFound, "NAME_UNKNOWN", "repository not found")
 		return
@@ -201,6 +195,12 @@ func (s *server) handleBlobDelete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("handleBlobDelete: getRepoByName", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	auth := s.authenticate(r)
+	if !hasAccess(auth, repoName, ownerID, "delete") {
+		s.requireAuth(w, repoName, "delete")
 		return
 	}
 
@@ -236,8 +236,19 @@ func (s *server) handleUploadStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the repo owner (if it already exists) so session tokens are scoped
+	// to repos they own. On a first push the repo does not exist yet, so ownerID
+	// is "" and only an OCI token (Access claim) is accepted; the repo is then
+	// auto-created below via getOrCreateRepo.
+	_, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error("handleUploadStart: getRepoByName", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "push") {
+	if !hasAccess(auth, repoName, ownerID, "push") {
 		s.requireAuth(w, repoName, "push")
 		return
 	}
@@ -338,8 +349,16 @@ func (s *server) handleUploadPatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the repo owner so session tokens are scoped to repos they own.
+	_, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error("handleUploadPatch: getRepoByName", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "push") {
+	if !hasAccess(auth, repoName, ownerID, "push") {
 		s.requireAuth(w, repoName, "push")
 		return
 	}
@@ -413,8 +432,16 @@ func (s *server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the repo owner so session tokens are scoped to repos they own.
+	_, ownerID, _, err := getRepoByName(r.Context(), s.db, repoName)
+	if err != nil && err != sql.ErrNoRows {
+		slog.Error("handleUploadComplete: getRepoByName", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	auth := s.authenticate(r)
-	if !hasAccess(auth, repoName, "push") {
+	if !hasAccess(auth, repoName, ownerID, "push") {
 		s.requireAuth(w, repoName, "push")
 		return
 	}
