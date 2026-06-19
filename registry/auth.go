@@ -54,11 +54,12 @@ func (s *server) authenticate(r *http.Request) *authResult {
 	})
 	if err == nil {
 		if claims, ok := sessToken.Claims.(*sessionClaims); ok && claims.UserID != "" {
-			// A 2FA challenge token carries the victim's user_id and is signed with
-			// the same secret, but it is NOT a session. Refuse to treat it as one
-			// (and let it fall through to the OCI path, where it has no Access claim
-			// and therefore grants no access either).
-			if claims.Type != "2fa_challenge" {
+			// Allowlist (default-deny): only treat a token as a session when its
+			// type is interactive ("") or an API/service-account token ("api_token").
+			// A pre-auth 2fa_challenge token (or any future intermediate type) is
+			// refused here and falls through to the OCI path, where it has no Access
+			// claim and therefore grants no access either.
+			if claims.Type == "" || claims.Type == "api_token" {
 				return &authResult{UserID: claims.UserID, IsSession: true}
 			}
 		}

@@ -76,9 +76,10 @@ func validateToken(tokenString string) *JWTClaims {
 	if !ok || !token.Valid {
 		return nil
 	}
-	// Reject intermediate challenge tokens (e.g. 2fa_challenge) that share the
-	// same signing secret but are not fully-authenticated session tokens.
-	if claims.Type == "2fa_challenge" {
+	// Allowlist (default-deny): accept only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token"). Intermediate tokens that
+	// share the signing secret — e.g. 2fa_challenge, or a future type — are rejected.
+	if claims.Type != "" && claims.Type != "api_token" {
 		return nil
 	}
 	return claims

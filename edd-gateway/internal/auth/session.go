@@ -69,10 +69,11 @@ func (v *SessionValidator) ValidateSession(tokenString string) (*JWTClaims, erro
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token")
 	}
-	// Reject pre-auth 2FA challenge tokens: they are signed with the same shared
-	// secret but must not authenticate session-protected endpoints (2FA bypass).
-	// Defense-in-depth; the api server's Type switch also rejects them.
-	if claims.Type == "2fa_challenge" {
+	// Allowlist (default-deny): accept only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token"). A pre-auth 2fa_challenge
+	// token (or any future intermediate type) is rejected — token-type-confusion
+	// guard, matching the api server's Type switch.
+	if claims.Type != "" && claims.Type != "api_token" {
 		return nil, fmt.Errorf("invalid token type")
 	}
 	return claims, nil

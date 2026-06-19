@@ -1647,11 +1647,13 @@ func (s *server) parseJWT(tokenString string) (*JWTClaims, bool) {
 	if !ok || !token.Valid {
 		return nil, false
 	}
-	// A 2FA challenge token carries the victim's user_id and is signed with the
-	// same secret as a real session, but it must never be accepted as one.
-	// Reject it here so every session path (currentUser, currentUserID,
-	// requireAuthWithScope, canAccessNamespace) treats it as unauthenticated.
-	if claims.Type == "2fa_challenge" {
+	// Allowlist (default-deny): only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token") are valid here. Any other
+	// type — a pre-auth 2fa_challenge token (which carries the victim's user_id and
+	// is signed with the same secret) or a future intermediate type — is rejected,
+	// so every session path (currentUser, currentUserID, requireAuthWithScope,
+	// canAccessNamespace) treats it as unauthenticated.
+	if claims.Type != "" && claims.Type != "api_token" {
 		return nil, false
 	}
 	return claims, true

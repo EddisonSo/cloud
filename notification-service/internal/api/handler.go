@@ -351,9 +351,10 @@ func (h *Handler) validateJWT(tokenString string) string {
 	if !ok || !token.Valid {
 		return ""
 	}
-	// Reject pre-auth 2FA challenge tokens: they are signed with the same shared
-	// secret but must not authenticate session-protected endpoints (2FA bypass).
-	if claims.Type == "2fa_challenge" {
+	// Allowlist (default-deny): accept only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token"). A pre-auth 2fa_challenge
+	// token (or any future intermediate type) is rejected (token-type-confusion guard).
+	if claims.Type != "" && claims.Type != "api_token" {
 		return ""
 	}
 	return claims.UserID
