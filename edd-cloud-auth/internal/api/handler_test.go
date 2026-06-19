@@ -106,3 +106,46 @@ func TestRequireAuth_Rejects2FAChallengeToken(t *testing.T) {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 }
+
+// TestValidateToken_RejectsUnknownType locks in the allowlist (default-deny)
+// behavior: any token type that is not an interactive session ("") or an
+// API/service-account token ("api_token") must be rejected — even a brand-new
+// intermediate type nobody has added a denylist entry for yet.
+func TestValidateToken_RejectsUnknownType(t *testing.T) {
+	secret := []byte("test-secret")
+	h := &Handler{jwtSecret: secret}
+
+	unknown := signToken(t, secret, JWTClaims{
+		UserID: "u1",
+		Type:   "password_reset", // hypothetical future intermediate token
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	})
+
+	if _, ok := h.validateToken(requestWithToken(unknown)); ok {
+		t.Fatal("validateToken must reject an unknown token type (allowlist is default-deny)")
+	}
+}
+
+// TestValidateToken_AcceptsAPIToken ensures the allowlist does not break the
+// legitimate API/service-account flow: a token with Type "api_token" is accepted.
+func TestValidateToken_AcceptsAPIToken(t *testing.T) {
+	secret := []byte("test-secret")
+	h := &Handler{jwtSecret: secret}
+
+	apiTok := signToken(t, secret, JWTClaims{
+		Username: "alice",
+		UserID:   "u1",
+		Type:     "api_token",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	})
+
+	if _, ok := h.validateToken(requestWithToken(apiTok)); !ok {
+		t.Fatal("validateToken must accept an api_token")
+	}
+}

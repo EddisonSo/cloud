@@ -195,9 +195,11 @@ func (h *Handler) validateToken(r *http.Request) (*JWTClaims, bool) {
 	// be accepted by the dedicated WebAuthn 2FA-completion handlers (which use
 	// their own TwoFAClaims parser). Treating them as session tokens would let
 	// a password-only attacker bypass 2FA and reach session-protected
-	// endpoints (token-type confusion). Legitimate session tokens carry no
-	// type (Type == "").
-	if claims.Type == "2fa_challenge" {
+	// endpoints (token-type confusion).
+	// Allowlist (default-deny): only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token") may authenticate here.
+	// Any other type (2fa_challenge, or a future intermediate type) is rejected.
+	if claims.Type != "" && claims.Type != "api_token" {
 		return nil, false
 	}
 

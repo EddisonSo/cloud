@@ -68,7 +68,10 @@ func validateToken(tokenString string) *JWTClaims {
 	if !ok || !token.Valid {
 		return nil
 	}
-	if claims.Type == "2fa_challenge" {
+	// Allowlist (default-deny): accept only interactive sessions (Type == "") and
+	// API/service-account tokens (Type == "api_token"); reject 2fa_challenge and any
+	// future intermediate type (token-type-confusion guard).
+	if claims.Type != "" && claims.Type != "api_token" {
 		return nil
 	}
 	return claims
