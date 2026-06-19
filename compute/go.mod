@@ -65,8 +65,8 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace eddisonso.com/go-gfs => ../../../go-gfs
+replace eddisonso.com/go-gfs => ../go-gfs
 
-replace eddisonso.com/edd-cloud/pkg/events => ../../pkg/events
+replace eddisonso.com/edd-cloud/pkg/events => ../pkg/events
 
-replace eddisonso.com/notification-service => ../../../notification-service
+replace eddisonso.com/notification-service => ../notification-service

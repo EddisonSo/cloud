@@ -24,6 +24,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace eddisonso.com/go-gfs => ../../../go-gfs
+replace eddisonso.com/go-gfs => ../go-gfs
 
-replace eddisonso.com/notification-service => ../../../notification-service
+replace eddisonso.com/notification-service => ../notification-service

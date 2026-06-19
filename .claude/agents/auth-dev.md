@@ -81,7 +81,7 @@ All events are published by `internal/events/publisher.go`:
 ## Cross-Service Relationships
 
 - **Gateway** (`edd-gateway`): validates JWT tokens issued by this service on every proxied request
-- **Compute, SFS, Registry** (`edd-cloud-interface/services/`): subscribe to `auth.identity.*` NATS events to sync user identity and permissions
+- **Compute, SFS, Registry** (top-level `compute/`, `sfs/`, `registry/`): subscribe to `auth.identity.*` NATS events to sync user identity and permissions
 - **Frontend** (`edd-cloud-interface/frontend/`): calls auth API directly for login, session management, SSH key upload, WebAuthn flows
 - **Registry**: calls the registry token endpoint to generate short-lived OCI tokens
 

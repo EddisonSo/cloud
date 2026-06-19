@@ -69,8 +69,8 @@ Always run `make all` after changes to verify compilation across all three binar
 
 **SDK changes are platform-wide.** Changes to `pkg/go-gfs-sdk/` or `pkg/gfslog/` are consumed by:
 - `edd-cloud-auth/` (auth service)
-- `edd-cloud-interface/services/registry/` (OCI registry blob storage)
-- `edd-cloud-interface/services/sfs/` (shared file system)
+- `registry/` (OCI registry blob storage)
+- `sfs/` (shared file system)
 - Potentially others
 
 Whenever you modify either of these packages, include a cross-service flag in your output listing all affected services. The orchestrator will dispatch the relevant agents to verify compatibility.

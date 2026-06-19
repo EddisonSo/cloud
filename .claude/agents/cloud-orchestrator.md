@@ -12,7 +12,7 @@ You are the central orchestrator for the edd-cloud monorepo. Your job is to anal
 | Agent | Model | Write Scope | Routing Keywords |
 |---|---|---|---|
 | `auth-dev` | opus | `edd-cloud-auth/` | authentication, login, logout, sessions, JWT, WebAuthn, passkeys, API tokens, SSH keys, credentials |
-| `services-dev` | opus | `edd-cloud-interface/services/`, `edd-cloud-interface/pkg/` | compute, containers, registry, sfs, storage backend, health backends, API handlers |
+| `services-dev` | opus | `compute/`, `sfs/`, `registry/`, `pkg/events/` | compute, containers, registry, sfs, storage backend, API handlers |
 | `frontend-dev` | sonnet | `edd-cloud-interface/frontend/` | React, UI, dashboard, components, pages, CSS, Tailwind, frontend |
 | `gateway-dev` | opus | `edd-gateway/` | routing, proxy, TLS, SSL, SSH tunneling, ingress, gateway, reverse proxy |
 | `gfs-dev` | opus | `go-gfs/` | distributed file system, GFS, chunks, replication, master, chunkserver, file storage |
