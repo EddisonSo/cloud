@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -5,7 +6,8 @@ import { Select } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLogs } from "@/hooks";
 import { useAuth } from "@/contexts/AuthContext";
-import { Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
+import { buildHealthBase, getAuthHeaders } from "@/lib/api";
 
 /*
  * Map log level strings to Badge variants that conform to design tokens.
@@ -46,6 +48,37 @@ export function LogsView(): React.ReactElement {
     logLevelName,
   } = useLogs(user, true);
 
+  const [downloadDate, setDownloadDate] = useState<string>(
+    () => new Date().toISOString().slice(0, 10)
+  );
+  const [downloadStatus, setDownloadStatus] = useState<string>("");
+
+  const downloadDailyLogs = async () => {
+    setDownloadStatus("");
+    const res = await fetch(
+      `${buildHealthBase()}/logs/download?date=${encodeURIComponent(downloadDate)}`,
+      { headers: getAuthHeaders() }
+    );
+    if (res.status === 404) {
+      setDownloadStatus("No logs for " + downloadDate);
+      return;
+    }
+    if (!res.ok) {
+      setDownloadStatus("Download failed");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `edd-cloud-logs-${downloadDate}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setDownloadStatus("");
+  };
+
   const formatLogTime = (timestamp: number): string => {
     if (!timestamp) return "";
     const date = new Date(timestamp * 1000);
@@ -66,10 +99,30 @@ export function LogsView(): React.ReactElement {
             {connected ? "Connected" : "Disconnected"}
           </Badge>
         </CardTitle>
-        <Button variant="outline" size="sm" onClick={clearLogs}>
-          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-          Clear
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="microlabel">Day</span>
+          <input
+            type="date"
+            value={downloadDate}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setDownloadDate(e.target.value)
+            }
+            className="h-8 border border-border bg-background px-2 font-mono text-xs text-foreground rounded-none focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <Button variant="outline" size="sm" onClick={downloadDailyLogs}>
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Download
+          </Button>
+          {downloadStatus && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+              {downloadStatus}
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={clearLogs}>
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Clear
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col min-h-0 pt-0">

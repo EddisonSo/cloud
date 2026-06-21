@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -379,6 +380,50 @@ func generateUUID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// FetchDayLogs reads all persisted log entries for the given date (YYYY-MM-DD)
+// from GFS, merges entries from all source files, and returns them sorted
+// ascending by timestamp.
+//
+// If a single source file is unreadable (e.g. chunkserver down), a WARN is
+// logged and the remaining sources are still included (partial-read tolerance).
+// Returns an error only if GFS is unavailable or the directory listing fails.
+func (s *LogServer) FetchDayLogs(ctx context.Context, date string) ([]*pb.LogEntry, error) {
+	const namespace = "core-logs"
+
+	if s.gfsClient == nil {
+		return nil, fmt.Errorf("GFS client not available")
+	}
+
+	prefix := "/" + date + "/"
+	files, err := s.gfsClient.ListFilesWithNamespace(ctx, namespace, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log files for %s: %w", date, err)
+	}
+
+	var all []*pb.LogEntry
+	for _, f := range files {
+		data, err := s.gfsClient.ReadWithNamespace(ctx, f.Path, namespace)
+		if err != nil {
+			slog.Warn("failed to read log file for download", "path", f.Path, "error", err)
+			continue
+		}
+
+		for _, line := range bytes.Split(data, []byte("\n")) {
+			if len(line) == 0 {
+				continue
+			}
+			var entry pb.LogEntry
+			if err := json.Unmarshal(line, &entry); err != nil {
+				continue
+			}
+			all = append(all, &entry)
+		}
+	}
+
+	sortByTimestamp(all)
+	return all, nil
 }
 
 // persistenceWorker batches and writes logs to GFS
