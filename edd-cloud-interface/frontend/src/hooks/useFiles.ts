@@ -58,7 +58,16 @@ export function useFiles() {
         { headers: getAuthHeaders(), signal: abortControllerRef.current.signal }
       );
       if (!response.ok) throw new Error("Failed to load files");
-      const payload: FileEntry[] = await response.json();
+      // Backend serializes the timestamp as snake_case `modified_at`; map it onto
+      // the camelCase `modified` field the UI reads (fall back to `modified` in case
+      // the API ever switches). Without this every row's Modified column shows "-".
+      const raw: Array<Record<string, unknown>> = await response.json();
+      const payload: FileEntry[] = raw.map((f) => ({
+        name: f.name as string,
+        size: f.size as number,
+        modified: (f.modified_at ?? f.modified ?? 0) as number,
+        namespace: f.namespace as string,
+      }));
       // Sort by modification date, most recent first
       const sorted = [...payload].sort((a, b) => (b.modified || 0) - (a.modified || 0));
       setFiles(sorted);
