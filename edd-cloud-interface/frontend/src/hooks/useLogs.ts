@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { buildHealthBase } from "@/lib/api";
+import { buildHealthBase, getAuthToken } from "@/lib/api";
 import type { LogEntry, LogLevel } from "@/types";
 
 export function useLogs(user: string | null, enabled: boolean = false) {
@@ -71,6 +71,11 @@ export function useLogs(user: string | null, enabled: boolean = false) {
       const params = new URLSearchParams();
       if (sourceFilter) params.set("source", sourceFilter);
       if (levelFilter && levelFilter !== "DEBUG") params.set("level", levelFilter);
+      // Browser WebSockets can't set an Authorization header, so pass the session
+      // token as a query param (the backend reads ?token= for exactly this reason).
+      // Without it /ws/logs returns 401 and the view stays "DISCONNECTED".
+      const token = getAuthToken();
+      if (token) params.set("token", token);
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
       const host = buildHealthBase().replace(/^https?:\/\//, "");
       const wsUrl = `${protocol}://${host}/ws/logs${params.toString() ? "?" + params.toString() : ""}`;
