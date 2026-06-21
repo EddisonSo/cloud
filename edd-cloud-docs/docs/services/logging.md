@@ -80,7 +80,7 @@ import "eddisonso.com/go-gfs/pkg/gfslog"
 logger := gfslog.NewLogger(gfslog.Config{
     Source:         "my-service",
     LogServiceAddr: "log-service:50051",
-    MinLevel:       slog.LevelDebug,
+    MinLevel:       slog.LevelInfo, // Info is the recommended default; set LevelDebug only temporarily for deep debugging so per-operation debug logs are not shipped to the centralized stream
 })
 slog.SetDefault(logger.Logger)
 defer logger.Close()
@@ -108,6 +108,9 @@ slog.Error("Connection failed", "error", err)
 | `GET /sse/logs?source=<name>` | JWT required (admin only) | Filter by source name |
 | `GET /sse/logs?level=<level>` | JWT required (admin only) | Filter by minimum level |
 | `WS /ws/logs` | JWT required (admin only) | Stream logs via WebSocket |
+| `GET /logs/download?date=YYYY-MM-DD` | JWT required (admin only) | Download a day's logs (all sources, merged) as a .zip containing .log + .jsonl |
+
+The download endpoint returns a `.zip` archive containing two files: a human-readable `edd-cloud-logs-<date>.log` and a raw `edd-cloud-logs-<date>.jsonl`, both containing entries from all sources merged and sorted chronologically for the requested UTC date. The token may be passed via the `Authorization` header or the `?token=` query parameter (same as `/ws/logs`). Returns `400` for a malformed date and `404` if no logs exist for that date.
 
 :::warning Phase 1 — Admin-only log access
 Log streaming currently requires a valid JWT with admin privileges. Because log entries do not yet carry per-user or per-namespace ownership data, non-admin users cannot be scoped to their own container logs at this time.

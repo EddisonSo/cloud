@@ -43,7 +43,7 @@ func main() {
 		logger := gfslog.NewLogger(gfslog.Config{
 			Source:         logSource,
 			LogServiceAddr: logServiceAddr,
-			MinLevel:       slog.LevelDebug,
+			MinLevel:       slog.LevelInfo,
 		})
 		slog.SetDefault(logger.Logger)
 		defer logger.Close()

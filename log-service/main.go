@@ -2,6 +2,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -278,6 +280,9 @@ func main() {
 	mux.Handle("/ws/logs", corsMiddleware(requireAdminForLogs(func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(w, r, logServer)
 	})))
+	mux.Handle("/logs/download", corsMiddleware(requireAdminForLogs(func(w http.ResponseWriter, r *http.Request) {
+		handleDownload(w, r, logServer)
+	})))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
@@ -388,4 +393,90 @@ func matchesFilter(entry *pb.LogEntry, source string, minLevel pb.LogLevel) bool
 		return false
 	}
 	return true
+}
+
+// ---------------------------------------------------------------------------
+// Download handler — GET /logs/download?date=YYYY-MM-DD
+// ---------------------------------------------------------------------------
+
+// dayFetcher is the signature of LogServer.FetchDayLogs, extracted so the
+// handler can be tested without a real GFS connection.
+type dayFetcher func(ctx context.Context, date string) ([]*pb.LogEntry, error)
+
+// formatLogLine renders a single log entry as a human-readable line:
+//
+//	"2006-01-02 15:04:05  LEVEL  source  message\n"
+//
+// It is a pure function with no side-effects, making it independently unit-testable.
+func formatLogLine(e *pb.LogEntry) string {
+	return time.Unix(e.Timestamp, 0).UTC().Format("2006-01-02 15:04:05") +
+		"  " + e.Level.String() +
+		"  " + e.Source +
+		"  " + e.Message +
+		"\n"
+}
+
+// doHandleDownload is the core implementation of the download handler. It
+// accepts a dayFetcher so the HTTP layer can be tested with a mock fetcher.
+func doHandleDownload(w http.ResponseWriter, r *http.Request, fetch dayFetcher) {
+	date := r.URL.Query().Get("date")
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+
+	entries, err := fetch(r.Context(), date)
+	if err != nil {
+		slog.Warn("download: failed to read logs from GFS", "date", date, "error", err)
+		http.Error(w, "failed to read logs", http.StatusBadGateway)
+		return
+	}
+	if len(entries) == 0 {
+		http.Error(w, "no logs for that date", http.StatusNotFound)
+		return
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	// Member 1: human-readable .log
+	logWriter, err := zw.Create("edd-cloud-logs-" + date + ".log")
+	if err != nil {
+		http.Error(w, "failed to build archive", http.StatusInternalServerError)
+		return
+	}
+	for _, e := range entries {
+		logWriter.Write([]byte(formatLogLine(e))) //nolint:errcheck
+	}
+
+	// Member 2: raw structured .jsonl
+	jsonlWriter, err := zw.Create("edd-cloud-logs-" + date + ".jsonl")
+	if err != nil {
+		http.Error(w, "failed to build archive", http.StatusInternalServerError)
+		return
+	}
+	for _, e := range entries {
+		data, err := json.Marshal(e)
+		if err != nil {
+			continue
+		}
+		jsonlWriter.Write(data)         //nolint:errcheck
+		jsonlWriter.Write([]byte("\n")) //nolint:errcheck
+	}
+
+	if err := zw.Close(); err != nil {
+		http.Error(w, "failed to finalise archive", http.StatusInternalServerError)
+		return
+	}
+
+	filename := "edd-cloud-logs-" + date + ".zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Write(buf.Bytes()) //nolint:errcheck
+}
+
+// handleDownload is the HTTP handler registered at GET /logs/download.
+// Auth (admin JWT) and CORS are applied by the mux wrappers in main().
+func handleDownload(w http.ResponseWriter, r *http.Request, s *server.LogServer) {
+	doHandleDownload(w, r, s.FetchDayLogs)
 }
