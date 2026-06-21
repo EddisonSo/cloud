@@ -161,7 +161,7 @@ func (m *Master) replayWAL(walPath string) error {
 		return err
 	}
 	if reader == nil {
-		slog.Info("no WAL to replay")
+		slog.Debug("no WAL to replay")
 		return nil
 	}
 	defer reader.Close()
@@ -610,7 +610,7 @@ func (m *Master) CreateFile(path, namespace string) (*FileInfo, error) {
 	}
 	m.files[key] = file
 
-	slog.Info("created file", "path", path, "namespace", namespace)
+	slog.Debug("created file", "path", path, "namespace", namespace)
 	return file, nil
 }
 
@@ -764,7 +764,7 @@ func (m *Master) RenameFile(oldPath, newPath, namespace string) error {
 	}
 	m.chunkMu.Unlock()
 
-	slog.Info("renamed file", "oldPath", oldPath, "newPath", newPath, "namespace", namespace)
+	slog.Debug("renamed file", "oldPath", oldPath, "newPath", newPath, "namespace", namespace)
 	return nil
 }
 
@@ -846,7 +846,7 @@ func (m *Master) AddChunkToFile(path, namespace string) (*ChunkInfo, error) {
 	file.Chunks = append(file.Chunks, handle)
 	file.ModifiedAt = time.Now()
 
-	slog.Info("added chunk to file", "path", path, "namespace", normalizeNamespace(namespace), "chunk", handle, "replicas", len(replicas))
+	slog.Debug("added chunk to file", "path", path, "namespace", normalizeNamespace(namespace), "chunk", handle, "replicas", len(replicas))
 	return chunkInfo, nil
 }
 
@@ -1032,7 +1032,7 @@ func (m *Master) ClaimPrimary(handle ChunkHandle, serverID ChunkServerID) bool {
 		}
 		chunk.Primary = serverLoc
 		chunk.LeaseExpiration = now.Add(LeaseDuration)
-		slog.Info("claim primary: assigned new primary",
+		slog.Debug("claim primary: assigned new primary",
 			"chunk", handle, "newPrimary", serverID, "oldPrimary", oldPrimary)
 		return true
 	}
@@ -1112,13 +1112,13 @@ func (m *Master) ReportChunk(serverID ChunkServerID, handle ChunkHandle) {
 	m.csMu.RUnlock()
 	if serverLoc != nil {
 		chunk.Locations = append(chunk.Locations, *serverLoc)
-		slog.Info("added chunk location", "handle", handle, "serverID", serverID)
+		slog.Debug("added chunk location", "handle", handle, "serverID", serverID)
 
 		// If chunk has no primary, assign this server as primary
 		if chunk.Primary == nil {
 			chunk.Primary = serverLoc
 			chunk.LeaseExpiration = time.Now().Add(LeaseDuration)
-			slog.Info("assigned primary from reported location", "handle", handle, "primary", serverID)
+			slog.Debug("assigned primary from reported location", "handle", handle, "primary", serverID)
 		}
 	}
 }
@@ -1205,6 +1205,6 @@ func (m *Master) ConfirmChunkCommit(serverID ChunkServerID, handle ChunkHandle, 
 	}
 	m.fileMu.Unlock()
 
-	slog.Info("chunk commit confirmed", "handle", handle, "serverID", serverID, "size", size, "status", "committed")
+	slog.Debug("chunk commit confirmed", "handle", handle, "serverID", serverID, "size", size, "status", "committed")
 	return nil
 }

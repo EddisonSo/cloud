@@ -78,7 +78,7 @@ func (h *Handler) HandleContainerLogs(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	slog.Info("log stream started", "container", containerID, "user", userID)
+	slog.Debug("log stream started", "container", containerID, "user", userID)
 
 	// Open the log stream from K8s (follow=true)
 	stream, err := h.k8s.GetPodLogs(r.Context(), container.Namespace, podName, true, tailLines)
@@ -107,5 +107,5 @@ func (h *Handler) HandleContainerLogs(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("log stream scanner error", "error", err, "container", containerID)
 	}
 
-	slog.Info("log stream ended", "container", containerID)
+	slog.Debug("log stream ended", "container", containerID)
 }

@@ -281,7 +281,7 @@ func (h *Handler) handleWS(ws *websocket.Conn) {
 		return
 	}
 
-	slog.Info("ws connected", "user_id", userID)
+	slog.Debug("ws connected", "user_id", userID)
 
 	const maxConnsPerUser = 5
 	h.wsMu.Lock()
@@ -307,7 +307,7 @@ func (h *Handler) handleWS(ws *websocket.Conn) {
 		}
 		h.wsMu.Unlock()
 		ws.Close()
-		slog.Info("ws disconnected", "user_id", userID)
+		slog.Debug("ws disconnected", "user_id", userID)
 	}()
 
 	// Keep connection alive with periodic pings

@@ -105,7 +105,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	// Extract path from request line
 	path := extractRequestPath(headerBuf.String())
 
-	slog.Info("HTTP connection", "host", hostname, "path", path, "port", ingressPort, "client", clientAddr)
+	slog.Debug("HTTP connection", "host", hostname, "path", path, "port", ingressPort, "client", clientAddr)
 
 	// Custom (bring-your-own) domains are HTTPS-only — the cert is provisioned
 	// on-demand on the TLS path. Redirect plain HTTP to HTTPS (same as static
@@ -116,7 +116,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 			fullPath = parts[1] // preserve query string
 		}
 		redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
-		slog.Info("custom domain HTTP->HTTPS redirect", "host", hostname, "location", redirectURL)
+		slog.Debug("custom domain HTTP->HTTPS redirect", "host", hostname, "location", redirectURL)
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
 		conn.Close()
 		return
@@ -139,14 +139,14 @@ func (s *Server) handleHTTP(conn net.Conn) {
 				}
 			}
 			redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
-			slog.Info("HTTP->HTTPS redirect", "host", hostname, "path", path, "location", redirectURL)
+			slog.Debug("HTTP->HTTPS redirect", "host", hostname, "path", path, "location", redirectURL)
 			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
 			conn.Close()
 			return
 		}
 
 		backendAddr = route.Target
-		slog.Info(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
 
 		// If strip_prefix is enabled, rewrite the request path
 		if route.StripPrefix && path != targetPath {
@@ -155,7 +155,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	} else if container, targetPort, err := s.router.ResolveHTTP(hostname, ingressPort); err == nil {
 		// 2. Try container routing
 		backendAddr = fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-		slog.Info(fmt.Sprintf("HTTP %s%s -> %s (container)", hostname, path, backendAddr))
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (container)", hostname, path, backendAddr))
 	} else {
 		// 3. Fall back to default upstream
 		if s.fallbackAddr == "" {
@@ -350,15 +350,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 							"status", statusCode,
 							"statusText", statusText,
 						)
-					} else if statusCode > 0 {
-						slog.Info("HTTP response",
-							"method", method,
-							"host", host,
-							"path", path,
-							"backend", backendAddr,
-							"status", statusCode,
-						)
-					} else {
+					} else if statusCode <= 0 {
 						slog.Debug("HTTP response parse failed",
 							"method", method,
 							"host", host,

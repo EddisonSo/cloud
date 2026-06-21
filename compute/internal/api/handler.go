@@ -95,9 +95,9 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if token != "" {
 			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
-				// Expired/invalid client token is a 401, not a server error — log at WARN
+				// Expired/invalid client token is a 401, not a server error — log at DEBUG
 				// so routine expired-session polling doesn't trip error alerts.
-				slog.Warn("session validation failed", "error", err)
+				slog.Debug("session validation failed", "error", err)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -183,7 +183,7 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(token, "ecloud_") {
 			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
-				slog.Warn("api token validation failed", "error", err)
+				slog.Debug("api token validation failed", "error", err)
 				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
@@ -222,9 +222,9 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Regular session JWT
 		claims, err := h.validator.ValidateSession(token)
 		if err != nil {
-			// Expired/invalid client token is a 401, not a server error — log at WARN
+			// Expired/invalid client token is a 401, not a server error — log at DEBUG
 			// so routine expired-session polling doesn't trip error alerts.
-			slog.Warn("session validation failed", "error", err)
+			slog.Debug("session validation failed", "error", err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

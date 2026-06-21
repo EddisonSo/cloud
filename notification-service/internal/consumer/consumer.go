@@ -148,7 +148,7 @@ func (c *Consumer) processMessage(msg jetstream.Msg) {
 		return
 	}
 
-	slog.Info("notification stored", "id", n.ID, "user_id", userID, "title", notification.Title)
+	slog.Debug("notification stored", "id", n.ID, "user_id", userID, "title", notification.Title)
 
 	if c.handler != nil {
 		c.handler(n)

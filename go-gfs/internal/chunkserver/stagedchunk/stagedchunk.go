@@ -169,7 +169,7 @@ func (sc *StagedChunk) Commit() error {
 		dataSize = int64(sc.pos)
 	}
 
-	slog.Info("starting commit", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "offset", sc.Offset, "size", dataSize, "useFile", sc.useFile)
+	slog.Debug("starting commit", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "offset", sc.Offset, "size", dataSize, "useFile", sc.useFile)
 
 	// Create storage directory if it doesn't exist
 	if err := os.MkdirAll(sc.storageDir, 0755); err != nil {
@@ -179,7 +179,7 @@ func (sc *StagedChunk) Commit() error {
 
 	// Chunk file path
 	chunkFilePath := filepath.Join(sc.storageDir, sc.ChunkHandle)
-	slog.Info("writing to file", "path", chunkFilePath)
+	slog.Debug("writing to file", "path", chunkFilePath)
 
 	var bytesWritten int64
 
@@ -207,10 +207,9 @@ func (sc *StagedChunk) Commit() error {
 			}
 
 			bytesWritten = dataSize
-			slog.Info("renamed temp file to chunk file (fast path)", "bytes", bytesWritten)
 
 			sc.Status = csstructs.COMMIT
-			slog.Info("COMMIT SUCCESSFUL - renamed temp file", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "file", chunkFilePath, "bytesWritten", bytesWritten)
+			slog.Debug("COMMIT SUCCESSFUL - renamed temp file", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "file", chunkFilePath, "bytesWritten", bytesWritten)
 			return nil
 		}
 	}
@@ -269,8 +268,6 @@ func (sc *StagedChunk) Commit() error {
 		sc.buf = nil
 	}
 
-	slog.Info("wrote data to disk", "bytes", bytesWritten)
-
 	if bytesWritten != dataSize {
 		slog.Error("incomplete write", "wrote", bytesWritten, "expected", dataSize)
 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", bytesWritten, dataSize)
@@ -281,12 +278,11 @@ func (sc *StagedChunk) Commit() error {
 		slog.Error("failed to sync", "error", err)
 		return fmt.Errorf("failed to sync data to disk: %w", err)
 	}
-	slog.Info("fsynced to disk successfully")
 
 	// Update status to COMMIT
 	sc.Status = csstructs.COMMIT
 
-	slog.Info("COMMIT SUCCESSFUL - data written to disk", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "file", chunkFilePath, "bytesWritten", bytesWritten, "offset", sc.Offset)
+	slog.Debug("COMMIT SUCCESSFUL - data written to disk", "opID", sc.OpId, "chunkHandle", sc.ChunkHandle, "file", chunkFilePath, "bytesWritten", bytesWritten, "offset", sc.Offset)
 
 	return nil
 }

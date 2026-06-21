@@ -211,7 +211,7 @@ func (mc *MasterClient) deleteChunk(chunkHandle string) {
 	if err := os.Remove(path); err != nil {
 		slog.Error("failed to delete chunk", "chunk", chunkHandle, "error", err)
 	} else {
-		slog.Info("deleted chunk", "chunk", chunkHandle)
+		slog.Debug("deleted chunk", "chunk", chunkHandle)
 	}
 }
 
@@ -239,7 +239,7 @@ func (mc *MasterClient) ReportCommit(chunkHandle string, size uint64) error {
 	if !resp.Success {
 		slog.Warn("master rejected commit report", "chunk", chunkHandle, "message", resp.Message)
 	} else {
-		slog.Info("reported commit to master", "chunk", chunkHandle, "size", size)
+		slog.Debug("reported commit to master", "chunk", chunkHandle, "size", size)
 	}
 
 	return nil
@@ -299,6 +299,6 @@ func (mc *MasterClient) ClaimPrimary(chunkHandle string) (uint64, error) {
 		return 0, fmt.Errorf("claim primary rejected: %s", resp.Message)
 	}
 
-	slog.Info("claimed primary", "chunk", chunkHandle, "duration_ms", resp.LeaseDurationMs)
+	slog.Debug("claimed primary", "chunk", chunkHandle, "duration_ms", resp.LeaseDurationMs)
 	return resp.LeaseDurationMs, nil
 }

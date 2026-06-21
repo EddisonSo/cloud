@@ -33,7 +33,7 @@ func main() {
 		logger := gfslog.NewLogger(gfslog.Config{
 			Source:         *logSource,
 			LogServiceAddr: *logServiceAddr,
-			MinLevel:       slog.LevelDebug,
+			MinLevel:       slog.LevelInfo,
 		})
 		slog.SetDefault(logger.Logger)
 		defer logger.Close()
@@ -167,7 +167,6 @@ func subscribeClusterMetrics(ctx context.Context, js jetstream.JetStream, eval *
 			if ctx.Err() != nil {
 				return
 			}
-			slog.Debug("cluster.metrics fetch", "error", err)
 			continue
 		}
 
@@ -201,9 +200,6 @@ func subscribeClusterMetrics(ctx context.Context, js jetstream.JetStream, eval *
 			msg.Ack()
 		}
 
-		if err := msgs.Error(); err != nil {
-			slog.Debug("cluster.metrics fetch stream", "error", err)
-		}
 	}
 }
 
@@ -232,7 +228,6 @@ func subscribeClusterPods(ctx context.Context, js jetstream.JetStream, eval *ale
 			if ctx.Err() != nil {
 				return
 			}
-			slog.Debug("cluster.pods fetch", "error", err)
 			continue
 		}
 
@@ -259,9 +254,6 @@ func subscribeClusterPods(ctx context.Context, js jetstream.JetStream, eval *ale
 			msg.Ack()
 		}
 
-		if err := msgs.Error(); err != nil {
-			slog.Debug("cluster.pods fetch stream", "error", err)
-		}
 	}
 }
 
@@ -290,7 +282,6 @@ func subscribeLogErrors(ctx context.Context, js jetstream.JetStream, detector *a
 			if ctx.Err() != nil {
 				return
 			}
-			slog.Debug("log.error fetch", "error", err)
 			continue
 		}
 
@@ -310,8 +301,5 @@ func subscribeLogErrors(ctx context.Context, js jetstream.JetStream, detector *a
 			msg.Ack()
 		}
 
-		if err := msgs.Error(); err != nil {
-			slog.Debug("log.error fetch stream", "error", err)
-		}
 	}
 }
