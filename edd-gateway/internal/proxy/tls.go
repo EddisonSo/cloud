@@ -281,6 +281,12 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		method := req.Method
 		wantClose := req.Close || strings.EqualFold(req.Header.Get("Connection"), "close")
 
+		// Mint (or reuse) the correlation ID once per request, then set it on the
+		// request so it propagates upstream (via RoundTrip / req.Write) and tag it
+		// onto every request-scoped log line and the response below.
+		reqID := requestID(req)
+		req.Header.Set(requestIDHeader, reqID)
+
 		// Credentialed requests must never touch the path-keyed shared cache:
 		// per-user responses (e.g. /api/session) keyed only by sni+path would
 		// otherwise be served to other (or unauthenticated) users -> auth bypass.
@@ -304,13 +310,13 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr)
-			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nNo backend available\r\n")
+			slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr, "request_id", reqID)
+			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nNo backend available\r\n")
 			writer.Flush()
 			break
 		}
 
-		slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
+		slog.Debug(fmt.Sprintf("HTTPS %s%s -> %s", sni, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_id", reqID)
 
 		// Add forwarding headers
 		req.Header.Set("X-Forwarded-For", stripPort(clientAddr))
@@ -328,8 +334,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 			writer.Flush()
 			backend, dialErr := net.DialTimeout("tcp", route.Target, 5*time.Second)
 			if dialErr != nil {
-				slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", dialErr)
-				conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n"))
+				slog.Error("failed to connect to backend", "host", sni, "target", route.Target, "error", dialErr, "request_id", reqID)
+				conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nBackend connection failed\r\n"))
 				break
 			}
 			req.Write(backend)
@@ -354,8 +360,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		if method == "GET" && !hasCreds && req.URL.RawQuery == "" {
 			cacheKey := sni + ":" + path
 			if cached := respCache.Get(cacheKey); cached != nil {
-				slog.Debug("cache hit", "host", sni, "path", path)
-				writeCachedResponse(writer, cached, wantClose)
+				slog.Debug("cache hit", "host", sni, "path", path, "request_id", reqID)
+				writeCachedResponse(writer, cached, reqID, wantClose)
 				writer.Flush()
 				if wantClose {
 					break
@@ -371,15 +377,18 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		resp, err := backendTransport.RoundTrip(req)
 		if err != nil {
-			slog.Error("backend request failed", "method", method, "host", sni, "path", path, "backend", route.Target, "error", err)
-			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nBackend connection failed\r\n")
+			slog.Error("backend request failed", "method", method, "host", sni, "path", path, "backend", route.Target, "error", err, "request_id", reqID)
+			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nBackend connection failed\r\n")
 			writer.Flush()
 			break
 		}
 
+		// Echo the correlation ID onto the response back to the client.
+		resp.Header.Set(requestIDHeader, reqID)
+
 		// Log response status
 		if resp.StatusCode >= 400 {
-			slog.Warn("HTTP error response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
+			slog.Warn("HTTP error response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode, "request_id", reqID)
 		}
 
 		// For small cacheable GET 200 responses, buffer and cache.
@@ -410,7 +419,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 					resp.Header.Set("Connection", "keep-alive")
 					resp.Header.Set("Keep-Alive", "timeout=60")
 				}
-				writeCachedResponse(writer, cached, wantClose)
+				writeCachedResponse(writer, cached, reqID, wantClose)
 				writer.Flush()
 				if wantClose {
 					break
@@ -442,18 +451,22 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 // writeCachedResponse writes a cached HTTP response to the buffered writer.
 // Writes status line, headers, and body in a single flush for efficiency.
-func writeCachedResponse(w *bufio.Writer, c *cachedResponse, wantClose bool) {
+func writeCachedResponse(w *bufio.Writer, c *cachedResponse, reqID string, wantClose bool) {
 	fmt.Fprintf(w, "HTTP/1.1 %d %s\r\n", c.statusCode, http.StatusText(c.statusCode))
 	for k, vals := range c.header {
-		// Skip headers we set ourselves
+		// Skip headers we set ourselves. X-Request-ID is per-request, so the value
+		// cached from the original request must not leak to a later cache hit — we
+		// write the current request's ID explicitly below.
 		lower := strings.ToLower(k)
-		if lower == "connection" || lower == "keep-alive" || lower == "cache-control" || lower == "content-length" {
+		if lower == "connection" || lower == "keep-alive" || lower == "cache-control" || lower == "content-length" || lower == "x-request-id" {
 			continue
 		}
 		for _, v := range vals {
 			fmt.Fprintf(w, "%s: %s\r\n", k, v)
 		}
 	}
+	// Echo the current request's correlation ID (not the cached one).
+	fmt.Fprintf(w, "%s: %s\r\n", requestIDHeader, reqID)
 	// Prevent browser caching — gateway handles caching server-side
 	w.WriteString("Cache-Control: no-store\r\n")
 	if wantClose {

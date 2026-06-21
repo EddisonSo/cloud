@@ -105,7 +105,17 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	// Extract path from request line
 	path := extractRequestPath(headerBuf.String())
 
-	slog.Debug("HTTP connection", "host", hostname, "path", path, "port", ingressPort, "client", clientAddr)
+	// Mint (or reuse) the correlation ID once per request. Reuse the inbound
+	// X-Request-ID if the client supplied one; otherwise generate a fresh ID.
+	// The same id is propagated upstream, echoed on error responses, and tagged
+	// onto every request-scoped log line below.
+	reqID := extractHeaderValue(headerBuf.String(), requestIDHeader)
+	hadReqID := reqID != ""
+	if !hadReqID {
+		reqID = newRequestID()
+	}
+
+	slog.Debug("HTTP connection", "host", hostname, "path", path, "port", ingressPort, "client", clientAddr, "request_id", reqID)
 
 	// Custom (bring-your-own) domains are HTTPS-only — the cert is provisioned
 	// on-demand on the TLS path. Redirect plain HTTP to HTTPS (same as static
@@ -116,7 +126,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 			fullPath = parts[1] // preserve query string
 		}
 		redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
-		slog.Debug("custom domain HTTP->HTTPS redirect", "host", hostname, "location", redirectURL)
+		slog.Debug("custom domain HTTP->HTTPS redirect", "host", hostname, "location", redirectURL, "request_id", reqID)
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
 		conn.Close()
 		return
@@ -139,14 +149,14 @@ func (s *Server) handleHTTP(conn net.Conn) {
 				}
 			}
 			redirectURL := fmt.Sprintf("https://%s%s", hostname, fullPath)
-			slog.Debug("HTTP->HTTPS redirect", "host", hostname, "path", path, "location", redirectURL)
+			slog.Debug("HTTP->HTTPS redirect", "host", hostname, "path", path, "location", redirectURL, "request_id", reqID)
 			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 301 Moved Permanently\r\nLocation: %s\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\n", redirectURL)))
 			conn.Close()
 			return
 		}
 
 		backendAddr = route.Target
-		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix)
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s", hostname, path, route.Target), "targetPath", targetPath, "strip_prefix", route.StripPrefix, "request_id", reqID)
 
 		// If strip_prefix is enabled, rewrite the request path
 		if route.StripPrefix && path != targetPath {
@@ -155,27 +165,27 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	} else if container, targetPort, err := s.router.ResolveHTTP(hostname, ingressPort); err == nil {
 		// 2. Try container routing
 		backendAddr = fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (container)", hostname, path, backendAddr))
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (container)", hostname, path, backendAddr), "request_id", reqID)
 	} else {
 		// 3. Fall back to default upstream
 		if s.fallbackAddr == "" {
-			slog.Warn(fmt.Sprintf("HTTP %s%s -> NO ROUTE", hostname, path), "port", ingressPort)
-			conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nNo backend available\r\n"))
+			slog.Warn(fmt.Sprintf("HTTP %s%s -> NO ROUTE", hostname, path), "port", ingressPort, "request_id", reqID)
+			conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nNo backend available\r\n"))
 			conn.Close()
 			return
 		}
 		backendAddr = fmt.Sprintf("%s:%d", s.fallbackAddr, ingressPort)
-		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (fallback)", hostname, path, backendAddr))
+		slog.Debug(fmt.Sprintf("HTTP %s%s -> %s (fallback)", hostname, path, backendAddr), "request_id", reqID)
 	}
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
-		slog.Error("failed to connect to backend", "host", hostname, "addr", backendAddr, "error", err)
-		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n\r\nBackend connection failed\r\n"))
+		slog.Error("failed to connect to backend", "host", hostname, "addr", backendAddr, "error", err, "request_id", reqID)
+		conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nBackend connection failed\r\n"))
 		conn.Close()
 		return
 	}
 
-	slog.Debug("proxying HTTP to backend", "host", hostname, "backend", backendAddr)
+	slog.Debug("proxying HTTP to backend", "host", hostname, "backend", backendAddr, "request_id", reqID)
 
 	// Get any buffered data from the reader
 	buffered := make([]byte, reader.Buffered())
@@ -191,6 +201,12 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	headers = addHeader(headers, "X-Forwarded-For", stripPort(clientAddr))
 	// Force connection close - gateway doesn't support HTTP keep-alive yet
 	headers = addHeader(headers, "Connection", "close")
+	// Propagate the correlation ID upstream so downstream services log it too.
+	// Only add it if the client didn't already supply one (it's preserved in the
+	// raw header bytes), to avoid emitting a duplicate X-Request-ID header.
+	if !hadReqID {
+		headers = addHeader(headers, requestIDHeader, reqID)
+	}
 
 	// Combine headers with any buffered body data
 	initialData := append(headers, buffered...)
@@ -199,7 +215,7 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	method := extractMethod(headerBuf.String())
 
 	// Proxy the connection with response logging
-	proxyWithResponseLogging(conn, backend, initialData, method, hostname, path, backendAddr)
+	proxyWithResponseLogging(conn, backend, initialData, method, hostname, path, backendAddr, reqID)
 }
 
 // stripPort removes the port from an address string (e.g. "1.2.3.4:5678" -> "1.2.3.4").
@@ -298,6 +314,25 @@ func addHeader(headers []byte, name, value string) []byte {
 	return []byte(headerStr[:idx] + "\r\n" + name + ": " + value + "\r\n\r\n")
 }
 
+// injectResponseHeader inserts a header line immediately after the status line
+// of a raw HTTP response. The status line is always complete in the first read,
+// so inserting after the first CRLF yields a valid response without parsing the
+// full header block. If no CRLF is found, the data is returned unchanged.
+func injectResponseHeader(data []byte, name, value string) []byte {
+	idx := bytes.Index(data, []byte("\r\n"))
+	if idx == -1 {
+		return data
+	}
+	out := make([]byte, 0, len(data)+len(name)+len(value)+4)
+	out = append(out, data[:idx+2]...)
+	out = append(out, name...)
+	out = append(out, ':', ' ')
+	out = append(out, value...)
+	out = append(out, '\r', '\n')
+	out = append(out, data[idx+2:]...)
+	return out
+}
+
 // extractMethod extracts the HTTP method from the request line.
 func extractMethod(headers string) string {
 	idx := strings.Index(headers, " ")
@@ -308,16 +343,18 @@ func extractMethod(headers string) string {
 }
 
 // proxyWithResponseLogging proxies the connection and logs the response status.
-func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, method, host, path, backendAddr string) {
+// reqID is the correlation ID for this request; it is injected onto the response
+// headers sent back to the client and tagged onto all response-scoped log lines.
+func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, method, host, path, backendAddr, reqID string) {
 	defer client.Close()
 	defer backend.Close()
 
-	slog.Debug("starting proxy", "method", method, "host", host, "path", path, "backend", backendAddr)
+	slog.Debug("starting proxy", "method", method, "host", host, "path", path, "backend", backendAddr, "request_id", reqID)
 
 	// Send the request to backend
 	if len(initialData) > 0 {
 		if _, err := backend.Write(initialData); err != nil {
-			slog.Error("failed to write request to backend", "error", err, "host", host, "path", path)
+			slog.Error("failed to write request to backend", "error", err, "host", host, "path", path, "request_id", reqID)
 			return
 		}
 	}
@@ -338,6 +375,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 		for {
 			n, err := backend.Read(buf)
 			if n > 0 {
+				chunk := buf[:n]
 				// Log response status on first read
 				if !statusLogged {
 					statusCode, statusText := parseResponseStatus(buf[:n])
@@ -349,6 +387,7 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 							"backend", backendAddr,
 							"status", statusCode,
 							"statusText", statusText,
+							"request_id", reqID,
 						)
 					} else if statusCode <= 0 {
 						slog.Debug("HTTP response parse failed",
@@ -357,12 +396,16 @@ func proxyWithResponseLogging(client, backend net.Conn, initialData []byte, meth
 							"path", path,
 							"backend", backendAddr,
 							"firstBytes", string(buf[:minInt(n, 50)]),
+							"request_id", reqID,
 						)
 					}
+					// Inject the correlation ID onto the response back to the client
+					// (right after the status line) so the caller can correlate too.
+					chunk = injectResponseHeader(buf[:n], requestIDHeader, reqID)
 					statusLogged = true
 				}
 
-				if _, werr := client.Write(buf[:n]); werr != nil {
+				if _, werr := client.Write(chunk); werr != nil {
 					return
 				}
 			}
