@@ -824,6 +824,12 @@ jobs:
         if: needs.create-manifests.outputs.manifests_changed == 'true'
         run: |
           kubectl apply -f manifests/nats/nats.yaml
+      - name: Apply log-service manifest changes
+        if: needs.create-manifests.outputs.manifests_changed == 'true'
+        run: |
+          LOG_IMG=$(kubectl -n $NS get deploy/log-service -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          kubectl apply -f manifests/log-service/log-service.yaml
+          [ -n "$LOG_IMG" ] && kubectl -n $NS set image deploy/log-service log-service="$LOG_IMG"
       - name: Deploy SFS
         if: needs.create-manifests.outputs.sfs_built == 'true'
         run: kubectl -n $NS set image deployment/simple-file-share-backend backend=${SFS_IMAGE}:${IMAGE_TAG}
