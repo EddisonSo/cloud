@@ -79,8 +79,6 @@ func (fus *FileUploadService) HandleUpload(conn net.Conn) {
 		return
 	}
 
-	slog.Info("Read request", "chunk_handle", claims.ChunkHandle)
-
 	// Build file path
 	chunkFilePath := filepath.Join(fus.ChunkServerConfig.Dir, claims.ChunkHandle)
 
@@ -121,13 +119,11 @@ func (fus *FileUploadService) HandleUpload(conn net.Conn) {
 	}
 
 	// Stream file contents
-	bytesSent, err := io.Copy(conn, file)
+	_, err = io.Copy(conn, file)
 	if err != nil {
 		slog.Error("Failed to stream chunk data", "error", err)
 		return
 	}
-
-	slog.Info("Read complete", "chunk_handle", claims.ChunkHandle, "bytes_sent", bytesSent)
 }
 
 func (fus *FileUploadService) sendError(conn net.Conn, code csstructs.ReadErrorCode, message string) {

@@ -149,7 +149,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("terminal connected", "container", containerID)
+	slog.Debug("terminal connected", "container", containerID)
 
 	// Proxy between WebSocket and SSH
 	ctx, cancel := context.WithCancel(r.Context())

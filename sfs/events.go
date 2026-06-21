@@ -45,7 +45,7 @@ func (h *userEventHandler) OnUserDeleted(ctx context.Context, event events.UserD
 		return err
 	}
 
-	slog.Info("user deleted from cache", "user_id", event.UserID)
+	slog.Debug("user deleted from cache", "user_id", event.UserID)
 	return nil
 }
 

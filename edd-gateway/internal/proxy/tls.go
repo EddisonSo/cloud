@@ -157,7 +157,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 		return
 	}
 
-	slog.Info("TLS terminated for container", "sni", sni, "port", ingressPort, "client", clientAddr)
+	slog.Debug("TLS terminated for container", "sni", sni, "port", ingressPort, "client", clientAddr)
 
 	// Check for ingress rule after TLS handshake - return HTTP error if no rule
 	container, targetPort, err := s.router.ResolveHTTP(sni, ingressPort)
@@ -169,7 +169,7 @@ func (s *Server) handleContainerTLSTermination(rawConn net.Conn, header, payload
 	}
 
 	backendAddr := fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-	slog.Info("container TLS terminated, routing to backend", "sni", sni, "port", ingressPort, "target", backendAddr)
+	slog.Debug("container TLS terminated, routing to backend", "sni", sni, "port", ingressPort, "target", backendAddr)
 
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *Server) handleCustomDomainTLSTermination(rawConn net.Conn, header, payl
 		return
 	}
 	backendAddr := fmt.Sprintf("lb.%s.svc.cluster.local:%d", container.Namespace, targetPort)
-	slog.Info("custom domain TLS terminated, routing to backend", "sni", sni, "target", backendAddr)
+	slog.Debug("custom domain TLS terminated, routing to backend", "sni", sni, "target", backendAddr)
 	backend, err := net.DialTimeout("tcp", backendAddr, 5*time.Second)
 	if err != nil {
 		slog.Error("failed to connect to custom domain backend", "sni", sni, "addr", backendAddr, "error", err)
@@ -380,8 +380,6 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 		// Log response status
 		if resp.StatusCode >= 400 {
 			slog.Warn("HTTP error response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
-		} else {
-			slog.Info("HTTP response", "method", method, "host", sni, "path", path, "backend", route.Target, "status", resp.StatusCode)
 		}
 
 		// For small cacheable GET 200 responses, buffer and cache.

@@ -32,7 +32,7 @@ func SendCommitToReplica(replica csstructs.ReplicaIdentifier, opID string) error
 		OpId: opID,
 	}
 
-	slog.Info("sending commit to replica", "replica", replica.ID, "opID", opID)
+	slog.Debug("sending commit to replica", "replica", replica.ID, "opID", opID)
 
 	resp, err := client.RecvCommit(ctx, req)
 	if err != nil {
@@ -43,7 +43,7 @@ func SendCommitToReplica(replica csstructs.ReplicaIdentifier, opID string) error
 		return fmt.Errorf("commit failed on %s: %s", replica.ID, resp.Message)
 	}
 
-	slog.Info("commit successful on replica", "replica", replica.ID, "opID", opID)
+	slog.Debug("commit successful on replica", "replica", replica.ID, "opID", opID)
 	return nil
 }
 

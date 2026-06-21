@@ -222,7 +222,7 @@ func (s *GRPCServer) GetChunkLocations(ctx context.Context, req *pb.GetChunkLoca
 
 // ReportCommit is called by chunkservers after successful 2PC commit
 func (s *GRPCServer) ReportCommit(ctx context.Context, req *pb.ReportCommitRequest) (*pb.ReportCommitResponse, error) {
-	slog.Info("received commit report",
+	slog.Debug("received commit report",
 		"serverID", req.ServerId,
 		"chunkHandle", req.ChunkHandle,
 		"size", req.Size)

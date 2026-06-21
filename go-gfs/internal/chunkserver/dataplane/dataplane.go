@@ -41,8 +41,6 @@ func (cs *DataPlane) Start() {
 			slog.Error("Failed to accept connection", "error", err)
 			continue
 		}
-		slog.Info("New connection established", "remote_addr", conn.RemoteAddr().String())
-
 		buf := make([]byte, 4)
 		n, err := conn.Read(buf)
 		if err != nil || n != 4 {

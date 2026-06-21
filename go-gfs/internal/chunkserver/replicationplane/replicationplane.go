@@ -39,7 +39,7 @@ func (rp *ReplicationPlane) Replicate(stream pb.Replicator_ReplicateServer) erro
 				msg += " for " + chunkHandle
 			}
 
-			slog.Info("replication complete", "chunkHandle", chunkHandle, "opID", opID, "length", length, "sequence", sequence)
+			slog.Debug("replication complete", "chunkHandle", chunkHandle, "opID", opID, "length", length, "sequence", sequence)
 			return stream.SendAndClose(&pb.ReplicationResponse{
 				Success: true,
 				Message: msg,
@@ -48,7 +48,6 @@ func (rp *ReplicationPlane) Replicate(stream pb.Replicator_ReplicateServer) erro
 
 		switch v := frame.GetKind().(type) {
 		case *pb.ReplicationFrame_Meta:
-			slog.Info(frame.String())
 			meta := v.Meta
 			chunkHandle = meta.GetChunkHandle()
 			opID = meta.GetOpId()
@@ -56,7 +55,7 @@ func (rp *ReplicationPlane) Replicate(stream pb.Replicator_ReplicateServer) erro
 			offset = meta.GetOffset()
 			sequence = meta.GetSequence()
 
-			slog.Info("starting replication", "chunkHandle", chunkHandle, "opID", opID, "length", length, "offset", offset, "sequence", sequence)
+			slog.Debug("starting replication", "chunkHandle", chunkHandle, "opID", opID, "length", length, "offset", offset, "sequence", sequence)
 
 			sc = stagedchunk.NewStagedChunk(chunkHandle, opID, length, offset, sequence, rp.config.Dir)
 			if sc == nil {
@@ -75,7 +74,7 @@ func (rp *ReplicationPlane) Replicate(stream pb.Replicator_ReplicateServer) erro
 				return err
 			}
 		default:
-			slog.Info("unknown replication frame kind", "chunkHandle", chunkHandle, "opID", opID)
+			slog.Warn("unknown replication frame kind", "chunkHandle", chunkHandle, "opID", opID)
 			return errors.New("unknown frame kind")
 		}
 	}
@@ -85,7 +84,7 @@ func (rp *ReplicationPlane) RecvReady(ctx context.Context, req *pb.Ready) (*pb.R
 	opID := req.GetOpId()
 	replica := req.GetReplica()
 
-	slog.Info("received ready signal", "opID", opID, "replica", replica)
+	slog.Debug("received ready signal", "opID", opID, "replica", replica)
 
 	// Get the staged chunk by operation ID
 	trackingService := chunkstagingtrackingservice.GetChunkStagingTrackingService()
@@ -102,7 +101,7 @@ func (rp *ReplicationPlane) RecvReady(ctx context.Context, req *pb.Ready) (*pb.R
 	// Mark the replica as ready
 	sc.Ready()
 
-	slog.Info("staged chunk marked as ready", "opID", opID, "chunkHandle", sc.ChunkHandle)
+	slog.Debug("staged chunk marked as ready", "opID", opID, "chunkHandle", sc.ChunkHandle)
 
 	return &pb.ReplicationResponse{
 		Success: true,
@@ -113,7 +112,7 @@ func (rp *ReplicationPlane) RecvReady(ctx context.Context, req *pb.Ready) (*pb.R
 func (rp *ReplicationPlane) RecvCommit(ctx context.Context, req *pb.Commit) (*pb.ReplicationResponse, error) {
 	opID := req.GetOpId()
 
-	slog.Info("received commit signal", "opID", opID)
+	slog.Debug("received commit signal", "opID", opID)
 
 	// Get the staged chunk by operation ID
 	trackingService := chunkstagingtrackingservice.GetChunkStagingTrackingService()
@@ -140,7 +139,7 @@ func (rp *ReplicationPlane) RecvCommit(ctx context.Context, req *pb.Commit) (*pb
 	// Remove from tracking after successful commit
 	trackingService.RemoveStagedChunk(opID)
 
-	slog.Info("commit applied", "opID", opID, "chunkHandle", sc.ChunkHandle, "sequence", sc.Sequence)
+	slog.Debug("commit applied", "opID", opID, "chunkHandle", sc.ChunkHandle, "sequence", sc.Sequence)
 
 	return &pb.ReplicationResponse{
 		Success: true,

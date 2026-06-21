@@ -34,7 +34,7 @@ func (f *fanoutcoordinator) StartFanout(conn net.Conn, jwtTokenString string) er
 	forwarders := make([]*forwarder.Forwarder, len(f.replicas))
 	expectedSize := f.stagedchunk.Cap()
 
-	slog.Info("Starting fanout", "replicas", f.replicas, "expectedSize", expectedSize)
+	slog.Debug("Starting fanout", "replicas", f.replicas, "expectedSize", expectedSize)
 
 	for i, replica := range f.replicas {
 		forwarders[i] = forwarder.NewForwarder(replica, f.stagedchunk.OpId, f.stagedchunk.ChunkHandle, f.stagedchunk, f.stagedchunk.Cap(), f.stagedchunk.Offset, f.stagedchunk.Sequence)
@@ -67,7 +67,7 @@ func (f *fanoutcoordinator) StartFanout(conn net.Conn, jwtTokenString string) er
 		}
 		if err != nil {
 			if err == io.EOF {
-				slog.Info("finished reading data from client", "totalBytes", total, "expectedSize", expectedSize)
+				slog.Debug("finished reading data from client", "totalBytes", total, "expectedSize", expectedSize)
 				// Close forwarders
 				for _, fw := range forwarders {
 					if err := fw.Pw.Close(); err != nil {
@@ -85,6 +85,6 @@ func (f *fanoutcoordinator) StartFanout(conn net.Conn, jwtTokenString string) er
 		}
 	}
 
-	slog.Info("fanout completed successfully", "totalBytes", total)
+	slog.Debug("fanout completed successfully", "totalBytes", total)
 	return nil
 }

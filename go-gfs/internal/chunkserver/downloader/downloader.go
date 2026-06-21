@@ -88,7 +88,6 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 		return
 	}
 
-	slog.Info("Download request", "chunk_handle", claims.ChunkHandle, "operation", claims.Operation, "filesize", claims.Filesize, "offset", claims.Offset)
 	if claims.Operation != "download" {
 		slog.Error("Invalid operation", "operation", claims.Operation)
 		return
@@ -137,7 +136,7 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 			slog.Error("Failed to allocate at offset", "offset", offset, "error", err)
 			return
 		}
-		slog.Info("random write", "opID", opId, "offset", offset, "sequence", sequence)
+		slog.Debug("random write", "opID", opId, "offset", offset, "sequence", sequence)
 	} else {
 		// Append - allocate next offset
 		offset, sequence, err = currAllocator.Allocate(claims.Filesize)
@@ -145,7 +144,7 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 			slog.Error("Failed to allocate space for chunk", "error", err)
 			return
 		}
-		slog.Info("append write", "opID", opId, "offset", offset, "sequence", sequence)
+		slog.Debug("append write", "opID", opId, "offset", offset, "sequence", sequence)
 	}
 
 	sc := stagedchunk.NewStagedChunk(
@@ -176,13 +175,13 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 	}
 
 	// Stream data from client and fanout to replicas
-	slog.Info("starting fanout to replicas", "opID", opId, "numReplicas", len(claims.Replicas))
+	slog.Debug("starting fanout to replicas", "opID", opId, "numReplicas", len(claims.Replicas))
 	if err := coordinator.StartFanout(conn, jwtTokenString); err != nil {
 		slog.Error("Fanout failed", "error", err)
 		return
 	}
 
-	slog.Info("data replication complete, waiting for quorum", "opID", opId, "chunkHandle", claims.ChunkHandle, "replicationFactor", 3)
+	slog.Debug("data replication complete, waiting for quorum", "opID", opId, "chunkHandle", claims.ChunkHandle, "replicationFactor", 3)
 
 	// Wait for quorum (2 out of 3 replicas for RF=3)
 	if !fds.waitForQuorum(sc, 3, 10) {
@@ -192,7 +191,7 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 		return
 	}
 
-	slog.Info("quorum reached, initiating commit phase", "opID", opId)
+	slog.Debug("quorum reached, initiating commit phase", "opID", opId)
 
 	// Renew lease before committing to ensure we're still the primary
 	if mc := masterclient.GetInstance(); mc != nil {
@@ -232,9 +231,9 @@ func (fds *FileDownloadService) HandleDownload(conn net.Conn) {
 		conn.Write([]byte{0}) // 0 = failure
 		return
 	}
-	slog.Info("primary committed", "opID", opId)
+	slog.Debug("primary committed", "opID", opId)
 
-	slog.Info("commit successful", "opID", opId, "chunkHandle", claims.ChunkHandle, "offset", offset)
+	slog.Debug("commit successful", "opID", opId, "chunkHandle", claims.ChunkHandle, "offset", offset)
 
 	// Remove from tracking after successful commit
 	fds.ChunkStagingTrackingService.RemoveStagedChunk(opId)
@@ -258,12 +257,12 @@ func (fds *FileDownloadService) waitForQuorum(sc *stagedchunk.StagedChunk, repli
 	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
 	quorumNeeded := replicationFactor/2 + 1
 
-	slog.Info("waiting for quorum", "opID", sc.OpId, "quorumNeeded", quorumNeeded-1, "replicationFactor", replicationFactor)
+	slog.Debug("waiting for quorum", "opID", sc.OpId, "quorumNeeded", quorumNeeded-1, "replicationFactor", replicationFactor)
 
 	for time.Now().Before(deadline) {
 		readyCount := sc.GetReadyCount()
 		if sc.IsQuorumReady(replicationFactor) {
-			slog.Info("quorum reached!", "opID", sc.OpId, "readyCount", readyCount, "quorumNeeded", quorumNeeded-1)
+			slog.Debug("quorum reached!", "opID", sc.OpId, "readyCount", readyCount, "quorumNeeded", quorumNeeded-1)
 			return true
 		}
 		slog.Debug("waiting for more replicas", "opID", sc.OpId, "readyCount", readyCount, "quorumNeeded", quorumNeeded-1)

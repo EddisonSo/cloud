@@ -43,7 +43,7 @@ func NewForwarder(replica csstructs.ReplicaIdentifier, opId string, chunkHandle 
 }
 
 func (f *Forwarder) StartForward() error {
-	slog.Info("Starting forwarder", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle)
+	slog.Debug("Starting forwarder", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle)
 
 	conn, err := grpc.NewClient(f.replica.Hostname + ":" + strconv.Itoa(f.replica.ReplicationPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -60,7 +60,7 @@ func (f *Forwarder) StartForward() error {
 		return err
 	}
 
-	slog.Info("Forwarder connected to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle)
+	slog.Debug("Forwarder connected to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle)
 
 	meta := &pb.ReplicationMetadata{
 		OpId:        f.opId,
@@ -80,8 +80,6 @@ func (f *Forwarder) StartForward() error {
 		return err
 	}
 
-	slog.Info("Sent metadata to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle, "length", f.chunkSize)
-	
 	buf := make([]byte, 1 << 20)
 	var currBytes uint64 = 0
 	var totalBytes uint64 = 0
@@ -105,7 +103,7 @@ func (f *Forwarder) StartForward() error {
 					slog.Error("Failed to send final data to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle, "error", err)
 					return err
 				}
-				slog.Info("Finished data transfer to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle, "n", n, "totalBytes", totalBytes)
+				slog.Debug("Finished data transfer to replica", "replica", f.replica.Hostname, "opId", f.opId, "chunkHandle", f.chunkHandle, "n", n, "totalBytes", totalBytes)
 			}
 			stream.CloseAndRecv()
 			f.stagedchunk.Ready()

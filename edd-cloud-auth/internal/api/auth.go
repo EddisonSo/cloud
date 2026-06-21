@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -63,11 +64,13 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
+		slog.Warn("login failed", "username", req.Username, "client_ip", clientIP)
 		writeError(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		slog.Warn("login failed", "username", req.Username, "client_ip", clientIP)
 		writeError(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}

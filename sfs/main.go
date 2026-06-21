@@ -968,7 +968,7 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			fail(fmt.Sprintf("failed to delete existing file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("upload overwrite namespace=%s name=%s transfer=%s", namespace, name, transferID)
+		slog.Debug("upload overwrite", "namespace", namespace, "name", name, "transfer", transferID)
 	}
 
 	// Create new file
@@ -979,13 +979,13 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	total = s.parseSizeHeader(r.Header.Get("X-File-Size"))
 	reporter := s.newReporter(transferID, "upload", total)
-	log.Printf(
-		"upload start namespace=%s name=%s size=%d transfer=%s gfs_namespace=%s",
-		namespace,
-		name,
-		total,
-		transferID,
-		s.gfsNamespace(namespace),
+	slog.Debug(
+		"upload start",
+		"namespace", namespace,
+		"name", name,
+		"size", total,
+		"transfer", transferID,
+		"gfs_namespace", s.gfsNamespace(namespace),
 	)
 
 	// Send immediate "started" progress so UI shows activity right away
@@ -1009,12 +1009,12 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reporter.Done()
-	log.Printf(
-		"upload complete namespace=%s name=%s size=%d transfer=%s",
-		namespace,
-		name,
-		total,
-		transferID,
+	slog.Debug(
+		"upload complete",
+		"namespace", namespace,
+		"name", name,
+		"size", total,
+		"transfer", transferID,
 	)
 
 	// Send notification for file upload
@@ -1364,7 +1364,7 @@ func (s *server) handleFilePost(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("failed to delete existing file: %v", err), http.StatusInternalServerError)
 			return
 		}
-		log.Printf("upload overwrite namespace=%s name=%s transfer=%s", namespace, name, transferID)
+		slog.Debug("upload overwrite", "namespace", namespace, "name", name, "transfer", transferID)
 	}
 
 	// Create new file
@@ -1408,7 +1408,7 @@ func (s *server) handleFilePost(w http.ResponseWriter, r *http.Request) {
 
 	total := s.parseSizeHeader(r.Header.Get("X-File-Size"))
 	reporter := s.newReporter(transferID, "upload", total)
-	log.Printf("upload start namespace=%s name=%s size=%d transfer=%s", namespace, name, total, transferID)
+	slog.Debug("upload start", "namespace", namespace, "name", name, "size", total, "transfer", transferID)
 	reporter.Update(0)
 
 	counting := &countingReader{reader: body, reporter: reporter}
@@ -2085,7 +2085,7 @@ func (s *server) handleWS(ws *websocket.Conn) {
 		_ = ws.Close()
 		return
 	}
-	log.Printf("ws connected id=%s", id)
+	slog.Debug("ws connected", "id", id)
 	s.registerWS(id, ws)
 	defer s.unregisterWS(id, ws)
 	_, _ = io.Copy(io.Discard, ws)
@@ -2160,7 +2160,7 @@ func (s *server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	s.sseConns[id] = ch
 	s.sseMu.Unlock()
 
-	log.Printf("sse connected id=%s", id)
+	slog.Debug("sse connected", "id", id)
 
 	defer func() {
 		s.sseMu.Lock()
@@ -2169,7 +2169,7 @@ func (s *server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		}
 		s.sseMu.Unlock()
 		close(ch)
-		log.Printf("sse disconnected id=%s", id)
+		slog.Debug("sse disconnected", "id", id)
 	}()
 
 	// Send initial keepalive
@@ -2437,10 +2437,7 @@ func writeJSON(w http.ResponseWriter, payload any) {
 
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
 		next.ServeHTTP(w, r)
-		duration := time.Since(start)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, duration.Round(time.Millisecond))
 	})
 }
 

@@ -42,6 +42,12 @@ type JWTClaims struct {
 
 var jwtSecret []byte
 
+// NATS publish failure state — track first-failure transitions to avoid
+// re-logging on every 5s tick while NATS is continuously down.
+// Each bool is only ever written by its own single worker goroutine (no mutex needed).
+var metricsPublishFailing bool
+var podPublishFailing bool
+
 func initJWTSecret() {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -949,7 +955,7 @@ func handleClusterInfoWS(w http.ResponseWriter, r *http.Request, cache *MetricsC
 			return
 		case info := <-updates:
 			if err := conn.WriteJSON(info); err != nil {
-				slog.Error("WebSocket send failed", "error", err)
+				slog.Debug("WebSocket send failed", "error", err)
 				return
 			}
 		}
@@ -1002,7 +1008,7 @@ func handlePodMetricsWS(w http.ResponseWriter, r *http.Request, cache *MetricsCa
 				Pods:      filterPodsForUser(info.Pods, claims.UserID, claims.IsAdmin),
 			}
 			if err := conn.WriteJSON(filteredInfo); err != nil {
-				slog.Error("WebSocket send failed", "error", err)
+				slog.Debug("WebSocket send failed", "error", err)
 				return
 			}
 		}
@@ -1376,7 +1382,12 @@ func publishClusterMetrics(js jetstream.JetStream, info ClusterInfo) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if _, err := js.Publish(ctx, "cluster.metrics", data); err != nil {
-		slog.Error("failed to publish cluster metrics to NATS", "error", err)
+		if !metricsPublishFailing {
+			slog.Error("failed to publish cluster metrics to NATS", "error", err)
+			metricsPublishFailing = true
+		}
+	} else {
+		metricsPublishFailing = false
 	}
 }
 
@@ -1404,7 +1415,12 @@ func publishPodStatus(js jetstream.JetStream, statuses []podStatusInfo) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if _, err := js.Publish(ctx, "cluster.pods", data); err != nil {
-		slog.Error("failed to publish pod status to NATS", "error", err)
+		if !podPublishFailing {
+			slog.Error("failed to publish pod status to NATS", "error", err)
+			podPublishFailing = true
+		}
+	} else {
+		podPublishFailing = false
 	}
 }
 
