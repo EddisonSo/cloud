@@ -72,6 +72,11 @@ data:
         target: log-service:80
         strip_prefix: false
 
+      - host: cloud-api.eddisonso.com
+        path: /logs/download
+        target: log-service:80
+        strip_prefix: false
+
       # SSE endpoints for file transfer progress
       - host: cloud-api.eddisonso.com
         path: /sse/progress
@@ -137,6 +142,11 @@ data:
 
       - host: health.cloud.eddisonso.com
         path: /ws/logs
+        target: log-service:80
+        strip_prefix: false
+
+      - host: health.cloud.eddisonso.com
+        path: /logs/download
         target: log-service:80
         strip_prefix: false
 
