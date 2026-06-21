@@ -106,11 +106,15 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	path := extractRequestPath(headerBuf.String())
 
 	// Mint (or reuse) the correlation ID once per request. Reuse the inbound
-	// X-Request-ID if the client supplied one; otherwise generate a fresh ID.
-	// The same id is propagated upstream, echoed on error responses, and tagged
-	// onto every request-scoped log line below.
-	reqID := extractHeaderValue(headerBuf.String(), requestIDHeader)
-	hadReqID := reqID != ""
+	// X-Request-ID only if it passes the strict allowlist check (alphanumerics,
+	// dots, underscores, hyphens, ≤128 chars) — values with CR/LF or other
+	// control characters are rejected to prevent CRLF injection into raw response
+	// headers. Otherwise generate a fresh UUID. The same id is propagated
+	// upstream, echoed on error responses, and tagged onto every request-scoped
+	// log line below.
+	rawReqID := extractHeaderValue(headerBuf.String(), requestIDHeader)
+	hadReqID := validRequestID(rawReqID)
+	reqID := rawReqID
 	if !hadReqID {
 		reqID = newRequestID()
 	}
