@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,15 @@ import (
 )
 
 const bufferSize = 1000
+
+// sourceRe restricts Source to safe path components so it can never traverse
+// directories when used as the filename segment in a GFS path.
+var sourceRe = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`)
+
+// persistEnqueueTimeout bounds how long PushLog will block waiting for a slot in
+// persistCh. Under a sustained GFS outage the channel fills; this cap lets the
+// handler shed load gracefully instead of parking goroutines indefinitely.
+const persistEnqueueTimeout = 2 * time.Second
 
 // bufferKey creates a unique key for source+level combination
 func bufferKey(source string, level pb.LogLevel) string {
@@ -88,23 +99,45 @@ type LogServer struct {
 	// Channel for async persistence
 	persistCh chan *pb.LogEntry
 
+	// Test seam: true when GFS is configured (set to gfsClient != nil in NewLogServer)
+	persistEnabled bool
+
+	// Buffered channel connecting drain loop to writer goroutine
+	batchCh chan []*pb.LogEntry
+
+	// Test seam: injected append function (defaults to gfsClient.AppendWithNamespace)
+	appendFn func(ctx context.Context, path, namespace string, data []byte) (int, error)
+
+	// Test seam: injected delete function (defaults to gfsClient.DeleteFileWithNamespace)
+	deleteFn func(ctx context.Context, path, namespace string) error
+
+	// Base retry interval for appendWithRetry (shortened in tests)
+	retryBase time.Duration
+
 	// For graceful shutdown
 	done chan struct{}
 }
 
 func NewLogServer(gfsClient *gfs.Client, js jetstream.JetStream) *LogServer {
 	s := &LogServer{
-		buffers:     make(map[string]*RingBuffer),
-		sources:     make(map[string]struct{}),
-		subscribers: make(map[chan *pb.LogEntry]struct{}),
-		gfsClient:   gfsClient,
-		js:          js,
-		persistCh:   make(chan *pb.LogEntry, 1000),
-		done:        make(chan struct{}),
+		buffers:        make(map[string]*RingBuffer),
+		sources:        make(map[string]struct{}),
+		subscribers:    make(map[chan *pb.LogEntry]struct{}),
+		gfsClient:      gfsClient,
+		js:             js,
+		persistCh:      make(chan *pb.LogEntry, 10000),
+		batchCh:        make(chan []*pb.LogEntry, 64),
+		retryBase:      time.Second,
+		persistEnabled: gfsClient != nil,
+		done:           make(chan struct{}),
 	}
 
 	if gfsClient != nil {
-		go s.persistenceWorker()
+		s.appendFn = gfsClient.AppendWithNamespace
+		s.deleteFn = gfsClient.DeleteFileWithNamespace
+		go s.persistenceWorker() // drain loop
+		go s.writerWorker()      // GFS writer
+		go s.retentionWorker()
 	}
 
 	return s
@@ -169,6 +202,12 @@ func (s *LogServer) PushLog(ctx context.Context, req *pb.PushLogRequest) (*pb.Pu
 		entry.Timestamp = time.Now().Unix()
 	}
 
+	// Sanitize Source before it is used as a GFS path component.
+	// Reject anything that could traverse directories or produce unexpected paths.
+	if !sourceRe.MatchString(entry.Source) {
+		entry.Source = "invalid-source"
+	}
+
 	// Track source
 	s.trackSource(entry.Source)
 
@@ -184,14 +223,8 @@ func (s *LogServer) PushLog(ctx context.Context, req *pb.PushLogRequest) (*pb.Pu
 		go s.publishLogError(entry)
 	}
 
-	// Queue for persistence (non-blocking)
-	if s.gfsClient != nil {
-		select {
-		case s.persistCh <- entry:
-		default:
-			// Channel full, drop (logs are best-effort persisted)
-		}
-	}
+	// Durably persist Warn+ only; Debug/Info stay live-only.
+	s.enqueuePersist(ctx, entry)
 
 	return &pb.PushLogResponse{}, nil
 }
@@ -426,49 +459,45 @@ func (s *LogServer) FetchDayLogs(ctx context.Context, date string) ([]*pb.LogEnt
 	return all, nil
 }
 
-// persistenceWorker batches and writes logs to GFS
+// enqueuePersist queues Warn+ entries for durable persistence. Debug/Info are
+// intentionally not persisted. Under a sustained GFS outage the channel fills;
+// the handler sheds the entry (with a Warn log) after persistEnqueueTimeout so
+// gRPC goroutines never park indefinitely. In normal operation the channel has
+// ample headroom and the timeout is never hit.
+func (s *LogServer) enqueuePersist(ctx context.Context, entry *pb.LogEntry) {
+	if !s.persistEnabled || entry.Level < pb.LogLevel_WARN {
+		return
+	}
+	select {
+	case s.persistCh <- entry:
+	case <-ctx.Done():
+	case <-time.After(persistEnqueueTimeout):
+		slog.Warn("persist enqueue timeout, shedding entry under GFS backpressure", "source", entry.Source)
+	case <-s.done:
+	}
+}
+
+// persistenceWorker is the drain-only loop: it reads from persistCh, batches
+// entries, and hands each batch to batchCh for the writer goroutine.
 func (s *LogServer) persistenceWorker() {
 	const (
-		batchSize     = 500
-		flushInterval = 1 * time.Minute
-		namespace     = "core-logs"
+		batchSize     = 200
+		flushInterval = 5 * time.Second
 	)
-
 	batch := make([]*pb.LogEntry, 0, batchSize)
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 
-	flush := func() {
+	hand := func() {
 		if len(batch) == 0 {
 			return
 		}
-
-		// Group by date and source for organized storage
-		groups := make(map[string][]*pb.LogEntry)
-		for _, entry := range batch {
-			t := time.Unix(entry.Timestamp, 0).UTC()
-			key := fmt.Sprintf("/%s/%s.jsonl", t.Format("2006-01-02"), entry.Source)
-			groups[key] = append(groups[key], entry)
+		b := make([]*pb.LogEntry, len(batch))
+		copy(b, batch)
+		select {
+		case s.batchCh <- b:
+		case <-s.done:
 		}
-
-		// Write each group to GFS (SDK auto-creates files if needed)
-		ctx := context.Background()
-		for path, entries := range groups {
-			var data []byte
-			for _, entry := range entries {
-				line, err := json.Marshal(entry)
-				if err != nil {
-					continue
-				}
-				data = append(data, line...)
-				data = append(data, '\n')
-			}
-
-			if _, err := s.gfsClient.AppendWithNamespace(ctx, path, namespace, data); err != nil {
-				slog.Warn("failed to persist logs", "path", path, "error", err)
-			}
-		}
-
 		batch = batch[:0]
 	}
 
@@ -477,12 +506,119 @@ func (s *LogServer) persistenceWorker() {
 		case entry := <-s.persistCh:
 			batch = append(batch, entry)
 			if len(batch) >= batchSize {
-				flush()
+				hand()
 			}
 		case <-ticker.C:
-			flush()
+			hand()
 		case <-s.done:
-			flush()
+			hand()
+			return
+		}
+	}
+}
+
+// appendWithRetry retries appendFn with capped exponential backoff until success
+// or shutdown. The same batch is never discarded on error.
+func (s *LogServer) appendWithRetry(path string, data []byte) {
+	const namespace = "core-logs"
+	backoff := s.retryBase
+	if backoff == 0 {
+		backoff = time.Second
+	}
+	for {
+		if _, err := s.appendFn(context.Background(), path, namespace, data); err == nil {
+			return
+		} else {
+			slog.Warn("persist append failed, retrying", "path", path, "error", err, "backoff", backoff)
+		}
+		select {
+		case <-time.After(backoff):
+		case <-s.done:
+			return
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+// writerWorker consumes batches from batchCh, groups entries by (date, source),
+// and appends each group to GFS via appendWithRetry.
+func (s *LogServer) writerWorker() {
+	for {
+		select {
+		case batch := <-s.batchCh:
+			groups := make(map[string][]*pb.LogEntry)
+			for _, e := range batch {
+				t := time.Unix(e.Timestamp, 0).UTC()
+				key := fmt.Sprintf("/%s/%s.jsonl", t.Format("2006-01-02"), e.Source)
+				groups[key] = append(groups[key], e)
+			}
+			for path, entries := range groups {
+				var data []byte
+				for _, e := range entries {
+					line, err := json.Marshal(e)
+					if err != nil {
+						continue
+					}
+					data = append(data, line...)
+					data = append(data, '\n')
+				}
+				if len(data) > 0 {
+					s.appendWithRetry(path, data)
+				}
+			}
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// expiredLogPath reports whether a core-logs file path ("/YYYY-MM-DD/source.jsonl")
+// is strictly older than retentionDays before now. Malformed paths return false.
+func expiredLogPath(path string, now time.Time, retentionDays int) bool {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) < 2 {
+		return false
+	}
+	day, err := time.Parse("2006-01-02", parts[0])
+	if err != nil {
+		return false
+	}
+	cutoff := now.UTC().AddDate(0, 0, -retentionDays)
+	return day.Before(cutoff)
+}
+
+// retentionWorker runs a sweep on startup and every 24h, deleting log files
+// strictly older than 14 days from the core-logs namespace.
+func (s *LogServer) retentionWorker() {
+	const namespace = "core-logs"
+	sweep := func() {
+		files, err := s.gfsClient.ListFilesWithNamespace(context.Background(), namespace, "/")
+		if err != nil {
+			slog.Warn("retention list failed", "error", err)
+			return
+		}
+		deleted := 0
+		for _, f := range files {
+			if expiredLogPath(f.Path, time.Now(), 14) {
+				if err := s.deleteFn(context.Background(), f.Path, namespace); err != nil {
+					slog.Warn("retention delete failed", "path", f.Path, "error", err)
+					continue
+				}
+				deleted++
+			}
+		}
+		slog.Info("retention sweep", "deleted_files", deleted)
+	}
+	sweep()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			sweep()
+		case <-s.done:
 			return
 		}
 	}

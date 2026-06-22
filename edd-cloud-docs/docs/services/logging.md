@@ -12,7 +12,7 @@ The Log Service provides centralized logging for all Edd Cloud services with rea
 - **Real-time Streaming**: SSE and WebSocket log streaming to the dashboard
 - **Log Levels**: DEBUG, INFO, WARN, ERROR
 - **Source Filtering**: Filter logs by service/pod name
-- **GFS Persistence**: Async, best-effort log persistence to GFS
+- **GFS Persistence**: Async, durable persistence of Warn+ logs to GFS with automatic 14-day retention
 
 ## Architecture
 
@@ -28,9 +28,12 @@ flowchart TB
 
     LS --> RB["Ring Buffers<br/>(1000 entries per source×level)"]
     LS --> Sub[Subscribers<br/>SSE / WebSocket]
-    LS --> PW[Persistence Worker]
+    LS --> PW[Drain Worker<br/>persistenceWorker]
+    LS --> RET[Retention Sweeper<br/>retentionWorker]
 
-    PW -->|"batch append<br/>(500 entries or 1 min)"| GFS[GFS Storage<br/>/YYYY-MM-DD/source.jsonl]
+    PW -->|"batch (200 entries or 5s)"| WW[Writer Worker<br/>writerWorker]
+    WW -->|"append with retry/backoff"| GFS[GFS Storage<br/>/YYYY-MM-DD/source.jsonl]
+    RET -->|"daily sweep<br/>delete > 14 days"| GFS
 ```
 
 ## Storage Model
@@ -44,9 +47,13 @@ Each unique source + level combination gets its own circular buffer holding up t
 - **Ephemeral**: Lost on pod restart
 - **Per-replica**: Each log-service pod has independent buffers
 
-### GFS Persistence (async, best-effort)
+### GFS Persistence (Warn+ only, durable)
 
-Log entries are queued to an internal channel (capacity: 1000). A background worker batches entries and appends them to GFS as JSONL files organized by date and source:
+Only `Warn` and above (`WARN`, `ERROR`) are persisted to GFS. `DEBUG` and `INFO` entries are live-only and never written to storage. Warn+ entries are **never dropped**: the enqueue blocks (with shutdown escape) rather than discarding entries when the buffer is full.
+
+A background drain worker batches entries and hands them to a dedicated writer goroutine that appends to GFS with exponential-backoff retry. The writer never discards a batch on error — it retries the same batch until GFS accepts it or the service shuts down. One writer goroutine ensures appends to each `/<date>/<source>.jsonl` file remain ordered.
+
+A daily retention sweeper runs on startup and every 24 hours, deleting archived log files strictly older than 14 days.
 
 ```
 /core-logs/2026-02-08/gateway.jsonl
@@ -56,11 +63,14 @@ Log entries are queued to an internal channel (capacity: 1000). A background wor
 
 | Setting | Value |
 |---------|-------|
-| Batch size | 500 entries |
-| Flush interval | 1 minute |
+| Persisted levels | `WARN` and above |
+| Batch size | 200 entries |
+| Flush interval | 5 seconds |
 | GFS namespace | `core-logs` |
-| Queue capacity | 1000 entries |
-| Overflow behavior | Silent drop |
+| Queue capacity | 10 000 entries |
+| Overflow behavior | Blocking (backpressure) |
+| Retry behavior | Exponential backoff, max 30s, never drops |
+| Retention | 14 days (daily sweep) |
 
 If GFS is unavailable at startup, persistence is disabled and logs are kept in memory only.
 
@@ -68,7 +78,7 @@ If GFS is unavailable at startup, persistence is disabled and logs are kept in m
 
 - No log replay from GFS on startup — ring buffers start empty after a pod restart
 - Each log-service replica has independent ring buffers (no cross-replica sharing)
-- Persistence queue drops entries silently when full
+- `DEBUG` and `INFO` entries are never persisted to GFS; they exist only in the in-memory ring buffers
 
 ## Client Library
 
