@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/edd-cloud/pkg/events"
 	"eddisonso.com/edd-cloud/services/compute/internal/api"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
@@ -142,7 +143,9 @@ func main() {
 
 	// HTTP server with CORS
 	apiHandler := api.NewHandler(database, k8sClient, notifier)
-	server := &http.Server{Addr: *addr, Handler: corsMiddleware(apiHandler)}
+	// CORS outermost (answers preflight before auth), then audit middleware seeds
+	// request_id + client_ip into the context, then the API handler runs auth.
+	server := &http.Server{Addr: *addr, Handler: corsMiddleware(auditlog.HTTPMiddleware(apiHandler))}
 
 	// Graceful shutdown
 	go func() {

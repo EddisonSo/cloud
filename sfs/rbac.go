@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 )
 
 // hasPermission checks if the granted scopes contain the action for the given scope.
@@ -131,6 +133,18 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 		return "", false
 	}
 
+	// Seed the resolved caller as the audit actor on the request context so that
+	// any downstream audit events (denials here, successes in handlers) attribute
+	// the action to the right identity.
+	*r = *r.WithContext(auditlog.WithActor(r.Context(), claims.UserID))
+
+	// auditResource is the namespace/resource identifier used in audit events
+	// (never includes secrets/token values).
+	auditResource := resource
+	if len(resourceID) > 0 && resourceID[0] != "" {
+		auditResource = resourceID[0]
+	}
+
 	// Session token — full access
 	if claims.Type != "api_token" {
 		return claims.UserID, true
@@ -140,6 +154,7 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 	if claims.ServiceAccountID != "" {
 		scopes := s.idStore.getScopes(claims.ServiceAccountID)
 		if scopes == nil {
+			auditlog.Denied(r.Context(), "authz.denied", auditResource, "reason", "sa_permissions_missing")
 			http.Error(w, "forbidden: service account permissions not found", http.StatusForbidden)
 			return "", false
 		}
@@ -148,6 +163,7 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 			scope = fmt.Sprintf("%s.%s", scope, resourceID[0])
 		}
 		if !hasPermission(scopes, scope, action) {
+			auditlog.Denied(r.Context(), "authz.denied", auditResource, "reason", "insufficient_scope")
 			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 			return "", false
 		}
@@ -172,6 +188,7 @@ func (s *server) requireAuthWithScope(w http.ResponseWriter, r *http.Request, re
 		scope = fmt.Sprintf("%s.%s", scope, resourceID[0])
 	}
 	if !hasPermission(scopes, scope, action) {
+		auditlog.Denied(r.Context(), "authz.denied", auditResource, "reason", "insufficient_scope")
 		http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 		return "", false
 	}

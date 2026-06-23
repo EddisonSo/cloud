@@ -465,7 +465,10 @@ func (s *LogServer) FetchDayLogs(ctx context.Context, date string) ([]*pb.LogEnt
 // gRPC goroutines never park indefinitely. In normal operation the channel has
 // ample headroom and the timeout is never hit.
 func (s *LogServer) enqueuePersist(ctx context.Context, entry *pb.LogEntry) {
-	if !s.persistEnabled || entry.Level < pb.LogLevel_WARN {
+	if !s.persistEnabled {
+		return
+	}
+	if entry.Level < pb.LogLevel_WARN && entry.Attributes["audit"] != "true" {
 		return
 	}
 	select {

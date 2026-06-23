@@ -80,6 +80,104 @@ If GFS is unavailable at startup, persistence is disabled and logs are kept in m
 - Each log-service replica has independent ring buffers (no cross-replica sharing)
 - `DEBUG` and `INFO` entries are never persisted to GFS; they exist only in the in-memory ring buffers
 
+## Security Audit Trail
+
+Backend services emit structured **audit events** at security-relevant points. Audit events are ordinary log entries that carry an `audit=true` attribute. The log-service persistence filter treats this attribute as an override: any entry that is either `Warn+` **or** `audit`-marked is archived to GFS. This means audit events are **always persisted** (14-day retention), even when their severity is `Info`.
+
+### What Is Audited
+
+| Category | Events |
+|----------|--------|
+| Authentication | Login success/failure, logout, 2FA success/failure |
+| Authorization | All previously-silent `403` denials from compute and sfs |
+| Credential lifecycle | API token issue/revoke, passkey register/remove, password change |
+| Privileged actions | User create/update/delete, service-account create/update/delete |
+| Resource actions | Container create/delete, terminal session open/close, file delete, namespace visibility change |
+| Registry operations | Image push, image pull, image delete |
+| Gateway rejects | SSH connection rejected, no-route (unresolvable hostname) |
+
+### Log Level by Outcome
+
+Audit events use outcome-based log levels to keep the live default view useful:
+
+| `outcome` value | Log level | Effect |
+|-----------------|-----------|--------|
+| `denied` | `WARN` | Appears in live Warn view; alert-eligible |
+| `failure` | `WARN` | Appears in live Warn view; alert-eligible |
+| `success` | `INFO` | Archived via `audit` marker; excluded from the noisy live default view |
+
+### Standard Fields
+
+Every audit event includes the following fields in its `attributes` object:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `audit` | Always `true`; marks the entry for guaranteed persistence | `true` |
+| `action` | Namespaced verb describing the operation | `authz.denied`, `token.issue`, `container.create` |
+| `outcome` | Result of the action | `success`, `failure`, `denied` |
+| `actor` | User ID, service-account ID, or `anonymous` | `user:42`, `sa:ci-runner`, `anonymous` |
+| `client_ip` | Source IP of the request, when available | `203.0.113.55` |
+| `request_id` | Correlates the event end-to-end via the gateway's `X-Request-ID` header | `req_01j9...` |
+| `resource` | The object being acted on | `container:abc123`, `token:tk_xyz`, `image:registry.cloud.eddisonso.com/user/app:v2` |
+
+:::note Never-logged
+Audit events intentionally never contain secrets. Only identifiers are recorded — usernames, token IDs, key fingerprints, image references. Credentials, raw tokens, and passwords never appear in log output.
+:::
+
+### Example Audit Entry
+
+A denied authorization event from the compute service:
+
+```json
+{
+  "timestamp": 1750549200,
+  "level": 2,
+  "source": "edd-compute",
+  "message": "authorization denied",
+  "attributes": {
+    "audit": true,
+    "action": "authz.denied",
+    "outcome": "denied",
+    "actor": "user:17",
+    "client_ip": "203.0.113.55",
+    "request_id": "req_01j9xk2mq3v4w5n6p7r8s9t0u",
+    "resource": "container:c8f2a1b3d4e5"
+  }
+}
+```
+
+### Retrieving Audit Events
+
+Audit events are stored in the normal log archive alongside all other `Warn+` entries — no separate pipeline or storage path is required.
+
+**Download a full day's audit log:**
+
+```
+GET https://health.cloud.eddisonso.com/logs/download?date=YYYY-MM-DD
+Authorization: Bearer <admin-token>
+```
+
+The returned `.zip` archive contains a `.jsonl` file. Filter it locally for `audit=true` entries:
+
+```bash
+# Extract the jsonl and filter audit events
+unzip -p edd-cloud-logs-2026-06-20.zip edd-cloud-logs-2026-06-20.jsonl \
+  | jq 'select(.attributes.audit == true)'
+
+# Narrow further to denied/failure outcomes only
+unzip -p edd-cloud-logs-2026-06-20.zip edd-cloud-logs-2026-06-20.jsonl \
+  | jq 'select(.attributes.audit == true and .attributes.outcome != "success")'
+```
+
+**Watch denials and failures in real time** (live stream, Warn filter):
+
+```
+GET https://health.cloud.eddisonso.com/sse/logs?level=WARN
+Authorization: Bearer <admin-token>
+```
+
+All `outcome=denied` and `outcome=failure` audit events surface here because they log at `WARN`.
+
 ## Client Library
 
 Services use the `gfslog` package to send logs:

@@ -9,6 +9,9 @@ RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 # Copy go-gfs dependency
 COPY go-gfs/ ./go-gfs/
 
+# Copy shared local modules (pkg/auditlog is referenced via ../pkg/auditlog)
+COPY pkg/ ./pkg/
+
 # Copy proto definitions and notification-service
 COPY proto/ ./proto/
 COPY notification-service/ ./notification-service/

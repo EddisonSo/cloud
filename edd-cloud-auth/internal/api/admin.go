@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -86,6 +87,8 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		h.publisher.PublishUserCreated(user.UserID, user.Username, user.DisplayName)
 	}
 
+	auditlog.Success(r.Context(), "user.create", user.Username)
+
 	writeJSON(w, adminUserResponse{
 		UserID:      user.UserID,
 		Username:    user.Username,
@@ -131,6 +134,8 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if h.publisher != nil {
 		h.publisher.PublishUserDeleted(user.UserID, user.Username)
 	}
+
+	auditlog.Success(r.Context(), "user.delete", user.Username)
 
 	writeJSON(w, map[string]string{"status": "ok"})
 }

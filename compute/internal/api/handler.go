@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/edd-cloud/services/compute/internal/auth"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
 	"eddisonso.com/edd-cloud/services/compute/internal/k8s"
@@ -98,6 +99,7 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// Expired/invalid client token is a 401, not a server error — log at DEBUG
 				// so routine expired-session polling doesn't trip error alerts.
 				slog.Debug("session validation failed", "error", err)
+				auditlog.Denied(r.Context(), "authz.denied", r.URL.Path, "reason", "session validation failed")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
@@ -107,6 +109,7 @@ func (h *Handler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
+		auditlog.Denied(r.Context(), "authz.denied", r.URL.Path, "reason", "admin privileges required")
 		http.Error(w, "forbidden", http.StatusForbidden)
 	}
 }
@@ -184,6 +187,7 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			claims, err := h.validator.ValidateSession(token)
 			if err != nil {
 				slog.Debug("api token validation failed", "error", err)
+				auditlog.Denied(r.Context(), "authz.denied", r.URL.Path, "reason", "api token validation failed")
 				http.Error(w, "invalid api token", http.StatusUnauthorized)
 				return
 			}
@@ -225,6 +229,7 @@ func (h *Handler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			// Expired/invalid client token is a 401, not a server error — log at DEBUG
 			// so routine expired-session polling doesn't trip error alerts.
 			slog.Debug("session validation failed", "error", err)
+			auditlog.Denied(r.Context(), "authz.denied", r.URL.Path, "reason", "session validation failed")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -248,6 +253,7 @@ func (h *Handler) scopeCheck(resource, action string, next http.HandlerFunc) htt
 		}
 		scope := fmt.Sprintf("compute.%s.%s", userID, resource)
 		if !requireScope(r.Context(), scope, action) {
+			auditlog.Denied(r.Context(), "authz.denied", scope, "reason", "insufficient token scope", "scope_action", action)
 			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 			return
 		}
@@ -267,6 +273,7 @@ func (h *Handler) scopeCheckContainer(action string, next http.HandlerFunc) http
 		containerID := r.PathValue("id")
 		scope := fmt.Sprintf("compute.%s.containers.%s", userID, containerID)
 		if !requireScope(r.Context(), scope, action) {
+			auditlog.Denied(r.Context(), "authz.denied", scope, "reason", "insufficient token scope", "scope_action", action)
 			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 			return
 		}
@@ -284,6 +291,7 @@ func (h *Handler) scopeCheckRoot(action string, next http.HandlerFunc) http.Hand
 		}
 		scope := fmt.Sprintf("compute.%s", userID)
 		if !requireScope(r.Context(), scope, action) {
+			auditlog.Denied(r.Context(), "authz.denied", scope, "reason", "insufficient token scope", "scope_action", action)
 			http.Error(w, "forbidden: insufficient token scope", http.StatusForbidden)
 			return
 		}

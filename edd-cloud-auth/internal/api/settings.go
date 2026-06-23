@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -116,6 +117,8 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditlog.Success(r.Context(), "user.update", claims.Username)
+
 	writeJSON(w, map[string]interface{}{
 		"username":     claims.Username,
 		"display_name": req.DisplayName,
@@ -161,6 +164,8 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "failed to update password", http.StatusInternalServerError)
 		return
 	}
+
+	auditlog.Success(r.Context(), "password.change", claims.Username)
 
 	w.WriteHeader(http.StatusOK)
 }

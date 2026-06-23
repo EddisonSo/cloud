@@ -112,7 +112,7 @@ func (s *server) handleBlobHead(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "pull") {
-		s.requireAuth(w, repoName, "pull")
+		s.requireAuth(r.Context(), w, repoName, "pull")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (s *server) handleBlobGet(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "pull") {
-		s.requireAuth(w, repoName, "pull")
+		s.requireAuth(r.Context(), w, repoName, "pull")
 		return
 	}
 
@@ -200,7 +200,7 @@ func (s *server) handleBlobDelete(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "delete") {
-		s.requireAuth(w, repoName, "delete")
+		s.requireAuth(r.Context(), w, repoName, "delete")
 		return
 	}
 
@@ -249,7 +249,7 @@ func (s *server) handleUploadStart(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "push") {
-		s.requireAuth(w, repoName, "push")
+		s.requireAuth(r.Context(), w, repoName, "push")
 		return
 	}
 
@@ -359,7 +359,7 @@ func (s *server) handleUploadPatch(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "push") {
-		s.requireAuth(w, repoName, "push")
+		s.requireAuth(r.Context(), w, repoName, "push")
 		return
 	}
 
@@ -442,7 +442,7 @@ func (s *server) handleUploadComplete(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "push") {
-		s.requireAuth(w, repoName, "push")
+		s.requireAuth(r.Context(), w, repoName, "push")
 		return
 	}
 

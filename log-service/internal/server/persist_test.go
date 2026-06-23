@@ -40,6 +40,19 @@ func TestEnqueuePersist_OnlyWarnPlus(t *testing.T) {
 	}
 }
 
+func TestEnqueuePersist_AuditMarkedInfoAdmitted(t *testing.T) {
+	s := newTestServer(10)
+	s.persistEnabled = true
+	// Info WITHOUT marker -> not admitted
+	s.enqueuePersist(context.Background(), &pb.LogEntry{Level: pb.LogLevel_INFO, Source: "t"})
+	// Info WITH audit marker -> admitted
+	s.enqueuePersist(context.Background(), &pb.LogEntry{Level: pb.LogLevel_INFO, Source: "t",
+		Attributes: map[string]string{"audit": "true"}})
+	if got := len(s.persistCh); got != 1 {
+		t.Fatalf("expected 1 admitted (audit info), got %d", got)
+	}
+}
+
 func TestAppendWithRetry_RetriesThenSucceeds(t *testing.T) {
 	s := newTestServer(10)
 	s.persistEnabled = true

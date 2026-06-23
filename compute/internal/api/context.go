@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 )
 
 type contextKey string
@@ -16,6 +18,7 @@ type userInfo struct {
 }
 
 func setUserContext(ctx context.Context, userID, username string) context.Context {
+	ctx = auditlog.WithActor(ctx, userID)
 	return context.WithValue(ctx, userContextKey, &userInfo{
 		UserID:   userID,
 		Username: username,
@@ -24,6 +27,7 @@ func setUserContext(ctx context.Context, userID, username string) context.Contex
 }
 
 func setAPITokenContext(ctx context.Context, userID string, scopes map[string][]string) context.Context {
+	ctx = auditlog.WithActor(ctx, userID)
 	return context.WithValue(ctx, userContextKey, &userInfo{
 		UserID:   userID,
 		AuthType: "api_token",

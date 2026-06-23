@@ -3,6 +3,7 @@ module eddisonso.com/edd-cloud-registry
 go 1.24.0
 
 require (
+	eddisonso.com/edd-cloud/pkg/auditlog v0.0.0
 	eddisonso.com/go-gfs v0.0.0
 	eddisonso.com/notification-service v0.0.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -23,6 +24,8 @@ require (
 	google.golang.org/grpc v1.73.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
+
+replace eddisonso.com/edd-cloud/pkg/auditlog => ../pkg/auditlog
 
 replace eddisonso.com/go-gfs => ../go-gfs
 

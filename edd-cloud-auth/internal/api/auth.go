@@ -2,11 +2,11 @@ package api
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -50,10 +50,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Rate limit by IP and username
 	clientIP := h.getClientIP(r)
 	if !h.ipLimiter.allow(clientIP) {
+		auditlog.Denied(r.Context(), "ratelimit.reject", req.Username)
 		writeError(w, "too many login attempts, try again later", http.StatusTooManyRequests)
 		return
 	}
 	if !h.userLimiter.allow(req.Username) {
+		auditlog.Denied(r.Context(), "ratelimit.reject", req.Username)
 		writeError(w, "too many login attempts for this account, try again later", http.StatusTooManyRequests)
 		return
 	}
@@ -64,13 +66,13 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
-		slog.Warn("login failed", "username", req.Username, "client_ip", clientIP)
+		auditlog.Failure(r.Context(), "auth.login", req.Username)
 		writeError(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		slog.Warn("login failed", "username", req.Username, "client_ip", clientIP)
+		auditlog.Failure(r.Context(), "auth.login", req.Username)
 		writeError(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -99,6 +101,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		auditlog.Success(auditlog.WithActor(r.Context(), user.UserID), "auth.2fa.challenge", user.Username)
 		writeJSON(w, loginResponse{
 			Requires2FA:    true,
 			ChallengeToken: challengeTokenStr,
@@ -139,6 +142,8 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		h.publisher.PublishSessionCreated(session.ID, user.UserID, expires)
 	}
 
+	auditlog.Success(auditlog.WithActor(r.Context(), user.UserID), "auth.login", user.Username)
+
 	writeJSON(w, loginResponse{
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
@@ -152,6 +157,15 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	token := h.extractToken(r)
 	if token != "" {
 		h.db.DeleteSession(token)
+		// Best-effort: identify the session owner for the audit trail. The token
+		// may be expired/invalid (logout is unauthenticated), in which case we
+		// still record the invalidation with an anonymous actor.
+		username := ""
+		if claims, ok := h.validateToken(r); ok {
+			username = claims.Username
+			r = r.WithContext(auditlog.WithActor(r.Context(), claims.Username))
+		}
+		auditlog.Success(r.Context(), "session.invalidate", username)
 	}
 	writeJSON(w, map[string]string{"status": "ok"})
 }

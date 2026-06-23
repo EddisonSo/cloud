@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -87,6 +88,8 @@ func (h *Handler) handleCreateServiceAccount(w http.ResponseWriter, r *http.Requ
 			fmt.Sprintf("Service account '%s' has been created", req.Name),
 			"/service-accounts", "auth")
 	}
+
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "identity.create", sa.ID)
 
 	writeJSON(w, serviceAccountResponse{
 		ID:         sa.ID,
@@ -212,6 +215,8 @@ func (h *Handler) handleUpdateServiceAccountScopes(w http.ResponseWriter, r *htt
 		}
 	}
 
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "identity.update", id)
+
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 
@@ -250,6 +255,8 @@ func (h *Handler) handleDeleteServiceAccount(w http.ResponseWriter, r *http.Requ
 				"/service-accounts", "auth")
 		}
 	}
+
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "identity.delete", id)
 
 	writeJSON(w, map[string]string{"status": "ok"})
 }
@@ -355,6 +362,9 @@ func (h *Handler) handleCreateServiceAccountToken(w http.ResponseWriter, r *http
 		writeError(w, "failed to store token", http.StatusInternalServerError)
 		return
 	}
+
+	// Audit the token id only — NEVER the token value.
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "token.issue", token.ID)
 
 	writeJSON(w, saTokenResponse{
 		ID:        token.ID,

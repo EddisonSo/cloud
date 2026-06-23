@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends protobuf-compil
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 COPY go-gfs /go-gfs
+COPY pkg /pkg
 COPY proto /proto
 COPY notification-service /notification-service
 COPY registry/go.mod registry/go.sum /src/

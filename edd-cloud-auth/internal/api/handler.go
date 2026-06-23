@@ -13,6 +13,7 @@ import (
 
 	"eddisonso.com/edd-cloud-auth/internal/db"
 	"eddisonso.com/edd-cloud-auth/internal/events"
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -148,7 +149,9 @@ func (h *Handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		next(w, r)
+		ctx := auditlog.WithActor(r.Context(), claims.Username)
+		ctx = context.WithValue(ctx, claimsKey, claims)
+		next(w, r.WithContext(ctx))
 	}
 }
 
@@ -159,7 +162,8 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		ctx := context.WithValue(r.Context(), claimsKey, claims)
+		ctx := auditlog.WithActor(r.Context(), claims.Username)
+		ctx = context.WithValue(ctx, claimsKey, claims)
 		next(w, r.WithContext(ctx))
 	}
 }

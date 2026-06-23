@@ -5,6 +5,9 @@ WORKDIR /build
 # Copy go-gfs dependency
 COPY go-gfs/ ./go-gfs/
 
+# Copy shared local modules (pkg/auditlog is referenced via ../pkg/auditlog)
+COPY pkg/ ./pkg/
+
 # Copy gateway source
 COPY edd-gateway/ ./edd-gateway/
 
