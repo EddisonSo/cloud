@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/edd-cloud/services/compute/internal/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -221,6 +222,7 @@ func (h *Handler) CreateContainer(w http.ResponseWriter, r *http.Request) {
 	// Create K8s resources in background
 	go h.provisionContainer(container, sshKeys)
 
+	auditlog.Success(r.Context(), "container.create", containerID)
 	writeJSON(w, containerToResponse(container))
 }
 
@@ -481,6 +483,7 @@ func (h *Handler) DeleteContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditlog.Success(r.Context(), "container.delete", containerID)
 	writeJSON(w, map[string]string{"status": "ok"})
 }
 

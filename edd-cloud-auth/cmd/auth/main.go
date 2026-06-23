@@ -12,6 +12,7 @@ import (
 	"eddisonso.com/edd-cloud-auth/internal/api"
 	"eddisonso.com/edd-cloud-auth/internal/db"
 	"eddisonso.com/edd-cloud-auth/internal/events"
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/go-gfs/pkg/gfslog"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -141,8 +142,12 @@ func main() {
 		}
 	}()
 
-	// Add middleware
-	finalHandler := corsMiddleware(logRequests(mux))
+	// Add middleware. Order (outermost first): CORS handles the tokenless OPTIONS
+	// preflight and short-circuits it; auditlog.HTTPMiddleware then seeds
+	// request_id + client_ip into the request context so every downstream
+	// handler (and the auth middleware that adds the actor) can emit audit
+	// events with full provenance.
+	finalHandler := corsMiddleware(logRequests(auditlog.HTTPMiddleware(mux)))
 
 	slog.Info("starting auth service", "addr", *addr)
 	if err := http.ListenAndServe(*addr, finalHandler); err != nil {

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/edd-gateway/internal/k8s"
 	"golang.org/x/crypto/ssh"
 )
@@ -38,7 +40,6 @@ func getHostKey() ssh.Signer {
 	})
 	return hostKey
 }
-
 
 // handleSSH handles SSH connections by extracting the username (container ID)
 // and proxying to the appropriate container.
@@ -79,7 +80,15 @@ func (s *Server) handleSSH(conn net.Conn) {
 				return nil, fmt.Errorf("key validation failed")
 			}
 			if !valid {
-				slog.Warn("SSH key rejected", "container", containerID, "fingerprint", ssh.FingerprintSHA256(pubKey))
+				// No request id is minted on the raw SSH path; carry the client IP
+				// for correlation. The fingerprint is a public key identifier (not a
+				// secret) and is safe to record.
+				auditlog.Denied(
+					auditlog.WithClientIP(context.Background(), clientAddr),
+					"gateway.ssh.reject", containerID,
+					"reason", "key_rejected",
+					"fingerprint", ssh.FingerprintSHA256(pubKey),
+				)
 				return nil, fmt.Errorf("key not authorized for container %s", containerID)
 			}
 
@@ -118,7 +127,11 @@ func (s *Server) handleSSH(conn net.Conn) {
 	// Resolve container (checks SSH access is enabled)
 	container, err := s.router.ResolveSSH(containerID)
 	if err != nil {
-		slog.Warn("container not found or SSH blocked", "container", containerID, "error", err)
+		auditlog.Denied(
+			auditlog.WithClientIP(context.Background(), clientAddr),
+			"gateway.ssh.reject", containerID,
+			"reason", "not_found_or_blocked",
+		)
 		return
 	}
 

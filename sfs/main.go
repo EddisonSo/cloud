@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"eddisonso.com/edd-cloud/pkg/events"
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 	"eddisonso.com/go-gfs/pkg/gfslog"
@@ -117,6 +118,15 @@ func normalizeVisibility(v int) int {
 		return visibilityPublic
 	}
 	return visibilityPrivate
+}
+
+// visibilityLabel renders a visibility value as a human-readable label for audit
+// events ("public"/"private").
+func visibilityLabel(v int) string {
+	if normalizeVisibility(v) == visibilityPublic {
+		return "public"
+	}
+	return "private"
 }
 
 type namespaceInfo struct {
@@ -313,7 +323,7 @@ func main() {
 	log.Printf("listening on %s", *addr)
 	log.Printf("serving frontend from %s", srv.staticDir)
 		log.Printf("sharing files under namespace prefix %s", srv.prefix)
-	if err := http.ListenAndServe(*addr, corsMiddleware(logRequests(mux))); err != nil {
+	if err := http.ListenAndServe(*addr, corsMiddleware(auditlog.HTTPMiddleware(logRequests(mux)))); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}
 }
@@ -648,6 +658,7 @@ func (s *server) handleNamespaceDelete(w http.ResponseWriter, r *http.Request) {
 
 	// Only namespace owner can delete namespace
 	if !s.isNamespaceOwner(r, name) {
+		auditlog.Denied(r.Context(), "authz.denied", name, "reason", "not_namespace_owner")
 		http.Error(w, "forbidden: only namespace owner can delete namespace", http.StatusForbidden)
 		return
 	}
@@ -709,6 +720,7 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 
 	// Only namespace owner can modify visibility
 	if !s.isNamespaceOwner(r, name) {
+		auditlog.Denied(r.Context(), "authz.denied", name, "reason", "not_namespace_owner")
 		http.Error(w, "forbidden: only namespace owner can modify visibility", http.StatusForbidden)
 		return
 	}
@@ -729,6 +741,8 @@ func (s *server) handleNamespaceUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	auditlog.Success(r.Context(), "ns.visibility.change", name, "visibility", visibilityLabel(visibility))
 
 	writeJSON(w, namespaceInfo{
 		Name:       name,
@@ -751,6 +765,7 @@ func (s *server) handleNamespaceDeleteByPath(w http.ResponseWriter, r *http.Requ
 
 	// Only namespace owner can delete namespace
 	if !s.isNamespaceOwner(r, name) {
+		auditlog.Denied(r.Context(), "authz.denied", name, "reason", "not_namespace_owner")
 		http.Error(w, "forbidden: only namespace owner can delete namespace", http.StatusForbidden)
 		return
 	}
@@ -793,6 +808,7 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 
 	// Only namespace owner can modify visibility
 	if !s.isNamespaceOwner(r, name) {
+		auditlog.Denied(r.Context(), "authz.denied", name, "reason", "not_namespace_owner")
 		http.Error(w, "forbidden: only namespace owner can modify visibility", http.StatusForbidden)
 		return
 	}
@@ -822,6 +838,8 @@ func (s *server) handleNamespaceUpdateByPath(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	auditlog.Success(r.Context(), "ns.visibility.change", name, "visibility", visibilityLabel(visibility))
 
 	writeJSON(w, namespaceInfo{
 		Name:       name,
@@ -1240,6 +1258,8 @@ func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditlog.Success(r.Context(), "file.delete", namespace+"/"+name)
+
 	if s.notifier != nil {
 		if uid, ok := s.currentUserID(r); ok {
 			s.notifier.Notify(r.Context(), uid, "File Deleted",
@@ -1290,6 +1310,8 @@ func (s *server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("delete failed: %v", err), http.StatusBadGateway)
 		return
 	}
+
+	auditlog.Success(r.Context(), "file.delete", namespace+"/"+name)
 
 	if s.notifier != nil {
 		if uid, ok := s.currentUserID(r); ok {
@@ -2076,7 +2098,7 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 func (s *server) handleWS(ws *websocket.Conn) {
 	r := ws.Request()
 	if _, ok := s.currentUser(r); !ok {
-		log.Printf("ws auth failed origin=%s cookies=%d", r.Header.Get("Origin"), len(r.Cookies()))
+		auditlog.Denied(r.Context(), "auth.ws", r.Header.Get("Origin"))
 		_ = ws.Close()
 		return
 	}

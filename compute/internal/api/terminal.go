@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 )
@@ -74,6 +75,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	})
 
 	slog.Info("terminal session started", "container", containerID, "user", userID)
+	auditlog.Success(r.Context(), "terminal.start", containerID)
 
 	// Generate temporary keypair
 	pubKey, privKey, err := generateTempKeypair()
@@ -241,6 +243,7 @@ func (h *Handler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 
 	slog.Info("terminal session ended", "container", containerID)
+	auditlog.Success(r.Context(), "terminal.end", containerID)
 }
 
 // generateTempKeypair creates a temporary ed25519 keypair

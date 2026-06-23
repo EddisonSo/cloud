@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"eddisonso.com/edd-cloud-auth/internal/db"
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt/v5"
@@ -188,6 +189,8 @@ func (h *Handler) handleAddKeyFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditlog.Success(r.Context(), "passkey.register", user.Username)
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -334,6 +337,8 @@ func (h *Handler) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reque
 	if h.publisher != nil {
 		h.publisher.PublishSessionCreated(sess.ID, user.UserID, expires)
 	}
+
+	auditlog.Success(auditlog.WithActor(r.Context(), user.UserID), "auth.login", user.Username)
 
 	writeJSON(w, loginResponse{
 		Username:    user.Username,

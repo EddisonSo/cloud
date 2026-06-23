@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.13
 
 require (
+	eddisonso.com/edd-cloud/pkg/auditlog v0.0.0
 	eddisonso.com/go-gfs v0.0.0
 	eddisonso.com/notification-service v0.0.0
 	github.com/go-webauthn/webauthn v0.15.0
@@ -17,6 +18,8 @@ require (
 replace eddisonso.com/go-gfs => ../go-gfs
 
 replace eddisonso.com/notification-service => ../notification-service
+
+replace eddisonso.com/edd-cloud/pkg/auditlog => ../pkg/auditlog
 
 require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect

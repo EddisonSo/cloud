@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 )
 
 // bufPool reuses 8 KB byte-slices for proxy read loops,
@@ -173,7 +176,8 @@ func (s *Server) handleHTTP(conn net.Conn) {
 	} else {
 		// 3. Fall back to default upstream
 		if s.fallbackAddr == "" {
-			slog.Warn(fmt.Sprintf("HTTP %s%s -> NO ROUTE", hostname, path), "port", ingressPort, "request_id", reqID)
+			ctx := auditlog.WithClientIP(auditlog.WithRequestID(context.Background(), reqID), clientAddr)
+			auditlog.Denied(ctx, "gateway.no_route", hostname+path, "port", ingressPort)
 			conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\nCache-Control: no-store, no-cache, must-revalidate\r\nPragma: no-cache\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nNo backend available\r\n"))
 			conn.Close()
 			return

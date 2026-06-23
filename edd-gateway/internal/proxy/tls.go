@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 )
 
 // handleTLS handles TLS connections by extracting SNI (Server Name Indication)
@@ -310,7 +313,8 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		route, targetPath, err := s.router.ResolveStaticRoute(sni, path)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("HTTPS %s%s -> NO ROUTE", sni, path), "client", clientAddr, "request_id", reqID)
+			ctx := auditlog.WithClientIP(auditlog.WithRequestID(context.Background(), reqID), clientAddr)
+			auditlog.Denied(ctx, "gateway.no_route", sni+path)
 			writer.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n" + requestIDHeader + ": " + reqID + "\r\n\r\nNo backend available\r\n")
 			writer.Flush()
 			break

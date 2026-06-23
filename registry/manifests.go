@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 )
 
 // ociManifest is used to decode and validate OCI/Docker image manifests.
@@ -85,9 +87,10 @@ func (s *server) serveManifest(w http.ResponseWriter, r *http.Request, headOnly 
 	// Auth: pull access always required (registry is private-only)
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "pull") {
-		s.requireAuth(w, repoName, "pull")
+		s.requireAuth(r.Context(), w, repoName, "pull")
 		return
 	}
+	ctx := auditlog.WithActor(r.Context(), auth.UserID)
 
 	// Resolve reference to digest
 	var digest string
@@ -141,6 +144,10 @@ func (s *server) serveManifest(w http.ResponseWriter, r *http.Request, headOnly 
 		return
 	}
 
+	// Audit the pull. Only the manifest GET is instrumented (not every blob GET)
+	// to keep audit volume proportional to image pulls rather than layer fetches.
+	auditlog.Success(ctx, "image.pull", imageRef(repoName, reference))
+
 	if _, err := s.gfs.ReadToWithNamespace(r.Context(), manifestGFSPath(repoName, digest), gfsNamespace, w); err != nil {
 		slog.Error("serveManifest: ReadToWithNamespace", "repo", repoName, "digest", digest, "err", err)
 		// Headers already sent; can't change status code
@@ -168,9 +175,10 @@ func (s *server) handleManifestPut(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "push") {
-		s.requireAuth(w, repoName, "push")
+		s.requireAuth(r.Context(), w, repoName, "push")
 		return
 	}
+	ctx := auditlog.WithActor(r.Context(), auth.UserID)
 
 	repoID, err := getOrCreateRepo(r.Context(), s.db, repoName, auth.UserID)
 	if err != nil {
@@ -297,6 +305,8 @@ func (s *server) handleManifestPut(w http.ResponseWriter, r *http.Request) {
 			"registry", fmt.Sprintf("registry.%s", repoName))
 	}
 
+	auditlog.Success(ctx, "image.push", imageRef(repoName, reference))
+
 	w.Header().Set("Location", fmt.Sprintf("/v2/%s/manifests/%s", repoName, digest))
 	w.Header().Set("Docker-Content-Digest", digest)
 	w.WriteHeader(http.StatusCreated)
@@ -323,9 +333,10 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "delete") {
-		s.requireAuth(w, repoName, "delete")
+		s.requireAuth(r.Context(), w, repoName, "delete")
 		return
 	}
+	ctx := auditlog.WithActor(r.Context(), auth.UserID)
 
 	// Resolve tag to digest if needed
 	var digest string
@@ -374,6 +385,8 @@ func (s *server) handleManifestDelete(w http.ResponseWriter, r *http.Request) {
 			"registry", fmt.Sprintf("registry.%s", repoName))
 	}
 
+	auditlog.Success(ctx, "image.delete", imageRef(repoName, reference))
+
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -403,7 +416,7 @@ func (s *server) handleTagsList(w http.ResponseWriter, r *http.Request) {
 	// Auth: pull access always required (registry is private-only)
 	auth := s.authenticate(r)
 	if !hasAccess(auth, repoName, ownerID, "pull") {
-		s.requireAuth(w, repoName, "pull")
+		s.requireAuth(r.Context(), w, repoName, "pull")
 		return
 	}
 
@@ -433,7 +446,7 @@ func (s *server) handleTagsList(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	auth := s.authenticate(r)
 	if auth == nil || auth.UserID == "" {
-		s.requireAuth(w, "", "")
+		s.requireAuth(r.Context(), w, "", "")
 		return
 	}
 

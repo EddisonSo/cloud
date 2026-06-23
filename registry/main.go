@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	gfs "eddisonso.com/go-gfs/pkg/go-gfs-sdk"
 	notifypub "eddisonso.com/notification-service/pkg/publisher"
 	_ "github.com/lib/pq"
@@ -92,8 +93,11 @@ func main() {
 	srv.startGC(gcCtx, 24*time.Hour)
 
 	httpServer := &http.Server{
-		Addr:    *addr,
-		Handler: mux,
+		Addr: *addr,
+		// auditlog.HTTPMiddleware seeds request_id + client_ip into the request
+		// context so security audit events carry caller provenance. CORS is set
+		// per-handler (setCORSHeaders), so wrapping the bare mux here is safe.
+		Handler: auditlog.HTTPMiddleware(mux),
 	}
 
 	go func() {
@@ -127,7 +131,7 @@ func (s *server) routeV2(w http.ResponseWriter, r *http.Request) {
 	if path == "/v2/" && r.Method == http.MethodGet {
 		auth := s.authenticate(r)
 		if auth == nil {
-			s.requireAuth(w, "", "")
+			s.requireAuth(r.Context(), w, "", "")
 			return
 		}
 		w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")

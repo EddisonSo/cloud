@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -162,6 +163,9 @@ func (h *Handler) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit the token id/name only — NEVER the token value.
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "token.issue", token.ID)
+
 	writeJSON(w, tokenResponse{
 		ID:        token.ID,
 		Name:      token.Name,
@@ -218,6 +222,8 @@ func (h *Handler) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "token not found", http.StatusNotFound)
 		return
 	}
+
+	auditlog.Success(auditlog.WithActor(r.Context(), claims.UserID), "token.revoke", id)
 
 	writeJSON(w, map[string]string{"status": "ok"})
 }

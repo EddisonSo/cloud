@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"eddisonso.com/edd-cloud/pkg/auditlog"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -104,8 +106,10 @@ func hasAccess(auth *authResult, repoName, ownerID, action string) bool {
 	return false
 }
 
-// requireAuth sends 401 with WWW-Authenticate challenge header.
-func (s *server) requireAuth(w http.ResponseWriter, repoName, action string) {
+// requireAuth sends 401 with WWW-Authenticate challenge header and records a
+// security audit event for the denied access. ctx must carry the request-scoped
+// audit fields seeded by auditlog.HTTPMiddleware.
+func (s *server) requireAuth(ctx context.Context, w http.ResponseWriter, repoName, action string) {
 	scope := ""
 	if repoName != "" {
 		scope = fmt.Sprintf(`,scope="repository:%s:%s"`, repoName, action)
@@ -113,5 +117,21 @@ func (s *server) requireAuth(w http.ResponseWriter, repoName, action string) {
 	w.Header().Set("WWW-Authenticate",
 		fmt.Sprintf(`Bearer realm="https://auth.cloud.eddisonso.com/v2/token",service="registry.cloud.eddisonso.com"%s`, scope))
 	w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
+
+	resource := repoName
+	if resource == "" {
+		resource = "/v2/"
+	}
+	auditlog.Denied(ctx, "authz.denied", resource, "access", action)
+
 	http.Error(w, "unauthorized", http.StatusUnauthorized)
+}
+
+// imageRef formats a repository + reference into a canonical image reference
+// for audit logs: "repo@sha256:..." for digest refs, "repo:tag" for tags.
+func imageRef(repoName, reference string) string {
+	if strings.HasPrefix(reference, "sha256:") {
+		return repoName + "@" + reference
+	}
+	return repoName + ":" + reference
 }
