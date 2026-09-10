@@ -110,7 +110,8 @@ ec compute containers create \
   --type nano \
   --memory 256 \
   --storage 5 \
-  --pull-policy IfNotPresent
+  --pull-policy IfNotPresent \
+  --ssh-key 8
 
 ec compute containers start <id>
 ec compute containers stop <id>
@@ -130,7 +131,7 @@ ec compute containers mounts ls <id>
 ec compute containers mounts set <id> [path ...]   # replaces current mount list
 ```
 
-`containers create` flags: `--name` (required), `--image`, `--type` (default `nano`), `--memory` MB (default `256`), `--storage` GB (default `5`), `--pull-policy` (default `IfNotPresent`).
+`containers create` flags: `--name` (required), `--image`, `--type` (default `nano`), `--memory` MB (default `256`), `--storage` GB (default `5`), `--pull-policy` (default `IfNotPresent`), `--ssh-key` (repeatable, required — at least one SSH key ID, from `ec compute keys ls`).
 
 #### SSH Keys
 

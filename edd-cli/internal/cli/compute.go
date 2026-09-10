@@ -196,15 +196,21 @@ func cmdComputeCreate(ctx context.Context, c *eddsdk.Client, args []string) erro
 	mem := fs.Int("memory", 256, "memory MB")
 	storage := fs.Int("storage", 5, "storage GB")
 	pull := fs.String("pull-policy", "IfNotPresent", "Always|IfNotPresent")
+	var sshKeys int64List
+	fs.Var(&sshKeys, "ssh-key", "SSH key ID to inject (repeatable; see `ec compute keys ls`). Required by the API.")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *name == "" {
 		return fmt.Errorf("--name is required")
 	}
+	if len(sshKeys) == 0 {
+		return fmt.Errorf("--ssh-key is required (at least one; list IDs with `ec compute keys ls`)")
+	}
 	ct, err := c.CreateContainer(ctx, eddsdk.CreateContainerRequest{
 		Name: *name, Image: *image, InstanceType: *itype,
 		MemoryMB: *mem, StorageGB: *storage, PullPolicy: *pull,
+		SSHKeyIDs: sshKeys,
 	})
 	if err != nil {
 		return err
@@ -275,5 +281,19 @@ func cmdComputeKeysAdd(ctx context.Context, c *eddsdk.Client, args []string) err
 		return printJSON(k)
 	}
 	fmt.Printf("added SSH key %s (id=%d)\n", k.Name, k.ID)
+	return nil
+}
+
+// int64List is a repeatable int64 flag (e.g. --ssh-key 8 --ssh-key 9).
+type int64List []int64
+
+func (l *int64List) String() string { return fmt.Sprint([]int64(*l)) }
+
+func (l *int64List) Set(v string) error {
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid id %q: %w", v, err)
+	}
+	*l = append(*l, n)
 	return nil
 }
