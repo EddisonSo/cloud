@@ -20,7 +20,7 @@ RUN echo "window.BUILD_INFO = { commit: '${BUILD_COMMIT}', time: '${BUILD_TIME}'
 RUN npm run build
 
 # Production stage
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html

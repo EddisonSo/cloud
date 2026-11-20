@@ -389,6 +389,7 @@ func (s *Server) handleTerminatedHTTP(conn net.Conn, sni string) {
 
 		// Echo the correlation ID onto the response back to the client.
 		resp.Header.Set(requestIDHeader, reqID)
+		stripFingerprintHeaders(resp.Header)
 
 		// Log response status
 		if resp.StatusCode >= 400 {
@@ -671,4 +672,14 @@ func readFull(conn net.Conn, buf []byte) (int, error) {
 		total += n
 	}
 	return total, nil
+}
+
+// fingerprintHeaders reveal backend software/versions (e.g. "Server: nginx/1.27.5")
+// and only help scanners match known CVEs, so they are dropped at the edge.
+var fingerprintHeaders = []string{"Server", "X-Powered-By", "X-AspNet-Version", "X-AspNetMvc-Version"}
+
+func stripFingerprintHeaders(h http.Header) {
+	for _, k := range fingerprintHeaders {
+		h.Del(k)
+	}
 }
